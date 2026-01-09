@@ -1,0 +1,6 @@
+azure-functions
+pyodbc
+requests
+python-dotenv
+google-ads
+PyYAML

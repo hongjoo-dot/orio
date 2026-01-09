@@ -1,0 +1,20 @@
+# Azure Functions
+azure-functions>=1.18.0
+
+# Azure SDK
+azure-storage-blob>=12.19.0
+
+# Database
+pyodbc>=5.0.0
+
+# HTTP & API
+requests>=2.31.0
+
+# Configuration
+python-dotenv>=1.0.0
+
+# Date Parsing
+python-dateutil>=2.8.0
+
+# XML Parsing (Sabangnet)
+lxml>=5.0.0

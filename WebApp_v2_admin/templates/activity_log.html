@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}활동 이력 - Orio ERP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-clock-rotate-left"></i> 활동 이력
+    </h1>
+    <p class="page-subtitle">사용자 행동 추적 및 감사 로그</p>
+</div>
+
+<!-- 검색 필터 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 검색 필터</div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                <i class="fa-solid fa-rotate-right"></i> 초기화
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="loadLogs()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div class="search-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+        <div>
+            <label class="form-label">사용자</label>
+            <select id="filterUser" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">행동 유형</label>
+            <select id="filterActionType" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">대상 테이블</label>
+            <select id="filterTable" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">시작일</label>
+            <input type="date" id="filterDateFrom" class="form-input">
+        </div>
+        <div>
+            <label class="form-label">종료일</label>
+            <input type="date" id="filterDateTo" class="form-input">
+        </div>
+    </div>
+</div>
+
+<!-- 활동 로그 목록 -->
+<div class="card">
+    <div style="margin-bottom:16px;">
+        <div
+            style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <h2 class="card-title" style="margin:0;white-space:nowrap;">이력 목록</h2>
+                <select id="limitSelector" onchange="loadLogs()" class="form-select"
+                    style="padding:8px;font-size:13px;width:auto;">
+                    <option value="50" selected>50개씩</option>
+                    <option value="100">100개씩</option>
+                    <option value="200">200개씩</option>
+                </select>
+            </div>
+        </div>
+        <span style="color:var(--text-muted);font-size:13px;" id="totalCount">총 0건</span>
+    </div>
+
+    <div class="table-container">
+        <table class="table" id="logsTable">
+            <thead>
+                <tr>
+                    <th>시간</th>
+                    <th>사용자</th>
+                    <th>행동</th>
+                    <th>대상</th>
+                    <th>ID</th>
+                    <th>IP 주소</th>
+                    <th style="width: 80px;">상세</th>
+                </tr>
+            </thead>
+            <tbody id="logsTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pagination" id="paginationContainer"
+        style="display:flex;justify-content:center;gap:8px;margin-top:20px;"></div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal" id="detailModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">상세 정보</h3>
+            <button class="modal-close" onclick="closeDetailModal()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <pre id="detailContent"
+                style="background: var(--bg-input); color: var(--accent); padding: 15px; border-radius: var(--radius-sm); overflow: auto; max-height: 400px; font-size: 13px;"></pre>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeDetailModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const API_BASE = '/api/admin';
+    let currentPage = 1;
+    let limit = 50;
+
+    function getAuthHeaders() {
+        const token = localStorage.getItem('access_token');
+        return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadMetadata();
+        loadUsers();
+        loadLogs();
+    });
+
+    async function loadMetadata() {
+        try {
+            const response = await fetch(`${API_BASE}/activity-log/metadata`, { headers: getAuthHeaders() });
+            if (response.status === 401) { window.location.href = '/login'; return; }
+            const data = await response.json();
+
+            const actionSelect = document.getElementById('filterActionType');
+            data.action_types.forEach(type => {
+                actionSelect.innerHTML += `<option value="${type}">${getActionLabel(type)}</option>`;
+            });
+
+            const tableSelect = document.getElementById('filterTable');
+            data.target_tables.forEach(table => {
+                tableSelect.innerHTML += `<option value="${table}">${table}</option>`;
+            });
+        } catch (error) {
+            console.error('메타데이터 로드 실패:', error);
+        }
+    }
+
+    async function loadUsers() {
+        try {
+            const response = await fetch(`${API_BASE}/users?limit=100`, { headers: getAuthHeaders() });
+            const data = await response.json();
+            const userSelect = document.getElementById('filterUser');
+
+            data.data.forEach(user => {
+                userSelect.innerHTML += `<option value="${user.UserID}">${user.Name} (${user.Email})</option>`;
+            });
+        } catch (error) {
+            console.error('사용자 로드 실패:', error);
+        }
+    }
+
+    async function loadLogs(page = 1) {
+        currentPage = page;
+        limit = parseInt(document.getElementById('limitSelector').value);
+
+        const params = new URLSearchParams({ page, limit });
+
+        const userId = document.getElementById('filterUser').value;
+        const actionType = document.getElementById('filterActionType').value;
+        const table = document.getElementById('filterTable').value;
+        const dateFrom = document.getElementById('filterDateFrom').value;
+        const dateTo = document.getElementById('filterDateTo').value;
+
+        if (userId) params.append('user_id', userId);
+        if (actionType) params.append('action_type', actionType);
+        if (table) params.append('target_table', table);
+        if (dateFrom) params.append('date_from', dateFrom);
+        if (dateTo) params.append('date_to', dateTo + ' 23:59:59');
+
+        try {
+            const response = await fetch(`${API_BASE}/activity-log?${params}`, { headers: getAuthHeaders() });
+            if (response.status === 401) { window.location.href = '/login'; return; }
+            if (response.status === 403) { alert('관리자 권한이 필요합니다.'); return; }
+
+            const result = await response.json();
+            document.getElementById('totalCount').textContent = `총 ${result.total}건`;
+            renderLogs(result.data);
+            renderPagination(result);
+        } catch (error) {
+            console.error('로그 로드 실패:', error);
+        }
+    }
+
+    function getActionLabel(type) {
+        const labels = {
+            'CREATE': '생성', 'UPDATE': '수정', 'DELETE': '삭제', 'BULK_DELETE': '일괄 삭제',
+            'LOGIN': '로그인', 'LOGOUT': '로그아웃', 'LOGIN_FAILED': '로그인 실패',
+            'PASSWORD_CHANGE': '비밀번호 변경', 'ROLE_CHANGE': '역할 변경'
+        };
+        return labels[type] || type;
+    }
+
+    function getActionBadge(type) {
+        const badges = {
+            'CREATE': 'success', 'UPDATE': 'warning', 'DELETE': 'danger', 'BULK_DELETE': 'danger',
+            'LOGIN': 'info', 'LOGOUT': 'secondary', 'LOGIN_FAILED': 'danger',
+            'PASSWORD_CHANGE': 'warning', 'ROLE_CHANGE': 'info'
+        };
+        return badges[type] || 'secondary';
+    }
+
+    function renderLogs(logs) {
+        const tbody = document.getElementById('logsTableBody');
+
+        if (!logs || logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted);">데이터가 없습니다</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = logs.map(log => `
+            <tr>
+                <td style="white-space:nowrap;">${formatDate(log.CreatedDate)}</td>
+                <td>
+                    <div style="font-weight:500;">${log.UserName || '-'}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">${log.UserEmail || ''}</div>
+                </td>
+                <td><span class="badge badge-${getActionBadge(log.ActionType)}">${getActionLabel(log.ActionType)}</span></td>
+                <td>${log.TargetTable || '-'}</td>
+                <td style="font-family:monospace;font-size:12px;">${log.TargetID || '-'}</td>
+                <td style="font-family:monospace;font-size:11px;color:var(--text-muted);">${log.IPAddress || '-'}</td>
+                <td class="table-actions">
+                    ${log.Details ? `<button class="btn btn-sm btn-info" onclick='showDetail(${JSON.stringify(log.Details)})'>
+                        <i class="fa-solid fa-eye"></i>
+                    </button>` : '<span style="color:var(--text-muted);">-</span>'}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleString('ko-KR', {
+            month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+    }
+
+    function renderPagination(result) {
+        const container = document.getElementById('paginationContainer');
+        const { page, total_pages, total } = result;
+
+        let html = `<span class="pagination-info">${page}/${total_pages} 페이지</span>`;
+
+        if (page > 1) {
+            html += `<button class="pagination-btn" onclick="loadLogs(1)">«</button>`;
+            html += `<button class="pagination-btn" onclick="loadLogs(${page - 1})">‹</button>`;
+        }
+
+        for (let i = Math.max(1, page - 2); i <= Math.min(total_pages, page + 2); i++) {
+            html += `<button class="pagination-btn ${i === page ? 'active' : ''}" onclick="loadLogs(${i})">${i}</button>`;
+        }
+
+        if (page < total_pages) {
+            html += `<button class="pagination-btn" onclick="loadLogs(${page + 1})">›</button>`;
+            html += `<button class="pagination-btn" onclick="loadLogs(${total_pages})">»</button>`;
+        }
+
+        container.innerHTML = html;
+    }
+
+    function resetFilters() {
+        document.getElementById('filterUser').value = '';
+        document.getElementById('filterActionType').value = '';
+        document.getElementById('filterTable').value = '';
+        document.getElementById('filterDateFrom').value = '';
+        document.getElementById('filterDateTo').value = '';
+        loadLogs(1);
+    }
+
+    function showDetail(details) {
+        let content;
+        try {
+            content = JSON.stringify(JSON.parse(details), null, 2);
+        } catch {
+            content = details;
+        }
+        document.getElementById('detailContent').textContent = content;
+        document.getElementById('detailModal').classList.add('show');
+    }
+
+    function closeDetailModal() {
+        document.getElementById('detailModal').classList.remove('show');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,449 @@
+{% extends "base.html" %}
+
+{% block title %}사용자 관리 - Orio ERP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-users-gear"></i> 사용자 관리
+    </h1>
+    <p class="page-subtitle">조직원 계정 생성, 역할 부여, 비밀번호 초기화</p>
+</div>
+
+<!-- 검색 필터 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 검색 필터</div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                <i class="fa-solid fa-rotate-right"></i> 초기화
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="loadUsers()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div class="search-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+        <div>
+            <label class="form-label">이메일</label>
+            <input type="text" id="filterEmail" class="form-input" placeholder="이메일 검색...">
+        </div>
+        <div>
+            <label class="form-label">이름</label>
+            <input type="text" id="filterName" class="form-input" placeholder="이름 검색...">
+        </div>
+        <div>
+            <label class="form-label">역할</label>
+            <select id="filterRole" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">상태</label>
+            <select id="filterActive" class="form-select">
+                <option value="">전체</option>
+                <option value="true">활성</option>
+                <option value="false">비활성</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- 사용자 목록 -->
+<div class="card">
+    <div style="margin-bottom:16px;">
+        <div
+            style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <h2 class="card-title" style="margin:0;white-space:nowrap;">사용자 목록</h2>
+                <select id="limitSelector" onchange="loadUsers()" class="form-select"
+                    style="padding:8px;font-size:13px;width:auto;">
+                    <option value="20" selected>20개씩</option>
+                    <option value="50">50개씩</option>
+                    <option value="100">100개씩</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-success btn-sm" onclick="openAddModal()">
+                    <i class="fa-solid fa-user-plus"></i> 사용자 추가
+                </button>
+            </div>
+        </div>
+        <span style="color:var(--text-muted);font-size:13px;" id="totalCount">총 0명</span>
+    </div>
+
+    <div class="table-container">
+        <table class="table" id="usersTable">
+            <thead>
+                <tr>
+                    <th>이메일</th>
+                    <th>이름</th>
+                    <th>역할</th>
+                    <th>상태</th>
+                    <th>마지막 로그인</th>
+                    <th>생성일</th>
+                    <th style="width: 150px;">작업</th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pagination" id="paginationContainer"
+        style="display:flex;justify-content:center;gap:8px;margin-top:20px;"></div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal" id="userModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modalTitle">사용자 추가</h3>
+            <button class="modal-close" onclick="closeModal()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="userForm">
+                <input type="hidden" id="userId">
+                <div class="form-group">
+                    <label class="form-label required">이메일</label>
+                    <input type="email" id="email" class="form-input" required>
+                </div>
+                <div class="form-group" id="passwordGroup">
+                    <label class="form-label">비밀번호</label>
+                    <input type="password" id="password" class="form-input">
+                    <small class="form-hint">수정 시 빈칸이면 변경하지 않습니다</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label required">이름</label>
+                    <input type="text" id="name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label required">역할</label>
+                    <select id="roleId" class="form-select" required>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" id="isActive" checked style="width:auto;">
+                        <span>활성 계정</span>
+                    </label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">
+                <i class="fa-solid fa-times"></i> 취소
+            </button>
+            <button class="btn btn-success" onclick="saveUser()">
+                <i class="fa-solid fa-save"></i> 저장
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Password Reset Modal -->
+<div class="modal" id="passwordModal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">비밀번호 초기화</h3>
+            <button class="modal-close" onclick="closePasswordModal()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="passwordUserId">
+            <div class="form-group">
+                <label class="form-label required">새 비밀번호</label>
+                <input type="password" id="newPassword" class="form-input" required minlength="4">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closePasswordModal()">
+                <i class="fa-solid fa-times"></i> 취소
+            </button>
+            <button class="btn btn-warning" onclick="resetPassword()">
+                <i class="fa-solid fa-key"></i> 초기화
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const API_BASE = '/api/admin';
+    let currentPage = 1;
+    let limit = 20;
+    let roles = [];
+
+    function getAuthHeaders() {
+        const token = localStorage.getItem('access_token');
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        };
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadRoles();
+        loadUsers();
+    });
+
+    async function loadRoles() {
+        try {
+            const response = await fetch(`${API_BASE}/roles`, { headers: getAuthHeaders() });
+            if (response.status === 401) { window.location.href = '/login'; return; }
+            roles = await response.json();
+
+            const filterRole = document.getElementById('filterRole');
+            const roleSelect = document.getElementById('roleId');
+
+            roles.forEach(role => {
+                filterRole.innerHTML += `<option value="${role.RoleID}">${role.Name}</option>`;
+                roleSelect.innerHTML += `<option value="${role.RoleID}">${role.Name} - ${role.Description || ''}</option>`;
+            });
+        } catch (error) {
+            console.error('역할 로드 실패:', error);
+        }
+    }
+
+    async function loadUsers(page = 1) {
+        currentPage = page;
+        limit = parseInt(document.getElementById('limitSelector').value);
+
+        const params = new URLSearchParams({ page, limit });
+
+        const email = document.getElementById('filterEmail').value;
+        const name = document.getElementById('filterName').value;
+        const roleId = document.getElementById('filterRole').value;
+        const isActive = document.getElementById('filterActive').value;
+
+        if (email) params.append('email', email);
+        if (name) params.append('name', name);
+        if (roleId) params.append('role_id', roleId);
+        if (isActive) params.append('is_active', isActive);
+
+        try {
+            const response = await fetch(`${API_BASE}/users?${params}`, { headers: getAuthHeaders() });
+            if (response.status === 401) { window.location.href = '/login'; return; }
+            if (response.status === 403) { alert('관리자 권한이 필요합니다.'); return; }
+
+            const result = await response.json();
+            document.getElementById('totalCount').textContent = `총 ${result.total}명`;
+            renderUsers(result.data);
+            renderPagination(result);
+        } catch (error) {
+            console.error('사용자 로드 실패:', error);
+        }
+    }
+
+    function renderUsers(users) {
+        const tbody = document.getElementById('usersTableBody');
+
+        if (!users || users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted);">데이터가 없습니다</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = users.map(user => `
+            <tr>
+                <td>${user.Email}</td>
+                <td>${user.Name}</td>
+                <td><span class="badge badge-${getRoleBadge(user.RoleName)}">${user.RoleName || '-'}</span></td>
+                <td><span class="badge badge-${user.IsActive ? 'success' : 'danger'}">${user.IsActive ? '활성' : '비활성'}</span></td>
+                <td>${user.LastLoginDate ? formatDate(user.LastLoginDate) : '-'}</td>
+                <td>${formatDate(user.CreatedDate)}</td>
+                <td class="table-actions">
+                    <button class="btn btn-sm btn-primary" onclick="openEditModal(${user.UserID})" title="수정">
+                        <i class="fa-solid fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="openPasswordModal(${user.UserID})" title="비밀번호 초기화">
+                        <i class="fa-solid fa-key"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteUser(${user.UserID})" title="삭제">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function getRoleBadge(role) {
+        switch (role) {
+            case 'Admin': return 'danger';
+            case 'Manager': return 'warning';
+            case 'Viewer': return 'info';
+            default: return 'secondary';
+        }
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderPagination(result) {
+        const container = document.getElementById('paginationContainer');
+        const { page, total_pages, total } = result;
+
+        let html = `<span class="pagination-info">총 ${total}건 (${page}/${total_pages} 페이지)</span>`;
+
+        if (page > 1) {
+            html += `<button class="pagination-btn" onclick="loadUsers(1)">«</button>`;
+            html += `<button class="pagination-btn" onclick="loadUsers(${page - 1})">‹</button>`;
+        }
+
+        for (let i = Math.max(1, page - 2); i <= Math.min(total_pages, page + 2); i++) {
+            html += `<button class="pagination-btn ${i === page ? 'active' : ''}" onclick="loadUsers(${i})">${i}</button>`;
+        }
+
+        if (page < total_pages) {
+            html += `<button class="pagination-btn" onclick="loadUsers(${page + 1})">›</button>`;
+            html += `<button class="pagination-btn" onclick="loadUsers(${total_pages})">»</button>`;
+        }
+
+        container.innerHTML = html;
+    }
+
+    function resetFilters() {
+        document.getElementById('filterEmail').value = '';
+        document.getElementById('filterName').value = '';
+        document.getElementById('filterRole').value = '';
+        document.getElementById('filterActive').value = '';
+        loadUsers(1);
+    }
+
+    function openAddModal() {
+        document.getElementById('modalTitle').textContent = '사용자 추가';
+        document.getElementById('userForm').reset();
+        document.getElementById('userId').value = '';
+        document.getElementById('password').required = true;
+        document.getElementById('isActive').checked = true;
+        document.getElementById('userModal').classList.add('show');
+    }
+
+    async function openEditModal(userId) {
+        try {
+            const response = await fetch(`${API_BASE}/users/${userId}`, { headers: getAuthHeaders() });
+            const user = await response.json();
+
+            document.getElementById('modalTitle').textContent = '사용자 수정';
+            document.getElementById('userId').value = user.UserID;
+            document.getElementById('email').value = user.Email;
+            document.getElementById('password').value = '';
+            document.getElementById('password').required = false;
+            document.getElementById('name').value = user.Name;
+            document.getElementById('isActive').checked = user.IsActive;
+
+            document.getElementById('userModal').classList.add('show');
+        } catch (error) {
+            console.error('사용자 조회 실패:', error);
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('userModal').classList.remove('show');
+    }
+
+    async function saveUser() {
+        const userId = document.getElementById('userId').value;
+        const isEdit = !!userId;
+
+        const data = {
+            email: document.getElementById('email').value,
+            name: document.getElementById('name').value,
+            role_id: parseInt(document.getElementById('roleId').value),
+            is_active: document.getElementById('isActive').checked
+        };
+
+        const password = document.getElementById('password').value;
+        if (password || !isEdit) data.password = password;
+
+        try {
+            let response;
+            if (isEdit) {
+                response = await fetch(`${API_BASE}/users/${userId}`, {
+                    method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(data)
+                });
+                await fetch(`${API_BASE}/users/${userId}/role`, {
+                    method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ role_id: data.role_id })
+                });
+            } else {
+                response = await fetch(`${API_BASE}/users`, {
+                    method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data)
+                });
+            }
+
+            if (!response.ok) {
+                const error = await response.json();
+                alert(error.detail || '저장 실패');
+                return;
+            }
+
+            closeModal();
+            loadUsers(currentPage);
+            alert(isEdit ? '수정되었습니다.' : '추가되었습니다.');
+        } catch (error) {
+            console.error('저장 실패:', error);
+            alert('저장 중 오류가 발생했습니다.');
+        }
+    }
+
+    async function deleteUser(userId) {
+        if (!confirm('정말 삭제하시겠습니까?')) return;
+
+        try {
+            const response = await fetch(`${API_BASE}/users/${userId}`, {
+                method: 'DELETE', headers: getAuthHeaders()
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                alert(error.detail || '삭제 실패');
+                return;
+            }
+
+            loadUsers(currentPage);
+            alert('삭제되었습니다.');
+        } catch (error) {
+            console.error('삭제 실패:', error);
+        }
+    }
+
+    function openPasswordModal(userId) {
+        document.getElementById('passwordUserId').value = userId;
+        document.getElementById('newPassword').value = '';
+        document.getElementById('passwordModal').classList.add('show');
+    }
+
+    function closePasswordModal() {
+        document.getElementById('passwordModal').classList.remove('show');
+    }
+
+    async function resetPassword() {
+        const userId = document.getElementById('passwordUserId').value;
+        const newPassword = document.getElementById('newPassword').value;
+
+        try {
+            const response = await fetch(`${API_BASE}/users/${userId}/reset-password`, {
+                method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ new_password: newPassword })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                alert(error.detail || '비밀번호 초기화 실패');
+                return;
+            }
+
+            closePasswordModal();
+            alert('비밀번호가 초기화되었습니다.');
+        } catch (error) {
+            console.error('비밀번호 초기화 실패:', error);
+        }
+    }
+</script>
+{% endblock %}

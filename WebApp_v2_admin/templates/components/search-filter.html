@@ -1,0 +1,54 @@
+<!-- Search Filter Component -->
+{% macro render_search_filter(filters) %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fa-solid fa-filter"></i> 검색 필터
+        </h3>
+        <div style="display: flex; gap: 12px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                <i class="fa-solid fa-rotate-left"></i> 초기화
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="applyFilters()">
+                <i class="fa-solid fa-magnifying-glass"></i> 검색
+            </button>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <form id="filter-form" class="form-inline">
+            {% for filter in filters %}
+            <div class="form-group">
+                <label class="form-label">{{ filter.label }}</label>
+
+                {% if filter.type == 'text' %}
+                    <input type="text"
+                           id="{{ filter.id }}"
+                           name="{{ filter.name }}"
+                           class="form-input"
+                           placeholder="{{ filter.placeholder or '' }}">
+
+                {% elif filter.type == 'select' %}
+                    <select id="{{ filter.id }}"
+                            name="{{ filter.name }}"
+                            class="form-select">
+                        <option value="">{{ filter.placeholder or '전체' }}</option>
+                        {% if filter.options %}
+                            {% for option in filter.options %}
+                            <option value="{{ option.value }}">{{ option.label }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+
+                {% elif filter.type == 'date' %}
+                    <input type="date"
+                           id="{{ filter.id }}"
+                           name="{{ filter.name }}"
+                           class="form-input">
+                {% endif %}
+            </div>
+            {% endfor %}
+        </form>
+    </div>
+</div>
+{% endmacro %}

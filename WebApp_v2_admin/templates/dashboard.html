@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}대시보드 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-chart-line"></i> 대시보드
+    </h1>
+    <p class="page-subtitle">시스템 현황 및 통계</p>
+</div>
+
+<div class="grid grid-cols-4">
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div class="text-muted" style="font-size: 14px; margin-bottom: 8px;">총 상품 수</div>
+                <div style="font-size: 28px; font-weight: 700;">-</div>
+            </div>
+            <div style="width: 56px; height: 56px; background: rgba(99, 102, 241, 0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-box" style="font-size: 24px; color: var(--accent);"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div class="text-muted" style="font-size: 14px; margin-bottom: 8px;">총 판매 건수</div>
+                <div style="font-size: 28px; font-weight: 700;">-</div>
+            </div>
+            <div style="width: 56px; height: 56px; background: rgba(16, 185, 129, 0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-won-sign" style="font-size: 24px; color: var(--success);"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div class="text-muted" style="font-size: 14px; margin-bottom: 8px;">활성 채널</div>
+                <div style="font-size: 28px; font-weight: 700;">-</div>
+            </div>
+            <div style="width: 56px; height: 56px; background: rgba(245, 158, 11, 0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-store" style="font-size: 24px; color: var(--warning);"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div class="text-muted" style="font-size: 14px; margin-bottom: 8px;">BOM 관계</div>
+                <div style="font-size: 28px; font-weight: 700;">-</div>
+            </div>
+            <div style="width: 56px; height: 56px; background: rgba(239, 68, 68, 0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-sitemap" style="font-size: 24px; color: var(--danger);"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">
+        <i class="fa-solid fa-rocket"></i> Orio ERP System v2
+    </h3>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <i class="fa-solid fa-circle-info"></i>
+            <div>
+                <strong>리팩토링 완료!</strong><br>
+                Repository 패턴, QueryBuilder, 모듈화된 프론트엔드로 재구성되었습니다.
+            </div>
+        </div>
+
+        <h4 style="margin: 24px 0 16px 0;">✅ 완료된 기능</h4>
+        <ul style="list-style: none; padding: 0; margin: 0;">
+            <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <i class="fa-solid fa-check" style="color: var(--success); margin-right: 8px;"></i>
+                Phase 1: BaseRepository 패턴 & QueryBuilder
+            </li>
+            <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <i class="fa-solid fa-check" style="color: var(--success); margin-right: 8px;"></i>
+                Phase 2: 고급 필터, 트랜잭션 관리, 에러 핸들링
+            </li>
+            <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+                <i class="fa-solid fa-check" style="color: var(--success); margin-right: 8px;"></i>
+                Phase 3: CSS/JS 모듈화, Jinja2 컴포넌트
+            </li>
+        </ul>
+
+        <div style="margin-top: 24px; padding: 16px; background: rgba(99, 102, 241, 0.05); border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.2);">
+            <strong>📖 API 문서:</strong>
+            <a href="/docs" target="_blank" style="margin-left: 8px;">http://localhost:8001/docs</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 대시보드 통계 로드
+    async function loadDashboardStats() {
+        try {
+            // TODO: API 연동
+            console.log('Dashboard initialized');
+        } catch (error) {
+            console.error('Failed to load dashboard stats:', error);
+        }
+    }
+
+    // 페이지 로드 시 실행
+    document.addEventListener('DOMContentLoaded', loadDashboardStats);
+</script>
+{% endblock %}

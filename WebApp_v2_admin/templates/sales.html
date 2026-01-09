@@ -1,0 +1,762 @@
+{% extends "base.html" %}
+
+{% block title %}판매 관리 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">판매 관리</h1>
+    <p class="page-subtitle">ERP 판매 데이터 조회 및 관리</p>
+</div>
+
+<!-- Search Filters -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 검색 필터</div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                <i class="fa-solid fa-rotate-right"></i> 초기화
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="applyFilters()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+        <div>
+            <label class="form-label">시작일</label>
+            <input type="date" id="searchStartDate" class="form-input">
+        </div>
+        <div>
+            <label class="form-label">종료일</label>
+            <input type="date" id="searchEndDate" class="form-input">
+        </div>
+        <div>
+            <label class="form-label">브랜드</label>
+            <select id="searchBrand" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">채널명</label>
+            <select id="searchChannel" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Sales Table -->
+<div class="card">
+    <div
+        style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
+            <h2 class="card-title" style="margin:0;white-space:nowrap;">
+                판매 목록 <span id="resultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
+            </h2>
+            <select id="limitSelector" onchange="changeLimit()" class="form-select"
+                style="width:auto;padding:8px 12px;font-size:13px;">
+                <option value="20" selected>20개씩</option>
+                <option value="50">50개씩</option>
+                <option value="100">100개씩</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
+                <i class="fa-solid fa-check-double"></i> 전체 선택
+            </button>
+            <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEdit()" id="editButton">
+                <i class="fa-solid fa-edit"></i> 선택 수정
+            </button>
+            <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton">
+                <i class="fa-solid fa-trash"></i> 선택 삭제
+            </button>
+            <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
+                <i class="fa-solid fa-download"></i> 템플릿 다운로드
+            </button>
+            <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
+                <i class="fa-solid fa-upload"></i> 엑셀 업로드
+            </button>
+            <button class="btn btn-sm" onclick="showSyncModal()" style="background:#8b5cf6;color:white;">
+                <i class="fa-solid fa-sync"></i> OrdersRealtime 동기화
+            </button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                    <th>날짜</th>
+                    <th>브랜드</th>
+                    <th>상품</th>
+                    <th>채널</th>
+                    <th style="text-align:right;">수량</th>
+                    <th style="text-align:right;">금액</th>
+                </tr>
+            </thead>
+            <tbody id="salesTable">
+                <tr>
+                    <td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">
+                        <i class="fa-solid fa-search" style="font-size:48px;margin-bottom:16px;opacity:0.5;"></i>
+                        <p>검색 버튼을 눌러 데이터를 조회하세요.</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="pagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
+</div>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">판매 데이터 업로드</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="upload-zone" onclick="document.getElementById('fileInput').click()"
+                style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:all 0.2s;">
+                <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileSelect(event)"
+                    style="display:none;">
+                <i class="fa-solid fa-cloud-arrow-up"
+                    style="font-size:48px;color:var(--text-muted);margin-bottom:16px;"></i>
+                <p style="font-size:16px;margin-bottom:8px;">파일을 드래그하거나 클릭하여 선택</p>
+                <p style="font-size:13px;color:var(--text-muted);">지원 형식: .xlsx, .xls</p>
+            </div>
+            <div id="fileInfo" style="margin-top:16px;display:none;">
+                <p><strong>선택된 파일:</strong> <span id="fileName"></span></p>
+            </div>
+
+            <div id="uploadProgress" style="margin-top:16px;display:none;">
+                <div style="background:var(--border);border-radius:8px;overflow:hidden;height:8px;">
+                    <div id="progressBar" style="background:var(--success);height:100%;width:0%;transition:width 0.3s;">
+                    </div>
+                </div>
+                <p id="progressText" style="margin-top:8px;font-size:13px;color:var(--text-muted);text-align:center;">0%
+                </p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-primary" id="uploadButton" onclick="uploadFile()" disabled>
+                <i class="fa-solid fa-upload"></i> 업로드
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Edit Modal -->
+<div id="bulkEditModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">선택 수정</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background:var(--bg-hover);padding:12px;border-radius:6px;margin-bottom:16px;">
+                <p style="margin:0;color:var(--text-muted);font-size:13px;">
+                    <i class="fa-solid fa-info-circle"></i> 선택한 <span id="bulkEditCount"
+                        style="color:var(--accent);font-weight:600;">0</span>개 항목을 수정합니다.
+                </p>
+            </div>
+            <h4 style="margin-bottom:16px;color:var(--accent);">ERPSales 테이블 정보</h4>
+            <div class="form-group">
+                <label class="form-label">수량</label>
+                <input type="number" id="bulkEditQuantity" class="form-input" placeholder="변경하지 않으려면 비워두세요">
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentQuantity"
+                        style="font-weight:600;"></span></small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">단가</label>
+                <input type="number" id="bulkEditPrice" class="form-input" placeholder="변경하지 않으려면 비워두세요">
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentUnitPrice"
+                        style="font-weight:600;"></span></small>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-primary" onclick="saveBulkEdit()">
+                <i class="fa-solid fa-save"></i> 저장
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Sync to OrdersRealtime Modal -->
+<div id="syncModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">OrdersRealtime 동기화</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom:20px;color:var(--text-muted);font-size:14px;">
+                <i class="fa-solid fa-info-circle"></i>
+                ERPSales에서 OrdersRealtime으로 데이터를 동기화합니다. (Channel.LiveSource = 'ERP')
+            </p>
+
+            <div style="background:var(--bg-hover);border-radius:12px;padding:20px;margin-bottom:20px;">
+                <h4 style="font-size:15px;margin-bottom:16px;">
+                    <i class="fa-solid fa-calendar-days"></i> 동기화 기간 선택
+                </h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label class="form-label">시작 날짜</label>
+                        <input type="date" id="syncModalStartDate" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">종료 날짜</label>
+                        <input type="date" id="syncModalEndDate" class="form-input">
+                    </div>
+                </div>
+                <p style="margin-top:12px;font-size:12px;color:var(--text-muted);">
+                    <i class="fa-solid fa-circle-info"></i> 날짜를 비워두면 전체 데이터가 동기화됩니다.
+                </p>
+            </div>
+
+            <div id="syncProgress" style="display:none;margin-top:16px;">
+                <div style="background:var(--border);border-radius:8px;overflow:hidden;height:8px;">
+                    <div id="syncProgressBar"
+                        style="background:var(--accent);height:100%;width:0%;transition:width 0.3s;"></div>
+                </div>
+                <p id="syncProgressText"
+                    style="margin-top:8px;font-size:13px;color:var(--text-muted);text-align:center;">동기화 중...</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-primary" id="syncExecuteButton" onclick="executeSyncToOrders()">
+                <i class="fa-solid fa-sync"></i> 동기화 시작
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Result Modal -->
+<div id="uploadResultModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">업로드 결과</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom:24px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                    <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--success);"></i>
+                    <div>
+                        <h3 style="font-size:20px;margin-bottom:4px;">업로드 완료</h3>
+                        <p style="color:var(--text-muted);font-size:14px;">데이터가 성공적으로 업로드되었습니다.</p>
+                    </div>
+                </div>
+            </div>
+            <div style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
+                    <i class="fa-solid fa-chart-bar"></i> 업로드 통계
+                </h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">총 행 수</div>
+                        <div style="font-size:20px;font-weight:600;" id="uploadTotalRows">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">신규 삽입</div>
+                        <div style="font-size:20px;font-weight:600;color:var(--success);" id="uploadInserted">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">기존 수정</div>
+                        <div style="font-size:20px;font-weight:600;color:#3b82f6;" id="uploadUpdated">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">실패</div>
+                        <div style="font-size:20px;font-weight:600;color:var(--danger);" id="uploadFailed">0</div>
+                    </div>
+                </div>
+            </div>
+            <div id="uploadFailures"
+                style="display:none;background:rgba(239,68,68,0.1);border-radius:12px;padding:16px;margin-bottom:20px;">
+                <h4 style="font-size:14px;margin-bottom:12px;color:var(--danger);">
+                    <i class="fa-solid fa-circle-exclamation"></i> 업로드 실패 상세
+                </h4>
+                <div id="uploadFailureContent"
+                    style="font-size:13px;color:var(--text-muted);max-height:200px;overflow-y:auto;"></div>
+            </div>
+            <div id="uploadWarnings"
+                style="display:none;background:rgba(245,158,11,0.1);border-radius:12px;padding:16px;">
+                <h4 style="font-size:14px;margin-bottom:12px;color:var(--warning);">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 매핑 경고
+                </h4>
+                <div id="uploadWarningContent" style="font-size:13px;color:var(--text-muted);"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" data-modal-close>
+                <i class="fa-solid fa-check"></i> 확인
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1, limit = 20, currentFilters = {}, selectedIds = new Set();
+    let uploadModal, bulkEditModal, uploadResultModal, syncModal;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        uploadModal = new ModalManager('uploadModal');
+        bulkEditModal = new ModalManager('bulkEditModal');
+        uploadResultModal = new ModalManager('uploadResultModal');
+        syncModal = new ModalManager('syncModal');
+
+        loadBrands();
+        loadChannelNames();
+    });
+
+    async function loadSales() {
+        try {
+            const params = new URLSearchParams({ page: currentPage, limit, ...currentFilters });
+            const res = await fetch(`/api/erpsales?${params}`);
+            const data = await res.json();
+
+            const tbody = document.getElementById('salesTable');
+            tbody.innerHTML = data.data.length === 0
+                ? '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">데이터가 없습니다.</td></tr>'
+                : data.data.map(s => `
+                    <tr>
+                        <td style="text-align:center;">
+                            <input type="checkbox" class="row-checkbox" value="${s.IDX}" onchange="toggleRowSelect()">
+                        </td>
+                        <td>${s.DATE || '-'}</td>
+                        <td>${s.BRAND || '-'}</td>
+                        <td>${s.ERPCode || '-'} / ${s.PRODUCT_NAME || '-'}</td>
+                        <td>${s.ChannelName || '-'}</td>
+                        <td style="text-align:right;">${s.Quantity?.toLocaleString() || 0}</td>
+                        <td style="text-align:right;">${(s.Quantity * s.UnitPrice)?.toLocaleString() || 0}</td>
+                    </tr>
+                `).join('');
+
+            document.getElementById('resultCount').textContent = `(총 ${data.total.toLocaleString()}건)`;
+
+            const totalPages = Math.ceil(data.total / limit);
+            document.getElementById('pagination').innerHTML =
+                (currentPage > 1 ? `<button class="btn btn-sm btn-secondary" onclick="changePage(${currentPage - 1})">이전</button>` : '') +
+                `<span style="padding:0 16px;">${currentPage} / ${totalPages}</span>` +
+                (currentPage < totalPages ? `<button class="btn btn-sm btn-secondary" onclick="changePage(${currentPage + 1})">다음</button>` : '');
+        } catch (e) {
+            showAlert('판매 데이터 로드 실패: ' + e.message, 'error');
+        }
+    }
+
+    async function loadBrands() {
+        try {
+            const res = await fetch('/api/brands/all');
+            const result = await res.json();
+            const brands = result.data || [];
+
+            const options = brands.map(title => `<option value="${title}">${title}</option>`).join('');
+            document.getElementById('searchBrand').innerHTML = '<option value="">전체</option>' + options;
+        } catch (e) {
+            console.error('브랜드 로드 실패:', e);
+        }
+    }
+
+    async function loadChannelNames() {
+        try {
+            const res = await fetch('/api/channels/metadata');
+            const data = await res.json();
+            const channels = data.names || [];
+
+            const options = channels.map(name => `<option value="${name}">${name}</option>`).join('');
+            document.getElementById('searchChannel').innerHTML = '<option value="">전체</option>' + options;
+        } catch (e) {
+            console.error('채널 로드 실패:', e);
+        }
+    }
+
+    function toggleSelectAll() {
+        const checked = document.getElementById('selectAll').checked;
+        document.querySelectorAll('.row-checkbox').forEach(cb => {
+            cb.checked = checked;
+            if (checked) selectedIds.add(parseInt(cb.value));
+            else selectedIds.delete(parseInt(cb.value));
+        });
+        updateActionButtons();
+    }
+
+    function toggleRowSelect() {
+        selectedIds.clear();
+        document.querySelectorAll('.row-checkbox:checked').forEach(cb => selectedIds.add(parseInt(cb.value)));
+        document.getElementById('selectAll').checked = document.querySelectorAll('.row-checkbox').length === selectedIds.size;
+        updateActionButtons();
+    }
+
+    function updateActionButtons() {
+        const hasSelection = selectedIds.size > 0;
+        const editBtn = document.getElementById('editButton');
+        const deleteBtn = document.getElementById('deleteButton');
+
+        if (hasSelection) {
+            editBtn.classList.remove('btn-disabled');
+            deleteBtn.classList.remove('btn-disabled');
+        } else {
+            editBtn.classList.add('btn-disabled');
+            deleteBtn.classList.add('btn-disabled');
+        }
+    }
+
+    async function bulkDelete() {
+        if (selectedIds.size === 0) return;
+
+        showConfirm(`선택한 ${selectedIds.size}개 항목을 삭제하시겠습니까?`, async () => {
+            try {
+                const res = await fetch('/api/erpsales/bulk-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: Array.from(selectedIds) })
+                });
+
+                if (res.ok) {
+                    showAlert('삭제되었습니다.', 'success');
+                    selectedIds.clear();
+                    updateActionButtons();
+                    loadSales();
+                } else {
+                    showAlert('삭제 실패', 'error');
+                }
+            } catch (e) {
+                showAlert('오류: ' + e.message, 'error');
+            }
+        });
+    }
+
+    async function bulkEdit() {
+        if (selectedIds.size === 0) return;
+
+        // 첫 번째 선택된 항목의 데이터를 가져와서 현재 값 표시
+        const firstId = Array.from(selectedIds)[0];
+        try {
+            const res = await fetch(`/api/erpsales/${firstId}`);
+            if (!res.ok) throw new Error('데이터 로드 실패');
+            const sale = await res.json();
+
+            // 모달에 선택 개수와 현재 값 표시
+            document.getElementById('bulkEditCount').textContent = selectedIds.size;
+            document.getElementById('currentQuantity').textContent = sale.Quantity || '(없음)';
+            document.getElementById('currentUnitPrice').textContent = sale.UnitPrice || '(없음)';
+
+            // 입력 필드 초기화
+            document.getElementById('bulkEditQuantity').value = '';
+            document.getElementById('bulkEditPrice').value = '';
+
+            bulkEditModal.show();
+        } catch (e) {
+            showAlert('데이터 로드 실패: ' + e.message, 'error');
+        }
+    }
+
+    async function saveBulkEdit() {
+        const quantity = document.getElementById('bulkEditQuantity').value;
+        const unitPrice = document.getElementById('bulkEditPrice').value;
+
+        if (!quantity && !unitPrice) {
+            showAlert('수정할 값을 입력해주세요.', 'warning');
+            return;
+        }
+
+        const updates = {};
+        if (quantity) updates.Quantity = parseFloat(quantity);
+        if (unitPrice) updates.UnitPrice = parseFloat(unitPrice);
+
+        try {
+            const res = await fetch('/api/erpsales/bulk-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: Array.from(selectedIds), updates })
+            });
+
+            if (res.ok) {
+                showAlert('수정되었습니다.', 'success');
+                bulkEditModal.hide();
+                loadSales();
+            } else {
+                showAlert('수정 실패', 'error');
+            }
+        } catch (e) {
+            showAlert('오류: ' + e.message, 'error');
+        }
+    }
+
+    function applyFilters() {
+        currentFilters = {};
+        const startDate = document.getElementById('searchStartDate').value;
+        const endDate = document.getElementById('searchEndDate').value;
+        const brand = document.getElementById('searchBrand').value;
+        const channel = document.getElementById('searchChannel').value;
+
+        if (startDate) currentFilters.start_date = startDate;
+        if (endDate) currentFilters.end_date = endDate;
+        if (brand) currentFilters.brand = brand;
+        if (channel) currentFilters.channel_name = channel;
+
+        currentPage = 1;
+        loadSales();
+    }
+
+    function resetFilters() {
+        document.getElementById('searchStartDate').value = '';
+        document.getElementById('searchEndDate').value = '';
+        document.getElementById('searchBrand').value = '';
+        document.getElementById('searchChannel').value = '';
+        currentFilters = {};
+        currentPage = 1;
+
+        document.getElementById('salesTable').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fa-solid fa-search" style="font-size:48px;margin-bottom:16px;opacity:0.5;"></i><p>검색 조건을 입력하고 검색 버튼을 클릭하세요.</p></td></tr>';
+        document.getElementById('resultCount').textContent = '';
+        document.getElementById('pagination').innerHTML = '';
+    }
+
+    function changePage(page) {
+        currentPage = page;
+        loadSales();
+    }
+
+    function changeLimit() {
+        limit = parseInt(document.getElementById('limitSelector').value);
+        currentPage = 1;
+        loadSales();
+    }
+
+    async function selectAllData() {
+        showConfirm('현재 필터 조건의 모든 데이터를 선택하시겠습니까?', async () => {
+            try {
+                const params = new URLSearchParams({ limit: 10000, ...currentFilters });
+                const res = await fetch(`/api/erpsales?${params}`);
+                const data = await res.json();
+
+                selectedIds.clear();
+                data.data.forEach(s => selectedIds.add(s.IDX));
+
+                document.querySelectorAll('.row-checkbox').forEach(cb => {
+                    if (selectedIds.has(parseInt(cb.value))) cb.checked = true;
+                });
+
+                document.getElementById('selectAll').checked = true;
+                updateActionButtons();
+                showAlert(`${selectedIds.size}개 항목이 선택되었습니다.`, 'success');
+            } catch (e) {
+                showAlert('전체 선택 실패: ' + e.message, 'error');
+            }
+        });
+    }
+
+    function downloadTemplate() {
+        window.location.href = '/api/erpsales/download/template';
+    }
+
+    function showUploadModal() {
+        document.getElementById('fileInput').value = '';
+        document.getElementById('fileInfo').style.display = 'none';
+        document.getElementById('uploadProgress').style.display = 'none';
+        document.getElementById('uploadButton').disabled = true;
+        uploadModal.show();
+    }
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileInfo').style.display = 'block';
+            document.getElementById('uploadButton').disabled = false;
+        }
+    }
+
+    async function uploadFile() {
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput.files[0]) return;
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        document.getElementById('uploadProgress').style.display = 'block';
+        document.getElementById('uploadButton').disabled = true;
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressText').textContent = '업로드 중...';
+
+        try {
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                if (progress <= 90) {
+                    document.getElementById('progressBar').style.width = progress + '%';
+                    document.getElementById('progressText').textContent = progress + '%';
+                }
+            }, 100);
+
+            const res = await fetch('/api/erpsales/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            clearInterval(progressInterval);
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressText').textContent = '100%';
+
+            if (res.ok) {
+                const result = await res.json();
+
+                document.getElementById('uploadTotalRows').textContent = result.total_rows?.toLocaleString() || 0;
+                document.getElementById('uploadInserted').textContent = result.inserted?.toLocaleString() || 0;
+                document.getElementById('uploadUpdated').textContent = result.updated?.toLocaleString() || 0;
+                document.getElementById('uploadFailed').textContent = result.failed?.toLocaleString() || 0;
+
+                // 실패 상세 표시
+                if (result.failed > 0 && result.failed_rows) {
+                    document.getElementById('uploadFailures').style.display = 'block';
+                    const failures = result.failed_rows.map(f => {
+                        const dataInfo = f.data ?
+                            `[${f.data.DATE}] ${f.data.BRAND || '-'} / ${f.data.PRODUCT_NAME || '-'} (${f.data.ERPCode || '-'})` : '';
+                        return `
+                            <div style="margin-bottom:12px;border-bottom:1px solid rgba(0,0,0,0.05);padding-bottom:8px;">
+                                <div style="font-weight:600;color:var(--danger);margin-bottom:4px;">
+                                    Row ${f.row}: ${f.error}
+                                </div>
+                                <div style="font-size:12px;color:var(--text-muted);">
+                                    ${dataInfo}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    document.getElementById('uploadFailureContent').innerHTML = failures;
+                } else {
+                    document.getElementById('uploadFailures').style.display = 'none';
+                }
+
+                const warnings = [];
+
+                // 브랜드 매핑 실패
+                if (result.unmapped_brands > 0) {
+                    const brandList = result.unmapped_brands_list?.slice(0, 10).map(b => `<span style="color:var(--danger);font-weight:600;">${b}</span>`).join(', ');
+                    const moreCount = result.unmapped_brands > 10 ? ` 외 ${result.unmapped_brands - 10}개` : '';
+                    warnings.push(`<strong>브랜드명 매핑 실패 ${result.unmapped_brands}건:</strong><br><span style="margin-left:8px;">${brandList}${moreCount}</span>`);
+                }
+
+                // 품목코드 매핑 실패
+                if (result.unmapped_products > 0) {
+                    const productList = result.unmapped_products_list?.slice(0, 10).map(p => `<span style="color:var(--danger);font-weight:600;">${p}</span>`).join(', ');
+                    const moreCount = result.unmapped_products > 10 ? ` 외 ${result.unmapped_products - 10}개` : '';
+                    warnings.push(`<strong>품목코드 매핑 실패 ${result.unmapped_products}건:</strong><br><span style="margin-left:8px;">${productList}${moreCount}</span>`);
+                }
+
+                // 채널 매핑 실패
+                if (result.unmapped_channels > 0) {
+                    const channelList = result.unmapped_channels_list?.slice(0, 10).map(c => `<span style="color:var(--danger);font-weight:600;">${c}</span>`).join(', ');
+                    const moreCount = result.unmapped_channels > 10 ? ` 외 ${result.unmapped_channels - 10}개` : '';
+                    warnings.push(`<strong>채널명 매핑 실패 ${result.unmapped_channels}건:</strong><br><span style="margin-left:8px;">${channelList}${moreCount}</span>`);
+                }
+
+                // 거래처 매핑 실패
+                if (result.unmapped_channel_details > 0) {
+                    const detailList = result.unmapped_channel_details_list?.slice(0, 10).map(d => `<span style="color:var(--danger);font-weight:600;">${d}</span>`).join(', ');
+                    const moreCount = result.unmapped_channel_details > 10 ? ` 외 ${result.unmapped_channel_details - 10}개` : '';
+                    warnings.push(`<strong>거래처명 매핑 실패 ${result.unmapped_channel_details}건:</strong><br><span style="margin-left:8px;">${detailList}${moreCount}</span>`);
+                }
+
+                // 창고 매핑 실패
+                if (result.unmapped_warehouses > 0) {
+                    const warehouseList = result.unmapped_warehouses_list?.slice(0, 10).map(w => `<span style="color:var(--danger);font-weight:600;">${w}</span>`).join(', ');
+                    const moreCount = result.unmapped_warehouses > 10 ? ` 외 ${result.unmapped_warehouses - 10}개` : '';
+                    warnings.push(`<strong>창고명 매핑 실패 ${result.unmapped_warehouses}건:</strong><br><span style="margin-left:8px;">${warehouseList}${moreCount}</span>`);
+                }
+
+                if (warnings.length > 0) {
+                    document.getElementById('uploadWarnings').style.display = 'block';
+                    document.getElementById('uploadWarningContent').innerHTML = warnings.map(w => `<div style="margin-bottom:12px;line-height:1.6;">• ${w}</div>`).join('');
+                } else {
+                    document.getElementById('uploadWarnings').style.display = 'none';
+                }
+
+                uploadModal.hide();
+                uploadResultModal.show();
+
+                if (Object.keys(currentFilters).length > 0) {
+                    loadSales();
+                }
+            } else {
+                const error = await res.json();
+                showAlert('업로드 실패: ' + (error.detail || '알 수 없는 오류'), 'error');
+            }
+        } catch (e) {
+            showAlert('업로드 오류: ' + e.message, 'error');
+        } finally {
+            document.getElementById('uploadButton').disabled = false;
+            document.getElementById('uploadProgress').style.display = 'none';
+        }
+    }
+
+    function showSyncModal() {
+        syncModal.show();
+    }
+
+    async function executeSyncToOrders() {
+        const startDate = document.getElementById('syncModalStartDate').value || null;
+        const endDate = document.getElementById('syncModalEndDate').value || null;
+
+        document.getElementById('syncProgress').style.display = 'block';
+        document.getElementById('syncExecuteButton').disabled = true;
+        document.getElementById('syncProgressBar').style.width = '0%';
+        document.getElementById('syncProgressText').textContent = '동기화 중...';
+
+        try {
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 10;
+                if (progress <= 90) {
+                    document.getElementById('syncProgressBar').style.width = progress + '%';
+                }
+            }, 200);
+
+            const params = new URLSearchParams();
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+
+            const res = await fetch(`/api/erpsales/sync-to-orders?${params.toString()}`, {
+                method: 'POST'
+            });
+
+            clearInterval(progressInterval);
+            document.getElementById('syncProgressBar').style.width = '100%';
+
+            if (res.ok) {
+                const result = await res.json();
+                document.getElementById('syncProgressText').textContent =
+                    `완료! (INSERT: ${result.insert_count?.toLocaleString() || 0}, UPDATE: ${result.update_count?.toLocaleString() || 0})`;
+
+                setTimeout(() => {
+                    syncModal.hide();
+                    showAlert(`동기화 완료! INSERT: ${result.insert_count}, UPDATE: ${result.update_count}`, 'success');
+
+                    // 입력 초기화
+                    document.getElementById('syncModalStartDate').value = '';
+                    document.getElementById('syncModalEndDate').value = '';
+                }, 2000);
+            } else {
+                const error = await res.json();
+                document.getElementById('syncProgressText').textContent = '동기화 실패';
+                showAlert('동기화 실패: ' + (error.detail || '알 수 없는 오류'), 'error');
+            }
+        } catch (e) {
+            document.getElementById('syncProgressText').textContent = '오류 발생';
+            showAlert('동기화 오류: ' + e.message, 'error');
+        } finally {
+            document.getElementById('syncExecuteButton').disabled = false;
+            setTimeout(() => {
+                document.getElementById('syncProgress').style.display = 'none';
+                document.getElementById('syncProgressBar').style.width = '0%';
+            }, 3000);
+        }
+    }
+</script>
+{% endblock %}
