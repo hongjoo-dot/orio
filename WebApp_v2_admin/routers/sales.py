@@ -294,10 +294,11 @@ async def bulk_update_sales(
 async def download_template():
     """엑셀 업로드용 양식 다운로드"""
     columns = [
-        '일자', '브랜드명', '품목명', '품목코드',
+        '라인별', '일자-No.', '일자', 
+        '품목그룹1명', '품목명', '품목코드',
         'Ea', '단가', '공급가액',
-        '거래처그룹1명', '거래처명', '담당자',
-        '라인별', '일자-No.', '출하창고명', '거래유형명'
+        '거래처그룹1명', '거래처명', '출하창고명', 
+        '담당자명', '거래유형명'
     ]
 
     df = pd.DataFrame(columns=columns)
@@ -345,6 +346,8 @@ async def upload_excel(
 
         # 컬럼명 매핑
         column_mapping = {
+            '라인별': 'ERPIDX',
+            '일자-No.': 'DateNo',
             '일자': 'DATE',
             '브랜드명': 'BRAND',
             '품목명': 'PRODUCT_NAME',
@@ -354,10 +357,8 @@ async def upload_excel(
             '공급가액': 'TaxableAmount',
             '거래처그룹1명': 'ChannelName',
             '거래처명': 'ChannelDetailName',
-            '담당자': 'Owner',
-            '라인별': 'ERPIDX',
-            '일자-No.': 'DateNo',
             '출하창고명': 'WarehouseName',
+            '담당자명': 'Owner',
             '거래유형명': 'TransactionType'
         }
 
