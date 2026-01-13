@@ -18,9 +18,14 @@ class NaverAuth:
         self.customer_id = config.get('NaverAdAPI', 'CUSTOMER_ID')
         self.access_license = config.get('NaverAdAPI', 'ACCESS_LICENSE')
         self.secret_key = config.get('NaverAdAPI', 'SECRET_KEY')
-        
+
+        print(f"[Naver Auth] 인증 정보 로드:")
+        print(f"  - CUSTOMER_ID: {'있음' if self.customer_id else '❌ 없음'}")
+        print(f"  - ACCESS_LICENSE: {'있음' if self.access_license else '❌ 없음'}")
+        print(f"  - SECRET_KEY: {'있음' if self.secret_key else '❌ 없음'}")
+
         if not self.customer_id or not self.access_license or not self.secret_key:
-            raise ValueError("Naver API 설정이 SystemConfig에 없습니다. (CUSTOMER_ID, ACCESS_LICENSE, SECRET_KEY)")
+            raise ValueError("❌ Naver API 설정이 SystemConfig에 없습니다. (CUSTOMER_ID, ACCESS_LICENSE, SECRET_KEY)")
 
     def generate_signature(self, timestamp: str, method: str, uri: str) -> str:
         """API 요청에 필요한 서명 생성"""

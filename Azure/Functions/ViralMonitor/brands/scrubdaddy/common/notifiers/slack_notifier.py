@@ -55,7 +55,7 @@ class SlackNotifier:
             logger.error(f"Slack 알림 전송 오류: {e}")
             return False
 
-    def send_mentions(self, mentions: List[Mention]) -> int:
+    def send_mentions(self, mentions: List[Mention]) -> dict:
         """
         여러 멘션 알림 전송 (배치)
 
@@ -63,23 +63,27 @@ class SlackNotifier:
             mentions: Mention 객체 리스트
 
         Returns:
-            성공한 알림 개수
+            채널별 성공 건수 딕셔너리 (예: {"네이버 블로그": 5, "YouTube": 3})
         """
-        success_count = 0
+        success_by_channel = {}
 
         for mention in mentions:
+            channel = mention.source
+            if channel not in success_by_channel:
+                success_by_channel[channel] = 0
+
             if self.send_mention(mention):
-                success_count += 1
+                success_by_channel[channel] += 1
 
-        return success_count
+        return success_by_channel
 
-    def send_summary(self, total_mentions: int, success_count: int, collection_stats: dict = None, scan_time = None, brand_name: str = "스크럽대디"):
+    def send_summary(self, total_mentions: int, success_by_channel: dict = None, collection_stats: dict = None, scan_time = None, brand_name: str = "스크럽대디"):
         """
         수집 결과 요약 알림
 
         Args:
             total_mentions: 총 발견한 멘션 개수
-            success_count: 성공적으로 알림 보낸 개수
+            success_by_channel: 채널별 성공 건수 딕셔너리 (예: {"네이버 블로그": 5, "YouTube": 3})
             collection_stats: 수집기별 통계 (dict)
             scan_time: 수집 시간
             brand_name: 브랜드명 (기본값: "스크럽대디")
@@ -97,6 +101,16 @@ class SlackNotifier:
             kst_time = datetime.now() + timedelta(hours=9)
             time_str = kst_time.strftime("%Y-%m-%d %H:%M:%S")
 
+        # 채널별 성공 건수 텍스트 생성
+        total_success = 0
+        channel_text = ""
+        if success_by_channel:
+            for channel, count in success_by_channel.items():
+                total_success += count
+                channel_text += f"  • {channel}: {count}건\n"
+        else:
+            channel_text = "  • 없음\n"
+
         summary_message = {
             "blocks": [
                 {
@@ -106,7 +120,8 @@ class SlackNotifier:
                         "text": f"📊 *{brand_name} 모니터링 요약*\n\n"
                                 f"🕐 *수집 시간:* {time_str}\n\n"
                                 f"*새 게시글:* {total_mentions}건\n"
-                                f"*알림 전송:* {success_count}건"
+                                f"*알림 전송:* {total_success}건\n"
+                                f"{channel_text}"
                     }
                 }
             ]

@@ -21,6 +21,12 @@ class Mention:
     content_preview: Optional[str] = None  # 내용 미리보기 (150자)
     keyword_matched: Optional[str] = None   # 매칭된 키워드
 
+    # YouTube 바이럴 지표 (선택)
+    view_count: Optional[int] = None        # 조회수
+    like_count: Optional[int] = None        # 좋아요 수
+    comment_count: Optional[int] = None     # 댓글 수
+    thumbnail_url: Optional[str] = None     # 썸네일 URL
+
     def __post_init__(self):
         """게시글 고유 ID 생성 (중복 체크용)"""
         self.unique_id = f"{self.source}_{self.url}"
@@ -35,6 +41,10 @@ class Mention:
             "posted_date": self.posted_date.isoformat(),
             "content_preview": self.content_preview,
             "keyword_matched": self.keyword_matched,
+            "view_count": self.view_count,
+            "like_count": self.like_count,
+            "comment_count": self.comment_count,
+            "thumbnail_url": self.thumbnail_url,
             "unique_id": self.unique_id,
         }
 
@@ -91,6 +101,38 @@ class Mention:
                     "type": "mrkdwn",
                     "text": f"*내용 미리보기:*{preview}"
                 }
+            })
+
+        # YouTube 바이럴 지표 추가 (있으면)
+        if self.view_count is not None or self.like_count is not None:
+            viral_fields = []
+            if self.view_count is not None:
+                viral_fields.append({
+                    "type": "mrkdwn",
+                    "text": f"*조회수:*\n{self.view_count:,}회"
+                })
+            if self.like_count is not None:
+                viral_fields.append({
+                    "type": "mrkdwn",
+                    "text": f"*좋아요:*\n{self.like_count:,}개"
+                })
+            if self.comment_count is not None:
+                viral_fields.append({
+                    "type": "mrkdwn",
+                    "text": f"*댓글:*\n{self.comment_count:,}개"
+                })
+
+            message["blocks"].append({
+                "type": "section",
+                "fields": viral_fields
+            })
+
+        # 썸네일 추가 (YouTube용)
+        if self.thumbnail_url:
+            message["blocks"].append({
+                "type": "image",
+                "image_url": self.thumbnail_url,
+                "alt_text": "Video Thumbnail"
             })
 
         # 링크 버튼 추가

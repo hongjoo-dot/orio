@@ -49,29 +49,30 @@ class NaverADReportFetcher:
 
     def _fetch_report(self, report_type: str, stat_dt: str, target_date: str) -> list:
         """특정 타입의 리포트 수집"""
-        print(f"\n   [{report_type}] 수집 중...")
+        print(f"\n   📊 [{report_type}] 리포트 수집 시작...")
 
         # 1. 리포트 생성
         report_job_id = self._create_report(report_type, stat_dt)
         if not report_job_id:
-            print(f"      [ERROR] 리포트 생성 실패")
+            print(f"      ❌ 리포트 생성 단계 실패")
             return []
 
         # 2. 리포트 완료 대기
-        report_info = self._wait_for_report(report_job_id, max_wait=60)
+        report_info = self._wait_for_report(report_job_id, max_wait=120)
         if not report_info or report_info.get('status') != 'BUILT':
-            print(f"      [ERROR] 리포트 빌드 실패")
+            print(f"      ❌ 리포트 빌드 단계 실패")
             return []
 
         # 3. 다운로드
         download_url = report_info.get('downloadUrl')
         if not download_url:
-            print(f"      [ERROR] 다운로드 URL 없음")
+            print(f"      ❌ 다운로드 URL 없음")
+            print(f"         report_info: {report_info}")
             return []
 
         tsv_data = self._download_report(download_url)
         if not tsv_data:
-            print(f"      [ERROR] 다운로드 실패")
+            print(f"      ❌ 다운로드 단계 실패")
             return []
 
         # 4. 파싱
@@ -80,7 +81,7 @@ class NaverADReportFetcher:
         else:
             parsed_data = self._parse_conversion_tsv(tsv_data, target_date)
 
-        print(f"      [OK] {len(parsed_data)}건")
+        print(f"      ✓ 파싱 완료: {len(parsed_data)}건")
 
         return parsed_data
 
@@ -105,20 +106,25 @@ class NaverADReportFetcher:
             if response.status_code in [200, 201]:
                 result = response.json()
                 report_job_id = result.get('reportJobId')
-                print(f"   리포트 생성: {report_job_id}")
+                print(f"   ✓ 리포트 생성: {report_job_id}")
                 return report_job_id
             else:
-                print(f"   리포트 생성 실패: {response.status_code}")
+                print(f"   ❌ 리포트 생성 실패: {response.status_code}")
+                print(f"      응답: {response.text}")
                 return None
 
         except Exception as e:
-            print(f"   예외 발생: {e}")
+            print(f"   ❌ 리포트 생성 예외: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
-    def _wait_for_report(self, report_job_id: str, max_wait: int = 60):
+    def _wait_for_report(self, report_job_id: str, max_wait: int = 120):
         """리포트 생성 완료 대기"""
         uri = f'/stat-reports/{report_job_id}'
-        wait_interval = 2
+        wait_interval = 3
+
+        print(f"   ⏳ 리포트 빌드 대기 중 (최대 {max_wait}초)...")
 
         for elapsed in range(0, max_wait, wait_interval):
             time.sleep(wait_interval)
@@ -137,16 +143,25 @@ class NaverADReportFetcher:
                     status = report_info.get('status')
 
                     if status == 'BUILT':
-                        print(f"   리포트 완료 ({elapsed + wait_interval}초)")
+                        print(f"   ✓ 리포트 완료 ({elapsed + wait_interval}초)")
                         return report_info
                     elif status == 'FAIL':
-                        print(f"   리포트 생성 실패")
+                        print(f"   ❌ 리포트 빌드 실패 (status=FAIL)")
+                        print(f"      응답: {report_info}")
                         return None
+                    elif status in ['REGIST', 'RUNNING']:
+                        # 진행 중
+                        if (elapsed + wait_interval) % 15 == 0:
+                            print(f"      진행 중... ({elapsed + wait_interval}초 경과, status={status})")
+                else:
+                    print(f"   ❌ 상태 조회 실패: {response.status_code}")
+                    print(f"      응답: {response.text}")
 
-            except Exception:
+            except Exception as e:
+                print(f"   ⚠️  상태 조회 예외: {e}")
                 pass
 
-        print(f"   타임아웃 ({max_wait}초)")
+        print(f"   ❌ 타임아웃 ({max_wait}초) - 리포트 생성이 완료되지 않음")
         return None
 
     def _download_report(self, download_url: str):
@@ -164,13 +179,17 @@ class NaverADReportFetcher:
             )
 
             if response.status_code == 200:
+                print(f"   ✓ 다운로드 완료 ({len(response.text)} bytes)")
                 return response.text
             else:
-                print(f"   다운로드 실패: {response.status_code}")
+                print(f"   ❌ 다운로드 실패: {response.status_code}")
+                print(f"      응답: {response.text}")
                 return None
 
         except Exception as e:
-            print(f"   다운로드 예외: {e}")
+            print(f"   ❌ 다운로드 예외: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _parse_ad_tsv(self, tsv_data: str, target_date: str) -> list:

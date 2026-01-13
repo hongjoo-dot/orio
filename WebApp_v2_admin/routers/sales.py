@@ -349,7 +349,7 @@ async def upload_excel(
             '라인별': 'ERPIDX',
             '일자-No.': 'DateNo',
             '일자': 'DATE',
-            '브랜드명': 'BRAND',
+            '품목그룹1명': 'BRAND',
             '품목명': 'PRODUCT_NAME',
             '품목코드': 'ERPCode',
             'Ea': 'Quantity',
