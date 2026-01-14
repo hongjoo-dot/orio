@@ -126,12 +126,12 @@ INSERT INTO dbo.Promotion (
     Status
 )
 VALUES (
-    '쿠팡 로켓배송 특가', 'PRICE_DISCOUNT', '2026-02-01', '2026-02-07',
-    1, 0, 'ONLINE', '쿠팡',
+    N'쿠팡 로켓배송 특가', N'PRICE_DISCOUNT', '2026-02-01', '2026-02-07',
+    1, 0, N'ONLINE', N'쿠팡',
     15.00,
-    'BOTH', 60.00, 40.00,
+    N'BOTH', 60.00, 40.00,
     10000000.00, 5000,
-    'SCHEDULED'
+    N'SCHEDULED'
 );
 
 INSERT INTO dbo.PromotionProduct (
@@ -145,7 +145,7 @@ VALUES (
     1, 1,
     12000.00, 10000.00, 8500.00, 7000.00, 5000.00,
     15.00, 5.00,
-    'CONSIGNMENT', 500.00,
+    N'CONSIGNMENT', 500.00,
     42500000.00, 5000
 );
 
@@ -158,11 +158,11 @@ INSERT INTO dbo.Promotion (
     Status
 )
 VALUES (
-    '롯데마트 원매가 할인', 'WHOLESALE_DISCOUNT', '2026-02-15', '2026-02-21',
-    1, 0, 'OFFLINE', '롯데마트',
-    'ORIO', 100.00,
+    N'롯데마트 원매가 할인', N'WHOLESALE_DISCOUNT', '2026-02-15', '2026-02-21',
+    1, 0, N'OFFLINE', N'롯데마트',
+    N'ORIO', 100.00,
     3000000.00, 2000,
-    'SCHEDULED'
+    N'SCHEDULED'
 );
 
 INSERT INTO dbo.PromotionProduct (
@@ -174,7 +174,7 @@ INSERT INTO dbo.PromotionProduct (
 VALUES (
     2, 1,
     12000.00, 10000.00, 10000.00, 6000.00, 5000.00,
-    'DIRECT',
+    N'DIRECT',
     20000000.00, 2000
 );
 
@@ -188,12 +188,12 @@ INSERT INTO dbo.Promotion (
     Status
 )
 VALUES (
-    '이마트 3개 구매 할인', 'BUNDLE_DISCOUNT', '2026-02-01', '2026-02-28',
-    1, 0, 'OFFLINE', '이마트, 홈플러스',
-    'ORIO', 100.00,
-    '3개 구매시 20% 할인',
+    N'이마트 3개 구매 할인', N'BUNDLE_DISCOUNT', '2026-02-01', '2026-02-28',
+    1, 0, N'OFFLINE', N'이마트, 홈플러스',
+    N'ORIO', 100.00,
+    N'3개 구매시 20% 할인',
     5000000.00, 3000,
-    'SCHEDULED'
+    N'SCHEDULED'
 );
 
 INSERT INTO dbo.PromotionProduct (
@@ -207,6 +207,6 @@ VALUES (
     3, 1,
     12000.00, 10000.00, 8000.00, 7000.00, 5000.00,
     20.00,
-    'DIRECT',
+    N'DIRECT',
     24000000.00, 3000
 );

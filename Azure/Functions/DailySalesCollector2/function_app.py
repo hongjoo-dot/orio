@@ -27,8 +27,8 @@ def daily_sales_collector(timer: func.TimerRequest) -> None:
     매일 오후 6시(한국시간)에 Cafe24, Sabangnet 데이터 수집 실행
 
     파이프라인:
-    1. Cafe24: 10일 롤링 수집 → Blob → DB → OrdersRealtime
-    2. Sabangnet: 10일 롤링 수집 → Blob → DB → OrdersRealtime
+    1. Cafe24: N일 롤링 수집 → Blob → DB → OrdersRealtime
+    2. Sabangnet: N일 롤링 수집 → Blob → DB → OrdersRealtime
     """
     logging.info('=' * 80)
     logging.info('일일 매출 데이터 수집 시작')
