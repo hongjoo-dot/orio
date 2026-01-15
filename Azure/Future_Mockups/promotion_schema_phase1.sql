@@ -9,7 +9,18 @@
 CREATE TABLE dbo.Promotion (
     PromotionID int IDENTITY(1,1) PRIMARY KEY,
     PromotionName nvarchar(200) NOT NULL,
-    PromotionType nvarchar(50) NULL,              -- PRICE_DISCOUNT(판매가할인) / COUPON / WHOLESALE_DISCOUNT(원매가) / BUNDLE_DISCOUNT(에누리) / SPECIAL_PRODUCT(기획)
+    PromotionType nvarchar(50) NULL,            
+-- ============================================
+-- 	온라인
+-- 	'ONLINE_PRICE_DISCOUNT'      	-- 판매가할인
+-- 	'ONLINE_COUPON'              	-- 쿠폰할인
+-- 	'ONLINE_POST_SETTLEMENT'     	-- 정산후보정
+-- 	'ONLINE_FREE_PROMOTION'      	-- 무상기획전
+-- 	오프라인
+-- 	'OFFLINE_WHOLESALE_DISCOUNT' 	-- 원매가할인
+-- 	'OFFLINE_SPECIAL_PRODUCT'    	-- 기획상품
+-- 	'OFFLINE_BUNDLE_DISCOUNT'    	-- 에누리(묶음할인)
+-- ============================================   
     StartDate date NOT NULL,
     EndDate date NOT NULL,
     Status nvarchar(20) DEFAULT 'SCHEDULED' NULL, -- SCHEDULED / ACTIVE / COMPLETED / CANCELLED
@@ -17,25 +28,18 @@ CREATE TABLE dbo.Promotion (
     -- 기본 정보
     BrandID int NOT NULL,
     ChannelID int NOT NULL,                       -- Phase 1에서는 미사용 (FK 없음)
-    ChannelType nvarchar(20) NULL,                -- ONLINE / OFFLINE / BOTH
     ChannelNames nvarchar(500) NULL,              -- "쿠팡, 네이버스토어" or "이마트, 홈플러스"
     CommissionRate decimal(5,2) NULL,             -- 채널 수수료율 (%)
 
     -- 할인 분담 구조
-    DiscountOwner nvarchar(20) NULL,              -- ORIO / CHANNEL / BOTH
+    DiscountOwner nvarchar(20) NULL,              -- COMPANY / CHANNEL / BOTH
     OrioShare decimal(5,2) NULL,                  -- 오리오 분담률 (%)
     ChannelShare decimal(5,2) NULL,               -- 판매채널 분담률 (%)
-
-    -- 오프라인 전용
-    BundleCondition nvarchar(200) NULL,           -- "3개 구매시 20% 할인", "2+1 증정"
 
     -- 목표 (행사 전체 합계)
     TargetSalesAmount decimal(18,2) NULL,         -- 매출 목표
     TargetQuantity int NULL,                      -- 수량 목표
     TargetProfit decimal(18,2) NULL,              -- 목표 순이익
-
-    -- 상태
-    IsActive bit DEFAULT 1 NOT NULL,
 
     -- 기타
     Notes nvarchar(MAX) NULL,
@@ -59,9 +63,8 @@ CREATE TABLE dbo.PromotionProduct (
     -- ========================================
     RegularPrice decimal(18,2) NULL,              -- 정가
     SellingPrice decimal(18,2) NULL,              -- 상시판매가
-    PromotionPrice decimal(18,2) NULL,            -- 행사가
-    SupplyPrice decimal(18,2) NULL,               -- 공급가 (정산가, 원매가 할인 포함)
-    DiscountRate decimal(5,2) NULL,               -- 판매가 할인율 (직접 입력)
+    PromotionPrice decimal(18,2) NULL,            -- 행사가 (판매가할인)
+    SupplyPrice decimal(18,2) NULL,               -- 공급가 (원매가할인)
     CouponDiscountRate decimal(5,2) NULL,         -- 쿠폰 할인율 (직접 입력)
 
     -- ========================================
@@ -72,24 +75,19 @@ CREATE TABLE dbo.PromotionProduct (
     LogisticsCost decimal(18,2) NULL,             -- 단위당 물류비
     ManagementCost decimal(18,2) NULL,            -- 단위당 관리비
     WarehouseCost decimal(18,2) NULL,             -- 단위당 창고비
-
-    -- 마진 (계산으로 채워질 예정)
-    MarginRate decimal(5,2) NULL,                 -- 마진율 (%)
-    MarginAmount decimal(18,2) NULL,              -- 단위당 마진액
+    EDICost decimal(18,2) NULL,             	  -- 단위당 EDI비용
 
     -- ========================================
     -- 목표 (상품별)
     -- ========================================
     TargetSalesAmount decimal(18,2) NULL,         -- 매출 목표
     TargetQuantity int NULL,                      -- 수량 목표
-    TargetProfit decimal(18,2) NULL,              -- 목표 순이익
     RequiredStockQty int NULL,                    -- 필요 재고 수량
 
     -- ========================================
     -- 기타
     -- ========================================
     Notes nvarchar(MAX) NULL,
-    IsActive bit DEFAULT 1 NOT NULL,
     CreatedDate datetime DEFAULT GETDATE(),
     UpdatedDate datetime DEFAULT GETDATE(),
 
