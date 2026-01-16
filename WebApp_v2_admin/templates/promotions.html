@@ -1,0 +1,670 @@
+{% extends "base.html" %}
+
+{% block title %}행사 관리 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">행사 관리</h1>
+    <p class="page-subtitle">온/오프라인 행사 및 프로모션 관리</p>
+</div>
+
+<!-- Search Filters -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 검색 필터</div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                <i class="fa-solid fa-rotate-right"></i> 초기화
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="applyFilters()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;">
+        <div>
+            <label class="form-label">연도</label>
+            <select id="searchYear" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">행사유형</label>
+            <select id="searchPromotionType" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">채널</label>
+            <select id="searchChannelName" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">상태</label>
+            <select id="searchStatus" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">검색어</label>
+            <input type="text" id="searchKeyword" class="form-input" placeholder="행사ID 또는 행사명">
+        </div>
+    </div>
+</div>
+
+<!-- Master Table (Promotion) -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
+            <h2 class="card-title" style="margin:0;white-space:nowrap;">
+                행사 목록 <span id="resultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
+            </h2>
+            <select id="limitSelector" onchange="changeLimit()" class="form-select" style="width:auto;padding:8px 12px;font-size:13px;">
+                <option value="20" selected>20개씩</option>
+                <option value="50">50개씩</option>
+                <option value="100">100개씩</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="selectAllVisible()">
+                <i class="fa-solid fa-check-double"></i> 전체 선택
+            </button>
+            <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton">
+                <i class="fa-solid fa-trash"></i> 선택 삭제
+            </button>
+            <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
+                <i class="fa-solid fa-download"></i> 템플릿 다운로드
+            </button>
+            <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
+                <i class="fa-solid fa-upload"></i> 엑셀 업로드
+            </button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                    <th>행사ID</th>
+                    <th>행사명</th>
+                    <th>채널</th>
+                    <th>행사유형</th>
+                    <th>상태</th>
+                    <th style="text-align:right;">매출목표</th>
+                    <th>기간</th>
+                </tr>
+            </thead>
+            <tbody id="masterTable">
+                <tr>
+                    <td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">
+                        <i class="fa-solid fa-search" style="font-size:48px;margin-bottom:16px;opacity:0.5;"></i>
+                        <p>검색 버튼을 눌러 데이터를 조회하세요.</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="pagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
+</div>
+
+<!-- Detail Table (PromotionProduct) -->
+<div class="card" id="detailSection" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 class="card-title" style="margin:0;">
+            <i class="fa-solid fa-boxes-stacked"></i>
+            <span id="detailTitle">상품 목록</span>
+        </h2>
+        <button class="btn btn-secondary btn-sm" onclick="hideDetail()">
+            <i class="fa-solid fa-times"></i> 닫기
+        </button>
+    </div>
+
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>상품코드</th>
+                    <th>상품명</th>
+                    <th style="text-align:right;">판매가</th>
+                    <th style="text-align:right;">행사가</th>
+                    <th style="text-align:right;">목표수량</th>
+                    <th style="text-align:right;">목표매출</th>
+                </tr>
+            </thead>
+            <tbody id="detailTable">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="modal">
+    <div class="modal-content" style="max-width:600px;">
+        <div class="modal-header">
+            <h2 class="modal-title">행사 업로드</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="upload-zone" onclick="document.getElementById('fileInput').click()" style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:all 0.2s;">
+                <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileSelect(event)" style="display:none;">
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size:48px;color:var(--text-muted);margin-bottom:16px;"></i>
+                <p style="font-size:16px;margin-bottom:8px;">파일을 드래그하거나 클릭하여 선택</p>
+                <p style="font-size:13px;color:var(--text-muted);">지원 형식: .xlsx, .xls</p>
+            </div>
+            <div id="fileInfo" style="margin-top:16px;display:none;">
+                <p><strong>선택된 파일:</strong> <span id="fileName"></span></p>
+            </div>
+            <div style="margin-top:16px;padding:12px;background:var(--bg-hover);border-radius:8px;">
+                <p style="font-size:13px;color:var(--text-muted);margin:0;">
+                    <i class="fa-solid fa-info-circle"></i>
+                    2개 시트 필요: <strong>Promotion</strong> (마스터), <strong>PromotionProduct</strong> (상품)
+                </p>
+            </div>
+            <div id="uploadProgress" style="margin-top:16px;display:none;">
+                <div style="background:var(--border);border-radius:8px;overflow:hidden;height:8px;">
+                    <div id="progressBar" style="background:var(--success);height:100%;width:0%;transition:width 0.3s;"></div>
+                </div>
+                <p id="progressText" style="margin-top:8px;font-size:13px;color:var(--text-muted);text-align:center;">0%</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-primary" id="uploadButton" onclick="uploadFile()" disabled>
+                <i class="fa-solid fa-upload"></i> 업로드
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Result Modal -->
+<div id="uploadResultModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">업로드 결과</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom:24px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                    <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--success);"></i>
+                    <div>
+                        <h3 style="font-size:20px;margin-bottom:4px;">업로드 완료</h3>
+                        <p style="color:var(--text-muted);font-size:14px;">데이터가 성공적으로 업로드되었습니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Promotion 통계 -->
+            <div style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:16px;">
+                <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
+                    <i class="fa-solid fa-tags"></i> Promotion (행사 마스터)
+                </h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">총 행 수</div>
+                        <div style="font-size:20px;font-weight:600;" id="uploadPromotionTotal">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">신규 삽입</div>
+                        <div style="font-size:20px;font-weight:600;color:var(--success);" id="uploadPromotionInserted">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">기존 수정</div>
+                        <div style="font-size:20px;font-weight:600;color:#3b82f6;" id="uploadPromotionUpdated">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PromotionProduct 통계 -->
+            <div style="background:rgba(16,185,129,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                <h4 style="font-size:15px;margin-bottom:16px;color:var(--success);">
+                    <i class="fa-solid fa-boxes-stacked"></i> PromotionProduct (행사 상품)
+                </h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">총 행 수</div>
+                        <div style="font-size:20px;font-weight:600;" id="uploadProductTotal">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">신규 삽입</div>
+                        <div style="font-size:20px;font-weight:600;color:var(--success);" id="uploadProductInserted">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">기존 수정</div>
+                        <div style="font-size:20px;font-weight:600;color:#3b82f6;" id="uploadProductUpdated">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="uploadWarnings" style="display:none;background:rgba(245,158,11,0.1);border-radius:12px;padding:16px;">
+                <h4 style="font-size:14px;margin-bottom:12px;color:var(--warning);">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 매핑 경고
+                </h4>
+                <div id="uploadWarningContent" style="font-size:13px;color:var(--text-muted);"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" data-modal-close>
+                <i class="fa-solid fa-check"></i> 확인
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1, limit = 20, currentFilters = {}, selectedIds = new Set();
+    let uploadModal, uploadResultModal;
+    let filterOptions = { promotion_types: [], statuses: [], channel_names: [] };
+    let selectedPromotionId = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        uploadModal = new ModalManager('uploadModal');
+        uploadResultModal = new ModalManager('uploadResultModal');
+
+        initYearOptions();
+        loadFilterOptions();
+    });
+
+    function initYearOptions() {
+        const select = document.getElementById('searchYear');
+        const currentYear = new Date().getFullYear();
+        for (let y = currentYear + 1; y >= currentYear - 2; y--) {
+            const option = document.createElement('option');
+            option.value = y;
+            option.textContent = y + '년';
+            if (y === currentYear) option.selected = true;
+            select.appendChild(option);
+        }
+    }
+
+    async function loadFilterOptions() {
+        try {
+            const res = await fetch('/api/promotions/filter-options');
+            filterOptions = await res.json();
+
+            // 행사유형
+            const typeSelect = document.getElementById('searchPromotionType');
+            typeSelect.innerHTML = '<option value="">전체</option>' +
+                filterOptions.promotion_types.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+
+            // 상태
+            const statusSelect = document.getElementById('searchStatus');
+            statusSelect.innerHTML = '<option value="">전체</option>' +
+                filterOptions.statuses.map(s => `<option value="${s.value}">${s.label}</option>`).join('');
+
+            // 채널명
+            const channelSelect = document.getElementById('searchChannelName');
+            channelSelect.innerHTML = '<option value="">전체</option>' +
+                filterOptions.channel_names.map(c => `<option value="${c}">${c}</option>`).join('');
+        } catch (e) {
+            console.error('필터 옵션 로드 실패:', e);
+        }
+    }
+
+    async function loadData() {
+        try {
+            const params = new URLSearchParams({ page: currentPage, limit, ...currentFilters });
+            const res = await fetch(`/api/promotions?${params}`);
+            const data = await res.json();
+
+            const tbody = document.getElementById('masterTable');
+            tbody.innerHTML = data.data.length === 0
+                ? '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">데이터가 없습니다.</td></tr>'
+                : data.data.map(item => `
+                    <tr class="master-row ${selectedPromotionId === item.PromotionID ? 'selected' : ''}"
+                        onclick="showDetail('${item.PromotionID}', '${item.PromotionName}')"
+                        style="cursor:pointer;">
+                        <td style="text-align:center;" onclick="event.stopPropagation();">
+                            <input type="checkbox" class="row-checkbox" value="${item.PromotionID}" onchange="toggleRowSelect()">
+                        </td>
+                        <td><strong>${item.PromotionID}</strong></td>
+                        <td>${item.PromotionName || '-'}</td>
+                        <td>${item.ChannelName || '-'}</td>
+                        <td>
+                            <span class="badge badge-type-${getTypeClass(item.PromotionType)}">
+                                ${item.PromotionTypeDisplay || item.PromotionType || '-'}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-status-${item.Status?.toLowerCase()}">
+                                ${item.StatusDisplay || item.Status || '-'}
+                            </span>
+                        </td>
+                        <td style="text-align:right;">${item.TargetSalesAmount?.toLocaleString() || 0}</td>
+                        <td style="font-size:13px;">${item.StartDate || ''} ~ ${item.EndDate || ''}</td>
+                    </tr>
+                `).join('');
+
+            document.getElementById('resultCount').textContent = `(총 ${data.total.toLocaleString()}건)`;
+
+            const totalPages = Math.ceil(data.total / limit);
+            document.getElementById('pagination').innerHTML =
+                (currentPage > 1 ? `<button class="btn btn-sm btn-secondary" onclick="changePage(${currentPage - 1})">이전</button>` : '') +
+                `<span style="padding:0 16px;">${currentPage} / ${totalPages || 1}</span>` +
+                (currentPage < totalPages ? `<button class="btn btn-sm btn-secondary" onclick="changePage(${currentPage + 1})">다음</button>` : '');
+        } catch (e) {
+            showAlert('데이터 로드 실패: ' + e.message, 'error');
+        }
+    }
+
+    function getTypeClass(type) {
+        if (!type) return 'default';
+        if (type.startsWith('ONLINE')) return 'online';
+        if (type.startsWith('OFFLINE')) return 'offline';
+        return 'default';
+    }
+
+    async function showDetail(promotionId, promotionName) {
+        selectedPromotionId = promotionId;
+
+        // 행 선택 표시 업데이트
+        document.querySelectorAll('.master-row').forEach(row => row.classList.remove('selected'));
+        event.currentTarget.classList.add('selected');
+
+        document.getElementById('detailTitle').textContent = `${promotionName} - 상품 목록`;
+        document.getElementById('detailSection').style.display = 'block';
+
+        try {
+            const res = await fetch(`/api/promotions/${promotionId}/products`);
+            const result = await res.json();
+            const products = result.data || [];
+
+            const tbody = document.getElementById('detailTable');
+            tbody.innerHTML = products.length === 0
+                ? '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">등록된 상품이 없습니다.</td></tr>'
+                : products.map(p => `
+                    <tr>
+                        <td><strong>${p.Uniquecode || '-'}</strong></td>
+                        <td>${p.ProductName || '-'}</td>
+                        <td style="text-align:right;">${p.SellingPrice?.toLocaleString() || '-'}</td>
+                        <td style="text-align:right;">${p.PromotionPrice?.toLocaleString() || '-'}</td>
+                        <td style="text-align:right;">${p.TargetQuantity?.toLocaleString() || '-'}</td>
+                        <td style="text-align:right;">${p.TargetSalesAmount?.toLocaleString() || '-'}</td>
+                    </tr>
+                `).join('');
+
+            // 스크롤 이동
+            document.getElementById('detailSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (e) {
+            showAlert('상품 목록 로드 실패: ' + e.message, 'error');
+        }
+    }
+
+    function hideDetail() {
+        selectedPromotionId = null;
+        document.getElementById('detailSection').style.display = 'none';
+        document.querySelectorAll('.master-row').forEach(row => row.classList.remove('selected'));
+    }
+
+    function applyFilters() {
+        currentFilters = {};
+        const year = document.getElementById('searchYear').value;
+        const promotionType = document.getElementById('searchPromotionType').value;
+        const channelName = document.getElementById('searchChannelName').value;
+        const status = document.getElementById('searchStatus').value;
+        const search = document.getElementById('searchKeyword').value.trim();
+
+        if (year) currentFilters.year = year;
+        if (promotionType) currentFilters.promotion_type = promotionType;
+        if (channelName) currentFilters.channel_name = channelName;
+        if (status) currentFilters.status = status;
+        if (search) currentFilters.search = search;
+
+        currentPage = 1;
+        hideDetail();
+        loadData();
+    }
+
+    function resetFilters() {
+        document.getElementById('searchYear').value = new Date().getFullYear();
+        document.getElementById('searchPromotionType').value = '';
+        document.getElementById('searchChannelName').value = '';
+        document.getElementById('searchStatus').value = '';
+        document.getElementById('searchKeyword').value = '';
+        currentFilters = {};
+        currentPage = 1;
+        hideDetail();
+
+        document.getElementById('masterTable').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fa-solid fa-search" style="font-size:48px;margin-bottom:16px;opacity:0.5;"></i><p>검색 조건을 입력하고 검색 버튼을 클릭하세요.</p></td></tr>';
+        document.getElementById('resultCount').textContent = '';
+        document.getElementById('pagination').innerHTML = '';
+    }
+
+    function changePage(page) {
+        currentPage = page;
+        loadData();
+    }
+
+    function changeLimit() {
+        limit = parseInt(document.getElementById('limitSelector').value);
+        currentPage = 1;
+        loadData();
+    }
+
+    function toggleSelectAll() {
+        const checked = document.getElementById('selectAll').checked;
+        document.querySelectorAll('.row-checkbox').forEach(cb => {
+            cb.checked = checked;
+            if (checked) selectedIds.add(cb.value);
+            else selectedIds.delete(cb.value);
+        });
+        updateActionButtons();
+    }
+
+    function toggleRowSelect() {
+        selectedIds.clear();
+        document.querySelectorAll('.row-checkbox:checked').forEach(cb => selectedIds.add(cb.value));
+        document.getElementById('selectAll').checked = document.querySelectorAll('.row-checkbox').length === selectedIds.size;
+        updateActionButtons();
+    }
+
+    function selectAllVisible() {
+        document.getElementById('selectAll').checked = true;
+        toggleSelectAll();
+    }
+
+    function updateActionButtons() {
+        const hasSelection = selectedIds.size > 0;
+        const deleteBtn = document.getElementById('deleteButton');
+        if (hasSelection) {
+            deleteBtn.classList.remove('btn-disabled');
+        } else {
+            deleteBtn.classList.add('btn-disabled');
+        }
+    }
+
+    async function bulkDelete() {
+        if (selectedIds.size === 0) return;
+
+        showConfirm(`선택한 ${selectedIds.size}개 행사를 삭제하시겠습니까?\n(연관된 상품 정보도 함께 삭제됩니다)`, async () => {
+            try {
+                const res = await fetch('/api/promotions/bulk-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: Array.from(selectedIds) })
+                });
+
+                if (res.ok) {
+                    const result = await res.json();
+                    showAlert(`삭제 완료: 행사 ${result.deleted_count}건, 상품 ${result.deleted_products}건`, 'success');
+                    selectedIds.clear();
+                    updateActionButtons();
+                    hideDetail();
+                    loadData();
+                } else {
+                    showAlert('삭제 실패', 'error');
+                }
+            } catch (e) {
+                showAlert('오류: ' + e.message, 'error');
+            }
+        });
+    }
+
+    function downloadTemplate() {
+        window.location.href = '/api/promotions/download/template';
+    }
+
+    function showUploadModal() {
+        document.getElementById('fileInput').value = '';
+        document.getElementById('fileInfo').style.display = 'none';
+        document.getElementById('uploadProgress').style.display = 'none';
+        document.getElementById('uploadButton').disabled = true;
+        uploadModal.show();
+    }
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileInfo').style.display = 'block';
+            document.getElementById('uploadButton').disabled = false;
+        }
+    }
+
+    async function uploadFile() {
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput.files[0]) return;
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        document.getElementById('uploadProgress').style.display = 'block';
+        document.getElementById('uploadButton').disabled = true;
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressText').textContent = '업로드 중...';
+
+        try {
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                if (progress <= 90) {
+                    document.getElementById('progressBar').style.width = progress + '%';
+                    document.getElementById('progressText').textContent = progress + '%';
+                }
+            }, 100);
+
+            const res = await fetch('/api/promotions/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            clearInterval(progressInterval);
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressText').textContent = '100%';
+
+            if (res.ok) {
+                const result = await res.json();
+
+                // Promotion 통계
+                document.getElementById('uploadPromotionTotal').textContent = result.promotion?.total_rows?.toLocaleString() || 0;
+                document.getElementById('uploadPromotionInserted').textContent = result.promotion?.inserted?.toLocaleString() || 0;
+                document.getElementById('uploadPromotionUpdated').textContent = result.promotion?.updated?.toLocaleString() || 0;
+
+                // PromotionProduct 통계
+                document.getElementById('uploadProductTotal').textContent = result.promotion_product?.total_rows?.toLocaleString() || 0;
+                document.getElementById('uploadProductInserted').textContent = result.promotion_product?.inserted?.toLocaleString() || 0;
+                document.getElementById('uploadProductUpdated').textContent = result.promotion_product?.updated?.toLocaleString() || 0;
+
+                // 경고 메시지
+                const warnings = [];
+                if (result.warnings?.unmapped_brands?.count > 0) {
+                    const brandList = result.warnings.unmapped_brands.items?.slice(0, 10).map(b => `<span style="color:var(--danger);font-weight:600;">${b}</span>`).join(', ');
+                    const more = result.warnings.unmapped_brands.count > 10 ? ` 외 ${result.warnings.unmapped_brands.count - 10}건` : '';
+                    warnings.push(`<strong>브랜드 매핑 실패 ${result.warnings.unmapped_brands.count}건:</strong><br><span style="margin-left:8px;">${brandList}${more}</span>`);
+                }
+                if (result.warnings?.unmapped_channels?.count > 0) {
+                    const channelList = result.warnings.unmapped_channels.items?.slice(0, 10).map(c => `<span style="color:var(--danger);font-weight:600;">${c}</span>`).join(', ');
+                    const more = result.warnings.unmapped_channels.count > 10 ? ` 외 ${result.warnings.unmapped_channels.count - 10}건` : '';
+                    warnings.push(`<strong>채널 매핑 실패 ${result.warnings.unmapped_channels.count}건:</strong><br><span style="margin-left:8px;">${channelList}${more}</span>`);
+                }
+                if (result.warnings?.unmapped_products?.count > 0) {
+                    const productList = result.warnings.unmapped_products.items?.slice(0, 10).map(p => `<span style="color:var(--danger);font-weight:600;">${p}</span>`).join(', ');
+                    const more = result.warnings.unmapped_products.count > 10 ? ` 외 ${result.warnings.unmapped_products.count - 10}건` : '';
+                    warnings.push(`<strong>상품코드 매핑 실패 ${result.warnings.unmapped_products.count}건:</strong><br><span style="margin-left:8px;">${productList}${more}</span>`);
+                }
+
+                if (warnings.length > 0) {
+                    document.getElementById('uploadWarnings').style.display = 'block';
+                    document.getElementById('uploadWarningContent').innerHTML = warnings.map(w => `<div style="margin-bottom:12px;line-height:1.6;">• ${w}</div>`).join('');
+                } else {
+                    document.getElementById('uploadWarnings').style.display = 'none';
+                }
+
+                uploadModal.hide();
+                uploadResultModal.show();
+
+                // 채널명 옵션 새로고침
+                loadFilterOptions();
+
+                if (Object.keys(currentFilters).length > 0) {
+                    loadData();
+                }
+            } else {
+                const error = await res.json();
+                showAlert('업로드 실패: ' + (error.detail || '알 수 없는 오류'), 'error');
+            }
+        } catch (e) {
+            showAlert('업로드 오류: ' + e.message, 'error');
+        } finally {
+            document.getElementById('uploadButton').disabled = false;
+            document.getElementById('uploadProgress').style.display = 'none';
+        }
+    }
+</script>
+
+<style>
+    .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    /* 행사유형 뱃지 */
+    .badge-type-online {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+    .badge-type-offline {
+        background: rgba(139, 92, 246, 0.15);
+        color: #8b5cf6;
+    }
+    .badge-type-default {
+        background: rgba(107, 114, 128, 0.15);
+        color: #6b7280;
+    }
+
+    /* 상태 뱃지 */
+    .badge-status-scheduled {
+        background: rgba(107, 114, 128, 0.15);
+        color: #6b7280;
+    }
+    .badge-status-active {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--success);
+    }
+    .badge-status-completed {
+        background: rgba(99, 102, 241, 0.15);
+        color: var(--accent);
+    }
+    .badge-status-cancelled {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--danger);
+    }
+
+    /* 마스터 행 선택 */
+    .master-row:hover {
+        background: rgba(99, 102, 241, 0.05);
+    }
+    .master-row.selected {
+        background: rgba(99, 102, 241, 0.1);
+        border-left: 3px solid var(--accent);
+    }
+</style>
+{% endblock %}

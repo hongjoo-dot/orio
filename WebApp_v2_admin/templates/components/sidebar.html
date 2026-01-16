@@ -25,12 +25,15 @@
                 <span class="nav-text">판매 관리</span>
                 <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
             </div>
-            <div class="nav-group-items {% if active_page in ['sales', 'revenue-plan'] %}expanded{% endif %}">
+            <div class="nav-group-items {% if active_page in ['sales', 'revenue-plan', 'promotions'] %}expanded{% endif %}">
                 <a href="/sales" class="nav-item nav-sub-item {% if active_page == 'sales' %}active{% endif %}">
                     <i class="fa-solid fa-receipt"></i> <span class="nav-text">판매 실적</span>
                 </a>
                 <a href="/revenue-plan" class="nav-item nav-sub-item {% if active_page == 'revenue-plan' %}active{% endif %}">
                     <i class="fa-solid fa-chart-line"></i> <span class="nav-text">매출 계획</span>
+                </a>
+                <a href="/promotions" class="nav-item nav-sub-item {% if active_page == 'promotions' %}active{% endif %}">
+                    <i class="fa-solid fa-tags"></i> <span class="nav-text">행사 관리</span>
                 </a>
             </div>
         </div>
