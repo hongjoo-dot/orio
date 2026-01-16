@@ -1,15 +1,19 @@
 <!-- Sidebar Component -->
-<nav class="sidebar">
+<nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <a href="/" class="logo">
-            <i class="fa-solid fa-rocket"></i> Orio ERP
+            <i class="fa-solid fa-rocket"></i>
+            <span class="logo-text">Orio ERP</span>
         </a>
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="사이드바 접기/펴기">
+            <i class="fa-solid fa-angles-left"></i>
+        </button>
     </div>
 
     <div class="nav-links">
         <div class="nav-section-title">Main / 메인</div>
         <a href="/" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
-            <i class="fa-solid fa-chart-line"></i> 대시보드
+            <i class="fa-solid fa-chart-line"></i> <span class="nav-text">대시보드</span>
         </a>
 
         <div class="nav-section-title">Management / 관리</div>
@@ -17,53 +21,53 @@
         <!-- 판매 관리 서브메뉴 -->
         <div class="nav-group">
             <div class="nav-item nav-group-header" onclick="toggleNavGroup(this)">
-                <span><i class="fa-solid fa-won-sign" style="margin-right:6px;"></i> 판매 관리</span>
+                <i class="fa-solid fa-won-sign"></i>
+                <span class="nav-text">판매 관리</span>
                 <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
             </div>
             <div class="nav-group-items {% if active_page in ['sales', 'revenue-plan'] %}expanded{% endif %}">
                 <a href="/sales" class="nav-item nav-sub-item {% if active_page == 'sales' %}active{% endif %}">
-                    <i class="fa-solid fa-receipt"></i> 판매 실적
+                    <i class="fa-solid fa-receipt"></i> <span class="nav-text">판매 실적</span>
                 </a>
                 <a href="/revenue-plan" class="nav-item nav-sub-item {% if active_page == 'revenue-plan' %}active{% endif %}">
-                    <i class="fa-solid fa-chart-line"></i> 매출 계획
+                    <i class="fa-solid fa-chart-line"></i> <span class="nav-text">매출 계획</span>
                 </a>
             </div>
         </div>
         <a href="/products" class="nav-item {% if active_page == 'products' %}active{% endif %}">
-            <i class="fa-solid fa-box"></i> 상품 관리
+            <i class="fa-solid fa-box"></i> <span class="nav-text">상품 관리</span>
         </a>
         <a href="/channels" class="nav-item {% if active_page == 'channels' %}active{% endif %}">
-            <i class="fa-solid fa-store"></i> 채널 관리
+            <i class="fa-solid fa-store"></i> <span class="nav-text">채널 관리</span>
         </a>
         <a href="/bom" class="nav-item {% if active_page == 'bom' %}active{% endif %}">
-            <i class="fa-solid fa-sitemap"></i> BOM 관리
+            <i class="fa-solid fa-sitemap"></i> <span class="nav-text">BOM 관리</span>
         </a>
 
         <!-- Admin Section (Admin 역할에게만 표시) -->
         <div class="nav-section-title admin-only" style="display: none;">Admin / 관리자</div>
         <a href="/admin/users" class="nav-item admin-only {% if active_page == 'admin-users' %}active{% endif %}"
             style="display: none;">
-            <i class="fa-solid fa-users-gear"></i> 사용자 관리
+            <i class="fa-solid fa-users-gear"></i> <span class="nav-text">사용자 관리</span>
         </a>
         <a href="/admin/activity-log"
             class="nav-item admin-only {% if active_page == 'activity-log' %}active{% endif %}" style="display: none;">
-            <i class="fa-solid fa-clock-rotate-left"></i> 활동 이력
+            <i class="fa-solid fa-clock-rotate-left"></i> <span class="nav-text">활동 이력</span>
         </a>
         <a href="/admin/system-config"
             class="nav-item admin-only {% if active_page == 'system-config' %}active{% endif %}" style="display: none;">
-            <i class="fa-solid fa-gear"></i> 시스템 설정
+            <i class="fa-solid fa-gear"></i> <span class="nav-text">시스템 설정</span>
         </a>
     </div>
 
     <!-- User Info at Bottom -->
-    <div class="sidebar-footer" style="margin-top: auto; padding: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
-        <div id="userInfo" style="color: rgba(255,255,255,0.7); font-size: 12px; margin-bottom: 10px;">
-            <div id="userName" style="font-weight: 600; color: #fff;"></div>
-            <div id="userRole" style="font-size: 11px;"></div>
+    <div class="sidebar-footer">
+        <div id="userInfo" class="user-info">
+            <div id="userName" class="user-name"></div>
+            <div id="userRole" class="user-role"></div>
         </div>
-        <button id="btnLogout" class="btn-logout"
-            style="width: 100%; padding: 8px; background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; color: #fca5a5; cursor: pointer; font-size: 12px;">
-            <i class="fa-solid fa-right-from-bracket"></i> 로그아웃
+        <button id="btnLogout" class="btn-logout">
+            <i class="fa-solid fa-right-from-bracket"></i> <span class="nav-text">로그아웃</span>
         </button>
     </div>
 </nav>
@@ -74,14 +78,18 @@
         margin-bottom: 4px;
     }
     .nav-group-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
         cursor: pointer;
+        gap: 12px;
+    }
+    .nav-group-header i:first-child {
+        width: 20px;
+        text-align: center;
+        flex-shrink: 0;
     }
     .nav-group-arrow {
         font-size: 10px;
         transition: transform 0.2s;
+        margin-left: auto;
     }
     .nav-group-items {
         max-height: 0;
@@ -116,11 +124,38 @@
         items.classList.toggle('expanded');
     }
 
-    // 페이지 로드 시 활성화된 서브메뉴 펼치기
+    // 사이드바 접기/펴기 토글
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.querySelector('.main-content');
+
+        sidebar.classList.toggle('collapsed');
+        if (mainContent) {
+            mainContent.classList.toggle('expanded');
+        }
+
+        // localStorage에 상태 저장
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        localStorage.setItem('sidebarCollapsed', isCollapsed);
+    }
+
+    // 페이지 로드 시 사이드바 상태 복원 및 서브메뉴 펼치기
     document.addEventListener('DOMContentLoaded', function() {
+        // 서브메뉴 펼치기
         document.querySelectorAll('.nav-group-items.expanded').forEach(items => {
             items.closest('.nav-group').classList.add('open');
         });
+
+        // 사이드바 상태 복원
+        const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        if (isCollapsed) {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.querySelector('.main-content');
+            sidebar.classList.add('collapsed');
+            if (mainContent) {
+                mainContent.classList.add('expanded');
+            }
+        }
     });
 
     // 사용자 정보 표시 및 Admin 메뉴 제어
