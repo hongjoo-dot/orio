@@ -16,6 +16,7 @@ from repositories import SalesRepository, ActivityLogRepository
 from core import get_db_cursor
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
 from utils import send_sync_notification, send_erpsales_upload_notification
+from utils.excel import SalesExcelHandler
 
 router = APIRouter(prefix="/api/erpsales", tags=["Sales"])
 
@@ -334,45 +335,26 @@ async def upload_excel(
     엑셀 파일 업로드 및 ERPSales에 삽입 (대용량 지원 - 배치 처리)
     """
     try:
-        if not file.filename.endswith(('.xlsx', '.xls')):
-            raise HTTPException(400, "엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.")
-
         start_time = datetime.now()
+
+        # 핸들러 초기화
+        handler = SalesExcelHandler()
+        handler.validate_file(file)
+
         print(f"\n[엑셀 업로드 시작] {file.filename}")
 
-        contents = await file.read()
-        df = pd.read_excel(io.BytesIO(contents))
+        # 파일 읽기
+        excel_file = await handler.read_file(file)
+        df = pd.read_excel(excel_file)
         print(f"   총 {len(df):,}행 로드됨")
 
-        # 컬럼명 매핑
-        column_mapping = {
-            '라인별': 'ERPIDX',
-            '일자-No.': 'DateNo',
-            '일자': 'DATE',
-            '품목그룹1명': 'BRAND',
-            '품목명': 'PRODUCT_NAME',
-            '품목코드': 'ERPCode',
-            'Ea': 'Quantity',
-            '단가': 'UnitPrice',
-            '공급가액': 'TaxableAmount',
-            '거래처그룹1명': 'ChannelName',
-            '거래처명': 'ChannelDetailName',
-            '출하창고명': 'WarehouseName',
-            '담당자명': 'Owner',
-            '거래유형명': 'TransactionType'
-        }
-
-        df.rename(columns=column_mapping, inplace=True)
+        # 전처리 (칼럼 매핑, 날짜 변환, NULL 처리)
+        df = handler.preprocess_dataframe(df)
 
         # 필수 컬럼 확인
-        required_columns = ['DATE', 'Quantity', 'UnitPrice', 'TaxableAmount']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            raise HTTPException(400, f"필수 컬럼 누락: {', '.join(missing_columns)}")
+        handler.check_required_columns(df, handler.REQUIRED_COLS, "Sales")
 
-        # 날짜 변환
-        df['DATE'] = pd.to_datetime(df['DATE'], errors='coerce')
-
+        # 날짜 유효성 검사
         invalid_dates = df['DATE'].isna().sum()
         if invalid_dates > 0:
             print(f"   [경고] 날짜 파싱 실패: {invalid_dates:,}행 제거")
@@ -385,46 +367,11 @@ async def upload_excel(
             date_range = f"{date_min.strftime('%Y-%m-%d')} ~ {date_max.strftime('%Y-%m-%d')}"
             print(f"   날짜 범위: {date_range}")
 
-        # NULL 처리
-        numeric_columns = ['Quantity', 'UnitPrice', 'TaxableAmount']
-        for col in numeric_columns:
-            if col in df.columns:
-                df[col] = df[col].fillna(0)
-
-        string_columns = ['BRAND', 'PRODUCT_NAME', 'ERPCode', 'ChannelName', 'ChannelDetailName', 'Owner', 'ERPIDX', 'DateNo', 'WarehouseName', 'TransactionType']
-        for col in string_columns:
-            if col in df.columns:
-                df[col] = df[col].fillna('')
-
         print(f"   데이터 전처리 완료: {len(df):,}행")
 
         # 매핑 테이블 로드
-        with get_db_cursor(commit=False) as cursor:
-            print(f"   매핑 테이블 로드 중...")
-
-            cursor.execute("SELECT Name, BrandID FROM [dbo].[Brand]")
-            brand_map = {row[0]: row[1] for row in cursor.fetchall()}
-
-            cursor.execute("SELECT ERPCode, ProductID FROM [dbo].[ProductBox] WHERE ERPCode IS NOT NULL")
-            product_map = {row[0]: row[1] for row in cursor.fetchall()}
-
-            cursor.execute("SELECT Name, ChannelID FROM [dbo].[Channel]")
-            channel_map = {row[0]: row[1] for row in cursor.fetchall()}
-
-            cursor.execute("SELECT DetailName, ChannelDetailID FROM [dbo].[ChannelDetail]")
-            channel_detail_map = {row[0]: row[1] for row in cursor.fetchall()}
-
-            cursor.execute("SELECT WarehouseName, WarehouseID FROM [dbo].[Warehouse]")
-            warehouse_map = {row[0]: row[1] for row in cursor.fetchall()}
-
-            print(f"   매핑 테이블 로드 완료 (Brand:{len(brand_map)}, Product:{len(product_map)}, Channel:{len(channel_map)}, Detail:{len(channel_detail_map)}, Warehouse:{len(warehouse_map)})")
-
-        # 매핑 실패 추적
-        unmapped_brands = set()
-        unmapped_products = set()
-        unmapped_channels = set()
-        unmapped_channel_details = set()
-        unmapped_warehouses = set()
+        mapping_counts = handler.load_sales_mappings()
+        print(f"   매핑 테이블 로드 완료 (Brand:{mapping_counts['brand']}, Product:{mapping_counts['product']}, Channel:{mapping_counts['channel']}, Detail:{mapping_counts['channel_detail']}, Warehouse:{mapping_counts['warehouse']})")
 
         # 배치 처리
         BATCH_SIZE = 5000
@@ -476,57 +423,33 @@ async def upload_excel(
 
                 for idx, row in batch_df.iterrows():
                     try:
-                        brand_name = row.get('BRAND') or None
-                        erp_code = row.get('ERPCode') or None
-                        channel_name = row.get('ChannelName') or None
-                        channel_detail_name = row.get('ChannelDetailName') or None
-                        warehouse_name = row.get('WarehouseName') or None
+                        # 핸들러로 행 파싱 (매핑 포함)
+                        parsed = handler.parse_row(row)
 
-                        brand_id = brand_map.get(brand_name) if brand_name else None
-                        product_id = product_map.get(erp_code) if erp_code else None
-                        channel_id = channel_map.get(channel_name) if channel_name else None
-                        channel_detail_id = channel_detail_map.get(channel_detail_name) if channel_detail_name else None
-                        warehouse_id = warehouse_map.get(warehouse_name) if warehouse_name else None
-
-                        # 매핑 실패 추적
-                        if brand_name and brand_id is None:
-                            unmapped_brands.add(brand_name)
-                        if erp_code and product_id is None:
-                            unmapped_products.add(erp_code)
-                        if channel_name and channel_id is None:
-                            unmapped_channels.add(channel_name)
-                        if channel_detail_name and channel_detail_id is None:
-                            unmapped_channel_details.add(channel_detail_name)
-                        if warehouse_name and warehouse_id is None:
-                            unmapped_warehouses.add(warehouse_name)
-
-                        # 필수 데이터 유효성 검사
-                        if warehouse_id is None:
-                            raise ValueError(f"창고명 매핑 실패 (입력값: '{warehouse_name or '없음'}') - 필수 항목입니다.")
-
-                        erpidx = row.get('ERPIDX') or None
-                        date_val = row['DATE']
-                        product_name = row.get('PRODUCT_NAME') or None
-                        quantity = float(row['Quantity']) if row.get('Quantity') else 0
-                        unit_price = float(row['UnitPrice']) if row.get('UnitPrice') else 0
-                        taxable = float(row['TaxableAmount']) if row.get('TaxableAmount') else 0
-                        owner = row.get('Owner') or None
-                        date_no = row.get('DateNo') or None
-                        trans_type = row.get('TransactionType') or None
+                        if parsed is None:
+                            # 창고 매핑 실패 등
+                            warehouse_name = row.get('WarehouseName') or '없음'
+                            raise ValueError(f"창고명 매핑 실패 (입력값: '{warehouse_name}') - 필수 항목입니다.")
 
                         # MERGE 실행
                         cursor.execute(merge_sql, (
-                            erpidx,  # source ERPIDX
+                            parsed['ERPIDX'],  # source ERPIDX
                             # UPDATE SET values
-                            date_val, brand_name, brand_id, product_id, product_name, erp_code,
-                            quantity, unit_price, taxable,
-                            channel_id, channel_name, channel_detail_id, channel_detail_name, owner,
-                            date_no, warehouse_id, warehouse_name, trans_type,
+                            parsed['DATE'], parsed['BRAND'], parsed['BrandID'], parsed['ProductID'],
+                            parsed['PRODUCT_NAME'], parsed['ERPCode'],
+                            parsed['Quantity'], parsed['UnitPrice'], parsed['TaxableAmount'],
+                            parsed['ChannelID'], parsed['ChannelName'],
+                            parsed['ChannelDetailID'], parsed['ChannelDetailName'],
+                            parsed['Owner'], parsed['DateNo'],
+                            parsed['WarehouseID'], parsed['WarehouseName'], parsed['TransactionType'],
                             # INSERT VALUES
-                            date_val, brand_name, brand_id, product_id, product_name, erp_code,
-                            quantity, unit_price, taxable,
-                            channel_id, channel_name, channel_detail_id, channel_detail_name, owner,
-                            erpidx, date_no, warehouse_id, warehouse_name, trans_type
+                            parsed['DATE'], parsed['BRAND'], parsed['BrandID'], parsed['ProductID'],
+                            parsed['PRODUCT_NAME'], parsed['ERPCode'],
+                            parsed['Quantity'], parsed['UnitPrice'], parsed['TaxableAmount'],
+                            parsed['ChannelID'], parsed['ChannelName'],
+                            parsed['ChannelDetailID'], parsed['ChannelDetailName'],
+                            parsed['Owner'], parsed['ERPIDX'], parsed['DateNo'],
+                            parsed['WarehouseID'], parsed['WarehouseName'], parsed['TransactionType']
                         ))
 
                         # OUTPUT $action 결과 확인
@@ -556,6 +479,9 @@ async def upload_excel(
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
 
+        # 매핑 실패 요약
+        warnings = handler.get_unmapped_summary()
+
         # 활동 로그 기록 (엑셀 업로드)
         if user and request:
             activity_log_repo.log_action(
@@ -581,29 +507,29 @@ async def upload_excel(
         print(f"{'='*70}")
         print(f"   업로드 완료: {inserted_count:,}건 삽입, {updated_count:,}건 수정, {len(failed_rows)}건 실패")
 
-        if unmapped_brands:
-            print(f"\n[경고] 매핑 안 된 브랜드 {len(unmapped_brands)}개")
-            for b in sorted(list(unmapped_brands)[:20]):
+        if warnings['unmapped_brands']['items']:
+            print(f"\n[경고] 매핑 안 된 브랜드 {warnings['unmapped_brands']['count']}개")
+            for b in warnings['unmapped_brands']['items'][:20]:
                 print(f"   → {b}")
 
-        if unmapped_products:
-            print(f"\n[경고] 매핑 안 된 상품코드 {len(unmapped_products)}개")
-            for p in sorted(list(unmapped_products)[:20]):
+        if warnings['unmapped_products']['items']:
+            print(f"\n[경고] 매핑 안 된 상품코드 {warnings['unmapped_products']['count']}개")
+            for p in warnings['unmapped_products']['items'][:20]:
                 print(f"   → {p}")
 
-        if unmapped_channels:
-            print(f"\n[경고] 매핑 안 된 채널 {len(unmapped_channels)}개")
-            for c in sorted(list(unmapped_channels)[:20]):
+        if warnings['unmapped_channels']['items']:
+            print(f"\n[경고] 매핑 안 된 채널 {warnings['unmapped_channels']['count']}개")
+            for c in warnings['unmapped_channels']['items'][:20]:
                 print(f"   → {c}")
 
-        if unmapped_channel_details:
-            print(f"\n[경고] 매핑 안 된 거래처 {len(unmapped_channel_details)}개")
-            for cd in sorted(list(unmapped_channel_details)[:20]):
+        if warnings['unmapped_channel_details']['items']:
+            print(f"\n[경고] 매핑 안 된 거래처 {warnings['unmapped_channel_details']['count']}개")
+            for cd in warnings['unmapped_channel_details']['items'][:20]:
                 print(f"   → {cd}")
 
-        if unmapped_warehouses:
-            print(f"\n[경고] 매핑 안 된 창고 {len(unmapped_warehouses)}개")
-            for w in sorted(list(unmapped_warehouses)[:20]):
+        if warnings['unmapped_warehouses']['items']:
+            print(f"\n[경고] 매핑 안 된 창고 {warnings['unmapped_warehouses']['count']}개")
+            for w in warnings['unmapped_warehouses']['items'][:20]:
                 print(f"   → {w}")
         print(f"{'='*70}")
 
@@ -614,16 +540,7 @@ async def upload_excel(
             "updated": updated_count,
             "failed": len(failed_rows),
             "failed_rows": failed_rows[:100],
-            "unmapped_brands": len(unmapped_brands),
-            "unmapped_products": len(unmapped_products),
-            "unmapped_channels": len(unmapped_channels),
-            "unmapped_channel_details": len(unmapped_channel_details),
-            "unmapped_warehouses": len(unmapped_warehouses),
-            "unmapped_brands_list": sorted(list(unmapped_brands)),
-            "unmapped_products_list": sorted(list(unmapped_products)),
-            "unmapped_channels_list": sorted(list(unmapped_channels)),
-            "unmapped_channel_details_list": sorted(list(unmapped_channel_details)),
-            "unmapped_warehouses_list": sorted(list(unmapped_warehouses))
+            "warnings": warnings
         }
 
     except HTTPException:

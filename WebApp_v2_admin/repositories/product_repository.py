@@ -133,3 +133,15 @@ class ProductRepository(BaseRepository):
                 ORDER BY Name
             """)
             return [row[0] for row in cursor.fetchall()]
+
+    def get_by_unique_code(self, unique_code: str) -> Optional[Dict[str, Any]]:
+        """UniqueCode로 제품 조회"""
+        builder = self._build_query_with_filters()
+        builder.where("p.UniqueCode = ?", unique_code)
+        
+        from core import get_db_cursor
+        with get_db_cursor(commit=False) as cursor:
+            query, params = builder.build()
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+            return self._row_to_dict(row) if row else None

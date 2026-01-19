@@ -70,9 +70,9 @@ class TableManager {
             if (column.render) {
                 // 커스텀 렌더러
                 const content = column.render(rowData, rowData[column.key]);
-                if (typeof content === 'string') {
+                if (typeof content === 'string' || typeof content === 'number') {
                     td.innerHTML = content;
-                } else {
+                } else if (content instanceof Node) {
                     td.appendChild(content);
                 }
             } else {

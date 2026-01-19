@@ -5,7 +5,7 @@ Product Router
 - 활동 로그 기록
 """
 
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
@@ -15,6 +15,7 @@ from datetime import datetime
 from urllib.parse import quote
 from repositories import ProductRepository, ProductBoxRepository, ActivityLogRepository
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
+from utils.excel import ProductExcelHandler
 
 router = APIRouter(prefix="/api/products", tags=["Product"])
 
@@ -487,6 +488,82 @@ async def bulk_delete_products(
         raise
     except Exception as e:
         raise HTTPException(500, f"일괄 삭제 실패: {str(e)}")
+
+
+# ========== 엑셀 다운로드/업로드 ==========
+
+@router.get("/download/template")
+async def download_template():
+    """업로드용 엑셀 템플릿 다운로드"""
+    try:
+        handler = ProductExcelHandler()
+        excel_bytes = handler.create_template()
+        
+        filename = f"product_upload_template.xlsx"
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        }
+        
+        return StreamingResponse(io.BytesIO(excel_bytes), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers=headers)
+    except Exception as e:
+        raise HTTPException(500, f"템플릿 생성 실패: {str(e)}")
+
+
+@router.get("/download/excel")
+async def download_excel(
+    brand: Optional[str] = None,
+    unique_code: Optional[str] = None,
+    name: Optional[str] = None,
+    bundle_type: Optional[str] = None
+):
+    """제품 목록 엑셀 다운로드"""
+    try:
+        filters = {}
+        if brand: filters['brand'] = brand
+        if unique_code: filters['unique_code'] = unique_code
+        if name: filters['name'] = name
+        if bundle_type: filters['bundle_type'] = bundle_type
+
+        handler = ProductExcelHandler()
+        excel_bytes = handler.export_products(filters)
+        
+        filename = f"products_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        headers = {
+            'Content-Disposition': f'attachment; filename="{quote(filename)}"'
+        }
+        
+        return StreamingResponse(io.BytesIO(excel_bytes), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers=headers)
+    except Exception as e:
+        raise HTTPException(500, f"엑셀 다운로드 실패: {str(e)}")
+
+
+@router.post("/upload")
+async def upload_excel(
+    file: UploadFile = File(...),
+    request: Request = None,
+    user: CurrentUser = Depends(get_current_user)
+):
+    """엑셀 업로드 (제품 및 박스 일괄 등록/수정)"""
+    try:
+        content = await file.read()
+        handler = ProductExcelHandler()
+        result = handler.process_upload(content)
+        
+        # 활동 로그 기록
+        if user:
+            activity_log_repo.log_action(
+                user_id=user.user_id,
+                action_type="EXCEL_UPLOAD",
+                target_table="Product",
+                details=result,
+                ip_address=get_client_ip(request)
+            )
+            
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"업로드 처리 실패: {str(e)}")
 
 
 # ========== ProductBox 관련 엔드포인트 ==========

@@ -22,6 +22,7 @@ from repositories.promotion_repository import (
 from repositories import ActivityLogRepository
 from core import get_db_cursor
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
+from utils.excel import PromotionExcelHandler
 
 router = APIRouter(prefix="/api/promotions", tags=["Promotions"])
 
@@ -381,130 +382,35 @@ async def upload_excel(
     """
     엑셀 파일 업로드 및 Promotion/PromotionProduct에 UPSERT
     - 2개 시트: Promotion, PromotionProduct
+    - 행사ID 미입력 시 자동 생성 (브랜드코드+유형코드+년월+순번)
     """
     try:
-        if not file.filename.endswith(('.xlsx', '.xls')):
-            raise HTTPException(400, "엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.")
-
         start_time = datetime.now()
+
+        # 핸들러 초기화
+        handler = PromotionExcelHandler()
+        handler.validate_file(file)
+
         print(f"\n[행사 업로드 시작] {file.filename}")
 
-        contents = await file.read()
-        excel_file = io.BytesIO(contents)
+        # 파일 읽기
+        excel_file = await handler.read_file(file)
 
         # 시트 읽기
-        try:
-            df_promotion = pd.read_excel(excel_file, sheet_name='Promotion')
-            excel_file.seek(0)
-        except Exception:
-            raise HTTPException(400, "Promotion 시트를 찾을 수 없습니다.")
+        df_promotion = handler.read_sheet(excel_file, 'Promotion', required=True)
+        df_product = handler.read_sheet(excel_file, 'PromotionProduct', required=False)
 
-        try:
-            df_product = pd.read_excel(excel_file, sheet_name='PromotionProduct')
-        except Exception:
-            df_product = None
+        if df_product is None:
             print("   [안내] PromotionProduct 시트 없음 - 마스터만 처리")
 
         print(f"   Promotion: {len(df_promotion):,}행, PromotionProduct: {len(df_product) if df_product is not None else 0:,}행")
 
-        # 한글 칼럼명 -> 영문 칼럼명 매핑
-        promotion_col_map = {
-            '행사ID': 'PROMOTION_ID', '행사명': 'PROMOTION_NAME', '행사유형': 'PROMOTION_TYPE',
-            '시작일': 'START_DATE', '종료일': 'END_DATE', '상태': 'STATUS',
-            '브랜드': 'BRAND', '채널명': 'CHANNEL_NAME', '수수료율(%)': 'COMMISSION_RATE',
-            '할인분담주체': 'DISCOUNT_OWNER', '회사분담율(%)': 'COMPANY_SHARE', '채널분담율(%)': 'CHANNEL_SHARE',
-            '목표매출액': 'TARGET_SALES_AMOUNT', '목표수량': 'TARGET_QUANTITY', '비고': 'NOTES'
-        }
-        product_col_map = {
-            '행사ID': 'PROMOTION_ID', '상품코드': 'UNIQUECODE', '상품명': 'PRODUCT_NAME',
-            '판매가': 'SELLING_PRICE', '행사가': 'PROMOTION_PRICE', '공급가': 'SUPPLY_PRICE', 
-            '쿠폰할인율(%)': 'COUPON_DISCOUNT_RATE',
-            '원가': 'UNIT_COST', '물류비': 'LOGISTICS_COST', '관리비': 'MANAGEMENT_COST', 
-            '창고비': 'WAREHOUSE_COST', 'EDI비용': 'EDI_COST', '잡손실': 'MIS_COST',
-            '목표매출액': 'TARGET_SALES_AMOUNT', '목표수량': 'TARGET_QUANTITY', '비고': 'NOTES'
-        }
-
-        # 컬럼명 변환 (한글 -> 영문)
-        df_promotion.columns = [promotion_col_map.get(col.strip(), col.upper().strip().replace(' ', '_')) for col in df_promotion.columns]
-        if df_product is not None:
-            df_product.columns = [product_col_map.get(col.strip(), col.upper().strip().replace(' ', '_')) for col in df_product.columns]
-
-        # 필수 컬럼 확인 (Promotion)
-        required_promotion_cols = ['PROMOTION_ID', 'PROMOTION_NAME', 'START_DATE', 'END_DATE', 'BRAND']
-        missing_cols = [col for col in required_promotion_cols if col not in df_promotion.columns]
-        if missing_cols:
-            raise HTTPException(400, f"Promotion 시트 필수 컬럼 누락: {', '.join(missing_cols)}")
-
         # 매핑 테이블 로드
-        with get_db_cursor(commit=False) as cursor:
-            cursor.execute("SELECT Name, BrandID FROM [dbo].[Brand]")
-            brand_map = {row[0]: row[1] for row in cursor.fetchall()}
-
-            cursor.execute("SELECT Name, ChannelID FROM [dbo].[Channel]")
-            channel_map = {row[0]: row[1] for row in cursor.fetchall()}
-
-            cursor.execute("SELECT Uniquecode, ProductID FROM [dbo].[Product]")
-            product_map = {row[0]: row[1] for row in cursor.fetchall()}
-
-        print(f"   매핑 테이블 로드 완료 (Brand: {len(brand_map)}, Channel: {len(channel_map)}, Product: {len(product_map)})")
-
-        # 매핑 실패 추적
-        unmapped_brands = set()
-        unmapped_channels = set()
-        unmapped_products = set()
+        handler.load_mappings(load_brand=True, load_channel=True, load_product=True)
+        print(f"   매핑 테이블 로드 완료")
 
         # ========== Promotion 처리 ==========
-        promotion_records = []
-        for idx, row in df_promotion.iterrows():
-            brand_name = str(row['BRAND']).strip() if pd.notna(row.get('BRAND')) else None
-            brand_id = brand_map.get(brand_name)
-
-            if brand_name and brand_id is None:
-                unmapped_brands.add(brand_name)
-                continue
-
-            if brand_id is None:
-                continue
-
-            # 채널명으로 ChannelID 매핑
-            channel_name = str(row['CHANNEL_NAME']).strip() if pd.notna(row.get('CHANNEL_NAME')) else None
-            channel_id = None
-            if channel_name:
-                channel_id = channel_map.get(channel_name)
-                if channel_id is None:
-                    unmapped_channels.add(channel_name)
-
-            # PromotionType 변환 (한글 -> 영문)
-            promotion_type = row.get('PROMOTION_TYPE')
-            if pd.notna(promotion_type):
-                promotion_type = str(promotion_type).strip()
-                promotion_type = PROMOTION_TYPE_REVERSE_MAP.get(promotion_type, promotion_type)
-
-            # Status 변환 (한글 -> 영문)
-            status = row.get('STATUS', 'SCHEDULED')
-            if pd.notna(status):
-                status = str(status).strip()
-                status = STATUS_REVERSE_MAP.get(status, status)
-
-            promotion_records.append({
-                'PromotionID': str(row['PROMOTION_ID']).strip(),
-                'PromotionName': str(row['PROMOTION_NAME']).strip(),
-                'PromotionType': promotion_type,
-                'StartDate': pd.to_datetime(row['START_DATE']).strftime('%Y-%m-%d') if pd.notna(row['START_DATE']) else None,
-                'EndDate': pd.to_datetime(row['END_DATE']).strftime('%Y-%m-%d') if pd.notna(row['END_DATE']) else None,
-                'Status': status,
-                'BrandID': brand_id,
-                'ChannelID': channel_id,
-                'ChannelName': channel_name,
-                'CommissionRate': float(row['COMMISSION_RATE']) if pd.notna(row.get('COMMISSION_RATE')) else None,
-                'DiscountOwner': str(row['DISCOUNT_OWNER']).strip() if pd.notna(row.get('DISCOUNT_OWNER')) else None,
-                'CompanyShare': float(row['COMPANY_SHARE']) if pd.notna(row.get('COMPANY_SHARE')) else None,
-                'ChannelShare': float(row['CHANNEL_SHARE']) if pd.notna(row.get('CHANNEL_SHARE')) else None,
-                'TargetSalesAmount': float(row['TARGET_SALES_AMOUNT']) if pd.notna(row.get('TARGET_SALES_AMOUNT')) else None,
-                'TargetQuantity': int(row['TARGET_QUANTITY']) if pd.notna(row.get('TARGET_QUANTITY')) else None,
-                'Notes': str(row['NOTES']).strip() if pd.notna(row.get('NOTES')) else None
-            })
-
+        promotion_records = handler.process_promotion_sheet(df_promotion)
         print(f"   유효 Promotion 레코드: {len(promotion_records):,}건")
 
         # Promotion INSERT/UPDATE
@@ -514,49 +420,20 @@ async def upload_excel(
         product_result = {'inserted': 0, 'updated': 0}
 
         if df_product is not None and len(df_product) > 0:
-            required_product_cols = ['PROMOTION_ID', 'UNIQUECODE']
-            missing_cols = [col for col in required_product_cols if col not in df_product.columns]
-            if missing_cols:
-                print(f"   [경고] PromotionProduct 필수 컬럼 누락: {', '.join(missing_cols)} - 스킵")
-            else:
-                product_records = []
-                for idx, row in df_product.iterrows():
-                    uniquecode = int(row['UNIQUECODE']) if pd.notna(row['UNIQUECODE']) else None
-                    product_id = product_map.get(uniquecode)
-
-                    if uniquecode and product_id is None:
-                        unmapped_products.add(uniquecode)
-                        continue
-
-                    if product_id is None:
-                        continue
-
-                    product_records.append({
-                        'PromotionID': str(row['PROMOTION_ID']).strip(),
-                        'ProductID': product_id,
-                        'Uniquecode': uniquecode,
-                        'SellingPrice': float(row['SELLING_PRICE']) if pd.notna(row.get('SELLING_PRICE')) else None,
-                        'PromotionPrice': float(row['PROMOTION_PRICE']) if pd.notna(row.get('PROMOTION_PRICE')) else None,
-                        'SupplyPrice': float(row['SUPPLY_PRICE']) if pd.notna(row.get('SUPPLY_PRICE')) else None,
-                        'CouponDiscountRate': float(row['COUPON_DISCOUNT_RATE']) if pd.notna(row.get('COUPON_DISCOUNT_RATE')) else None,
-                        'UnitCost': float(row['UNIT_COST']) if pd.notna(row.get('UNIT_COST')) else None,
-                        'LogisticsCost': float(row['LOGISTICS_COST']) if pd.notna(row.get('LOGISTICS_COST')) else None,
-                        'ManagementCost': float(row['MANAGEMENT_COST']) if pd.notna(row.get('MANAGEMENT_COST')) else None,
-                        'WarehouseCost': float(row['WAREHOUSE_COST']) if pd.notna(row.get('WAREHOUSE_COST')) else None,
-                        'EDICost': float(row['EDI_COST']) if pd.notna(row.get('EDI_COST')) else None,
-                        'MisCost': float(row['MIS_COST']) if pd.notna(row.get('MIS_COST')) else None,
-                        'TargetSalesAmount': float(row['TARGET_SALES_AMOUNT']) if pd.notna(row.get('TARGET_SALES_AMOUNT')) else None,
-                        'TargetQuantity': int(row['TARGET_QUANTITY']) if pd.notna(row.get('TARGET_QUANTITY')) else None,
-                        'Notes': str(row['NOTES']).strip() if pd.notna(row.get('NOTES')) else None
-                    })
-
+            try:
+                product_records = handler.process_product_sheet(df_product)
                 print(f"   유효 PromotionProduct 레코드: {len(product_records):,}건")
 
                 if product_records:
                     product_result = promotion_product_repo.bulk_insert(product_records)
+            except Exception as e:
+                print(f"   [경고] PromotionProduct 처리 실패: {str(e)} - 스킵")
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
+
+        # 매핑 실패 정보
+        warnings = handler.get_unmapped_summary()
 
         # 활동 로그
         if user and request:
@@ -571,8 +448,8 @@ async def upload_excel(
                     "promotion_updated": promotion_result['updated'],
                     "product_inserted": product_result['inserted'],
                     "product_updated": product_result['updated'],
-                    "unmapped_brands": len(unmapped_brands),
-                    "unmapped_products": len(unmapped_products),
+                    "unmapped_brands": warnings['unmapped_brands']['count'],
+                    "unmapped_products": warnings['unmapped_products']['count'],
                     "duration_seconds": duration
                 },
                 ip_address=get_client_ip(request)
@@ -582,12 +459,12 @@ async def upload_excel(
         print(f"업로드 완료:")
         print(f"   Promotion: INSERT {promotion_result['inserted']:,}건, UPDATE {promotion_result['updated']:,}건")
         print(f"   PromotionProduct: INSERT {product_result['inserted']:,}건, UPDATE {product_result['updated']:,}건")
-        if unmapped_brands:
-            print(f"   [경고] 매핑 안 된 브랜드: {sorted(unmapped_brands)}")
-        if unmapped_channels:
-            print(f"   [경고] 매핑 안 된 채널: {sorted(unmapped_channels)}")
-        if unmapped_products:
-            print(f"   [경고] 매핑 안 된 상품코드: {sorted(unmapped_products)}")
+        if warnings['unmapped_brands']['items']:
+            print(f"   [경고] 매핑 안 된 브랜드: {warnings['unmapped_brands']['items']}")
+        if warnings['unmapped_channels']['items']:
+            print(f"   [경고] 매핑 안 된 채널: {warnings['unmapped_channels']['items']}")
+        if warnings['unmapped_products']['items']:
+            print(f"   [경고] 매핑 안 된 상품코드: {warnings['unmapped_products']['items']}")
         print(f"{'='*60}")
 
         return {
@@ -604,20 +481,7 @@ async def upload_excel(
                 "inserted": product_result['inserted'],
                 "updated": product_result['updated']
             },
-            "warnings": {
-                "unmapped_brands": {
-                    "count": len(unmapped_brands),
-                    "items": sorted(list(unmapped_brands))
-                },
-                "unmapped_channels": {
-                    "count": len(unmapped_channels),
-                    "items": sorted(list(unmapped_channels))
-                },
-                "unmapped_products": {
-                    "count": len(unmapped_products),
-                    "items": sorted(list(unmapped_products))
-                }
-            },
+            "warnings": warnings,
             "duration_seconds": duration
         }
 

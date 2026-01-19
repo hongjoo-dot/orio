@@ -1,14 +1,79 @@
-let currentPage = 1, limit = 20, currentFilters = {}, selectedIds = new Set();
+let masterTableManager, detailTableManager, paginationManager;
 let uploadModal, uploadResultModal;
-let filterOptions = { promotion_types: [], statuses: [], channel_names: [] };
+let currentFilters = {};
 let selectedPromotionId = null;
+
+// 마스터 테이블 컬럼
+const masterColumns = [
+    { key: 'PromotionID', header: '행사ID', render: (row) => `<strong>${row.PromotionID}</strong>` },
+    { key: 'PromotionName', header: '행사명', render: (row) => row.PromotionName || '-' },
+    { key: 'ChannelName', header: '채널', render: (row) => row.ChannelName || '-' },
+    {
+        key: 'PromotionType',
+        header: '행사유형',
+        render: (row) => {
+            const type = row.PromotionType || '';
+            let typeClass = 'default';
+            if (type.startsWith('ONLINE')) typeClass = 'online';
+            if (type.startsWith('OFFLINE')) typeClass = 'offline';
+            return `<span class="badge badge-type-${typeClass}">${row.PromotionTypeDisplay || row.PromotionType || '-'}</span>`;
+        }
+    },
+    {
+        key: 'Status',
+        header: '상태',
+        render: (row) => {
+            const status = row.Status || '';
+            return `<span class="badge badge-status-${status.toLowerCase()}">${row.StatusDisplay || row.Status || '-'}</span>`;
+        }
+    },
+    {
+        key: 'TargetSalesAmount',
+        header: '매출목표',
+        className: 'text-right',
+        render: (row) => `<div style="text-align:right;">${row.TargetSalesAmount?.toLocaleString() || 0}</div>`
+    },
+    {
+        key: 'Period',
+        header: '기간',
+        render: (row) => `<div style="font-size:13px;">${row.StartDate || ''} ~ ${row.EndDate || ''}</div>`
+    }
+];
+
+// 디테일 테이블 컬럼
+const detailColumns = [
+    { key: 'Uniquecode', header: '상품코드', render: (row) => `<strong>${row.Uniquecode || '-'}</strong>` },
+    { key: 'ProductName', header: '상품명', render: (row) => row.ProductName || '-' },
+    { key: 'SellingPrice', header: '판매가', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.SellingPrice?.toLocaleString() || '-'}</div>` },
+    { key: 'PromotionPrice', header: '행사가', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.PromotionPrice?.toLocaleString() || '-'}</div>` },
+    { key: 'TargetQuantity', header: '목표수량', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.TargetQuantity?.toLocaleString() || '-'}</div>` },
+    { key: 'TargetSalesAmount', header: '목표매출', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.TargetSalesAmount?.toLocaleString() || '-'}</div>` }
+];
 
 document.addEventListener('DOMContentLoaded', function () {
     uploadModal = new ModalManager('uploadModal');
     uploadResultModal = new ModalManager('uploadResultModal');
 
+    masterTableManager = new TableManager('master-table', {
+        selectable: true,
+        onSelectionChange: (selectedIds) => updateActionButtons(selectedIds),
+        onRowClick: (row, tr) => showDetail(row, tr),
+        emptyMessage: '데이터가 없습니다.'
+    });
+
+    detailTableManager = new TableManager('detail-table', {
+        selectable: false,
+        emptyMessage: '등록된 상품이 없습니다.'
+    });
+
+    paginationManager = new PaginationManager('pagination', {
+        onPageChange: (page, limit) => loadData(page, limit),
+        onLimitChange: (page, limit) => loadData(page, limit)
+    });
+
     initYearOptions();
     loadFilterOptions();
+    loadData(1, 20);
 });
 
 function initYearOptions() {
@@ -25,8 +90,7 @@ function initYearOptions() {
 
 async function loadFilterOptions() {
     try {
-        const res = await fetch('/api/promotions/filter-options');
-        filterOptions = await res.json();
+        const filterOptions = await api.get('/api/promotions/filter-options');
 
         // 행사유형
         const typeSelect = document.getElementById('searchPromotionType');
@@ -47,99 +111,66 @@ async function loadFilterOptions() {
     }
 }
 
-async function loadData() {
+async function loadData(page = 1, limit = 20) {
     try {
-        const params = new URLSearchParams({ page: currentPage, limit, ...currentFilters });
-        const res = await fetch(`/api/promotions?${params}`);
-        const data = await res.json();
+        masterTableManager.showLoading(7);
 
-        const tbody = document.getElementById('masterTable');
-        tbody.innerHTML = data.data.length === 0
-            ? '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">데이터가 없습니다.</td></tr>'
-            : data.data.map(item => `
-                <tr class="master-row ${selectedPromotionId === item.PromotionID ? 'selected' : ''}"
-                    onclick="showDetail('${item.PromotionID}', '${item.PromotionName}')"
-                    style="cursor:pointer;">
-                    <td style="text-align:center;" onclick="event.stopPropagation();">
-                        <input type="checkbox" class="row-checkbox" value="${item.PromotionID}" onchange="toggleRowSelect()">
-                    </td>
-                    <td><strong>${item.PromotionID}</strong></td>
-                    <td>${item.PromotionName || '-'}</td>
-                    <td>${item.ChannelName || '-'}</td>
-                    <td>
-                        <span class="badge badge-type-${getTypeClass(item.PromotionType)}">
-                            ${item.PromotionTypeDisplay || item.PromotionType || '-'}
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge badge-status-${item.Status?.toLowerCase()}">
-                            ${item.StatusDisplay || item.Status || '-'}
-                        </span>
-                    </td>
-                    <td style="text-align:right;">${item.TargetSalesAmount?.toLocaleString() || 0}</td>
-                    <td style="font-size:13px;">${item.StartDate || ''} ~ ${item.EndDate || ''}</td>
-                </tr>
-            `).join('');
+        const params = { page, limit, ...currentFilters };
+        const queryString = api.buildQueryString(params);
+        const data = await api.get(`/api/promotions${queryString}`);
+
+        masterTableManager.render(data.data, masterColumns);
+
+        paginationManager.render({
+            page: page,
+            limit: limit,
+            total: data.total,
+            total_pages: Math.ceil(data.total / limit)
+        });
 
         document.getElementById('resultCount').textContent = `(총 ${data.total.toLocaleString()}건)`;
 
-        const totalPages = Math.ceil(data.total / limit);
-        document.getElementById('pagination').innerHTML =
-            (currentPage > 1 ? `<button class="btn btn-sm btn-secondary" onclick="changePage(${currentPage - 1})">이전</button>` : '') +
-            `<span style="padding:0 16px;">${currentPage} / ${totalPages || 1}</span>` +
-            (currentPage < totalPages ? `<button class="btn btn-sm btn-secondary" onclick="changePage(${currentPage + 1})">다음</button>` : '');
     } catch (e) {
         showAlert('데이터 로드 실패: ' + e.message, 'error');
+        masterTableManager.render([], masterColumns);
     }
 }
 
-function getTypeClass(type) {
-    if (!type) return 'default';
-    if (type.startsWith('ONLINE')) return 'online';
-    if (type.startsWith('OFFLINE')) return 'offline';
-    return 'default';
-}
+async function showDetail(row, tr) {
+    // 행 선택 스타일 처리 (TableManager는 체크박스 선택만 관리하므로, 클릭 선택 스타일은 별도 처리 필요)
+    // 하지만 TableManager.js를 보면 onRowClick 시 별도 스타일 처리는 안 함.
+    // 기존 CSS .master-row.selected를 활용하려면 여기서 클래스를 토글해야 함.
 
-async function showDetail(promotionId, promotionName) {
-    selectedPromotionId = promotionId;
+    // 모든 행의 selected 클래스 제거
+    const rows = document.querySelectorAll('#master-table tbody tr');
+    rows.forEach(r => r.classList.remove('selected'));
 
-    // 행 선택 표시 업데이트
-    document.querySelectorAll('.master-row').forEach(row => row.classList.remove('selected'));
-    event.currentTarget.classList.add('selected');
+    // 현재 행에 selected 클래스 추가
+    tr.classList.add('selected');
+    tr.classList.add('master-row'); // CSS 적용을 위해
 
-    document.getElementById('detailTitle').textContent = `${promotionName} - 상품 목록`;
+    selectedPromotionId = row.PromotionID;
+    document.getElementById('detailTitle').textContent = `${row.PromotionName} - 상품 목록`;
     document.getElementById('detailSection').style.display = 'block';
 
     try {
-        const res = await fetch(`/api/promotions/${promotionId}/products`);
-        const result = await res.json();
-        const products = result.data || [];
-
-        const tbody = document.getElementById('detailTable');
-        tbody.innerHTML = products.length === 0
-            ? '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">등록된 상품이 없습니다.</td></tr>'
-            : products.map(p => `
-                <tr>
-                    <td><strong>${p.Uniquecode || '-'}</strong></td>
-                    <td>${p.ProductName || '-'}</td>
-                    <td style="text-align:right;">${p.SellingPrice?.toLocaleString() || '-'}</td>
-                    <td style="text-align:right;">${p.PromotionPrice?.toLocaleString() || '-'}</td>
-                    <td style="text-align:right;">${p.TargetQuantity?.toLocaleString() || '-'}</td>
-                    <td style="text-align:right;">${p.TargetSalesAmount?.toLocaleString() || '-'}</td>
-                </tr>
-            `).join('');
+        detailTableManager.showLoading(6);
+        const result = await api.get(`/api/promotions/${row.PromotionID}/products`);
+        detailTableManager.render(result.data || [], detailColumns);
 
         // 스크롤 이동
         document.getElementById('detailSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
         showAlert('상품 목록 로드 실패: ' + e.message, 'error');
+        detailTableManager.render([], detailColumns);
     }
 }
 
 function hideDetail() {
     selectedPromotionId = null;
     document.getElementById('detailSection').style.display = 'none';
-    document.querySelectorAll('.master-row').forEach(row => row.classList.remove('selected'));
+    const rows = document.querySelectorAll('#master-table tbody tr');
+    rows.forEach(r => r.classList.remove('selected'));
 }
 
 function applyFilters() {
@@ -156,9 +187,8 @@ function applyFilters() {
     if (status) currentFilters.status = status;
     if (search) currentFilters.search = search;
 
-    currentPage = 1;
     hideDetail();
-    loadData();
+    loadData(1, paginationManager.getLimit());
 }
 
 function resetFilters() {
@@ -168,49 +198,32 @@ function resetFilters() {
     document.getElementById('searchStatus').value = '';
     document.getElementById('searchKeyword').value = '';
     currentFilters = {};
-    currentPage = 1;
+
     hideDetail();
-
-    document.getElementById('masterTable').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fa-solid fa-search" style="font-size:48px;margin-bottom:16px;opacity:0.5;"></i><p>검색 조건을 입력하고 검색 버튼을 클릭하세요.</p></td></tr>';
-    document.getElementById('resultCount').textContent = '';
-    document.getElementById('pagination').innerHTML = '';
-}
-
-function changePage(page) {
-    currentPage = page;
-    loadData();
+    loadData(1, paginationManager.getLimit());
 }
 
 function changeLimit() {
-    limit = parseInt(document.getElementById('limitSelector').value);
-    currentPage = 1;
-    loadData();
-}
-
-function toggleSelectAll() {
-    const checked = document.getElementById('selectAll').checked;
-    document.querySelectorAll('.row-checkbox').forEach(cb => {
-        cb.checked = checked;
-        if (checked) selectedIds.add(cb.value);
-        else selectedIds.delete(cb.value);
-    });
-    updateActionButtons();
-}
-
-function toggleRowSelect() {
-    selectedIds.clear();
-    document.querySelectorAll('.row-checkbox:checked').forEach(cb => selectedIds.add(cb.value));
-    document.getElementById('selectAll').checked = document.querySelectorAll('.row-checkbox').length === selectedIds.size;
-    updateActionButtons();
+    const limit = parseInt(document.getElementById('limitSelector').value);
+    loadData(1, limit);
 }
 
 function selectAllVisible() {
-    document.getElementById('selectAll').checked = true;
-    toggleSelectAll();
+    // TableManager는 현재 페이지의 모든 행을 선택하는 기능을 제공하지 않음 (UI 상의 selectAll 체크박스 제외).
+    // 하지만 UI 상의 selectAll 체크박스를 클릭하게 하거나, 내부 메서드를 호출할 수 있음.
+    // TableManager의 _handleSelectAll(true)를 호출하면 됨.
+    // 하지만 _handleSelectAll은 private 메서드임.
+    // TableManager에 selectAll() 메서드를 추가하거나, 여기서 직접 DOM 조작.
+
+    // 가장 쉬운 방법: 헤더의 체크박스를 클릭하게 함.
+    const selectAllCb = document.getElementById('select-all');
+    if (selectAllCb && !selectAllCb.checked) {
+        selectAllCb.click();
+    }
 }
 
-function updateActionButtons() {
-    const hasSelection = selectedIds.size > 0;
+function updateActionButtons(selectedIds) {
+    const hasSelection = selectedIds.length > 0;
     const deleteBtn = document.getElementById('deleteButton');
     if (hasSelection) {
         deleteBtn.classList.remove('btn-disabled');
@@ -220,26 +233,18 @@ function updateActionButtons() {
 }
 
 async function bulkDelete() {
-    if (selectedIds.size === 0) return;
+    const selectedIds = masterTableManager.getSelectedRows();
+    if (selectedIds.length === 0) return;
 
-    showConfirm(`선택한 ${selectedIds.size}개 행사를 삭제하시겠습니까?\n(연관된 상품 정보도 함께 삭제됩니다)`, async () => {
+    showConfirm(`선택한 ${selectedIds.length}개 행사를 삭제하시겠습니까?\n(연관된 상품 정보도 함께 삭제됩니다)`, async () => {
         try {
-            const res = await fetch('/api/promotions/bulk-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: Array.from(selectedIds) })
-            });
+            await api.post('/api/promotions/bulk-delete', { ids: selectedIds });
 
-            if (res.ok) {
-                const result = await res.json();
-                showAlert(`삭제 완료: 행사 ${result.deleted_count}건, 상품 ${result.deleted_products}건`, 'success');
-                selectedIds.clear();
-                updateActionButtons();
-                hideDetail();
-                loadData();
-            } else {
-                showAlert('삭제 실패', 'error');
-            }
+            showAlert(`삭제 완료되었습니다.`, 'success');
+            masterTableManager.clearSelection();
+            updateActionButtons([]);
+            hideDetail();
+            loadData(paginationManager.getCurrentPage(), paginationManager.getLimit());
         } catch (e) {
             showAlert('오류: ' + e.message, 'error');
         }
@@ -343,7 +348,7 @@ async function uploadFile() {
             loadFilterOptions();
 
             if (Object.keys(currentFilters).length > 0) {
-                loadData();
+                loadData(1, paginationManager.getLimit());
             }
         } else {
             const error = await res.json();

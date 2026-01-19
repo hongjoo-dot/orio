@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "components/search-filter.html" import render_search_filter %}
 
 {% block title %}BOM 관리 - Orio ERP v2{% endblock %}
 
@@ -56,15 +55,7 @@
         <div style="margin-bottom:16px;">
             <div
                 style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <h2 class="card-title" style="margin:0;white-space:nowrap;">세트 목록</h2>
-                    <select id="limitSelector" onchange="changeLimit()" class="form-select"
-                        style="padding:8px;font-size:13px;width:auto;">
-                        <option value="20" selected>20개씩</option>
-                        <option value="50">50개씩</option>
-                        <option value="100">100개씩</option>
-                    </select>
-                </div>
+                <h2 class="card-title" style="margin:0;white-space:nowrap;">세트 목록</h2>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="btn btn-success btn-sm" onclick="showAddBOMModal()">
                         <i class="fa-solid fa-plus"></i> BOM 추가
@@ -72,11 +63,10 @@
                     <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
                         <i class="fa-solid fa-check-double"></i> 전체 선택
                     </button>
-                    <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEdit()" id="editButton" disabled>
+                    <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEdit()" id="editButton">
                         <i class="fa-solid fa-edit"></i> 선택 수정
                     </button>
-                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton"
-                        disabled>
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton">
                         <i class="fa-solid fa-trash"></i> 선택 삭제
                     </button>
                 </div>
@@ -88,22 +78,19 @@
         </div>
 
         <div class="table-container">
-            <table class="table" id="parentTable">
+            <table class="table" id="master-table">
                 <thead>
                     <tr>
-                        <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                         <th>BOMID</th>
                         <th>품목코드</th>
                         <th>제품명</th>
                         <th>구성품 수</th>
                     </tr>
                 </thead>
-                <tbody id="parentTableBody">
-                </tbody>
+                <tbody></tbody>
             </table>
         </div>
-        <div class="pagination" id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:20px;">
-        </div>
+        <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:20px;"></div>
     </div>
 
     <!-- Detail: Child Products (구성품) -->
@@ -111,21 +98,21 @@
         <div style="margin-bottom:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <h2 class="card-title" style="margin:0;">구성품 목록</h2>
-                <div style="display:flex;gap:8px;" id="childActionButtons" style="display:none;">
+                <div style="display:flex;gap:8px;display:none;" id="childActionButtons">
                     <button class="btn btn-success btn-sm" onclick="showAddChildModal()">
                         <i class="fa-solid fa-plus"></i> 구성품 추가
                     </button>
                     <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEditChildren()"
-                        id="editChildButton" disabled>
+                        id="editChildButton">
                         <i class="fa-solid fa-edit"></i> 선택 수정
                     </button>
                     <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteChildren()"
-                        id="deleteChildButton" disabled>
+                        id="deleteChildButton">
                         <i class="fa-solid fa-trash"></i> 선택 삭제
                     </button>
                 </div>
             </div>
-            <span style="color:var(--text-muted);font-size:13px;" id="childCount" style="display:none;">구성품 0개</span>
+            <span style="color:var(--text-muted);font-size:13px;display:none;" id="childCount">구성품 0개</span>
         </div>
 
         <div id="detailPlaceholder" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
@@ -135,152 +122,111 @@
         </div>
 
         <div class="table-container" id="childTableContainer" style="display:none;">
-            <table class="table" id="childTable">
+            <table class="table" id="detail-table">
                 <thead>
                     <tr>
-                        <th style="width:40px;"><input type="checkbox" id="selectAllChildren"
-                                onchange="toggleSelectAllChildren()"></th>
                         <th>BOMID</th>
                         <th>품목코드</th>
                         <th>제품명</th>
                         <th>소요수량</th>
                     </tr>
                 </thead>
-                <tbody id="childTableBody">
-                </tbody>
+                <tbody></tbody>
             </table>
         </div>
     </div>
 </div>
 
-<!-- BOM 추가 모달 -->
-<div class="modal" id="addBOMModal">
-    <div class="modal-content" style="max-width:700px;">
+<!-- Add BOM Modal -->
+<div id="addBOMModal" class="modal">
+    <div class="modal-content" style="max-width:600px;">
         <div class="modal-header">
-            <h3 class="modal-title">BOM 추가 (세트 제품 + 구성품)</h3>
-            <button class="modal-close" onclick="closeAddBOMModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <h2 class="modal-title">BOM 추가</h2>
+            <button class="modal-close" onclick="closeAddBOMModal()">&times;</button>
         </div>
-        <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
-            <h4 style="margin-bottom:16px;color:var(--accent);">세트 제품 정보</h4>
+        <div class="modal-body">
             <div class="form-group">
-                <label class="form-label required">부모 품목코드 (세트 제품)</label>
-                <input type="text" id="bomParentERP" class="form-input" list="parentERPList" required
-                    placeholder="예: SET-001">
+                <label class="form-label required">세트 품목코드 (부모)</label>
+                <input type="text" id="bomParentERP" class="form-input" list="parentERPList" placeholder="예: SET-001">
             </div>
 
-            <hr style="border:none;border-top:1px solid var(--border);margin:24px 0;">
-
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;color:var(--accent);">구성품 목록</h4>
-                <button type="button" class="btn btn-primary btn-sm" onclick="addChildRow()">
-                    <i class="fa-solid fa-plus"></i> 구성품 추가
-                </button>
-            </div>
-
-            <div id="childRowsContainer">
-                <!-- 구성품 행들이 동적으로 추가됩니다 -->
-            </div>
-
-            <div
-                style="margin-top:16px;padding:16px;background:rgba(99,102,241,0.1);border-radius:10px;font-size:13px;">
-                <strong>안내:</strong><br>
-                • 세트 제품 1개에 여러 구성품을 추가할 수 있습니다.<br>
-                • "구성품 추가" 버튼으로 행을 추가하세요.<br>
-                • 최소 1개 이상의 구성품이 필요합니다.
+            <div style="margin-top:24px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <label class="form-label required" style="margin:0;">구성품 목록</label>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addChildRow()">
+                        <i class="fa-solid fa-plus"></i> 행 추가
+                    </button>
+                </div>
+                <div id="childRowsContainer" style="max-height:300px;overflow-y:auto;padding-right:4px;">
+                    <!-- Child Rows will be added here -->
+                </div>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeAddBOMModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-success" onclick="saveBOM()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
+            <button class="btn btn-secondary" onclick="closeAddBOMModal()">취소</button>
+            <button class="btn btn-primary" onclick="saveBOM()">저장</button>
         </div>
     </div>
 </div>
 
-<!-- 구성품 추가 모달 -->
-<div class="modal" id="addChildModal">
+<!-- Add Child Modal -->
+<div id="addChildModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 class="modal-title">구성품 추가</h3>
-            <button class="modal-close" onclick="closeAddChildModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <h2 class="modal-title">구성품 추가</h2>
+            <button class="modal-close" onclick="closeAddChildModal()">&times;</button>
         </div>
         <div class="modal-body">
-            <h4 style="margin-bottom:16px;color:var(--accent);">ProductBOM 테이블 정보</h4>
             <div class="form-group">
-                <label class="form-label required">ChildERPCode (자식 품목코드)</label>
-                <input type="text" id="childERP" class="form-input" list="childERPList" required
-                    placeholder="품목코드 검색...">
+                <label class="form-label required">자식 품목코드</label>
+                <input type="text" id="childERP" class="form-input" list="childERPList">
             </div>
             <div class="form-group">
-                <label class="form-label">QuantityRequired (소요수량)</label>
+                <label class="form-label required">소요수량</label>
                 <input type="number" id="childQuantity" class="form-input" value="1" step="0.01">
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeAddChildModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-success" onclick="saveChild()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
+            <button class="btn btn-secondary" onclick="closeAddChildModal()">취소</button>
+            <button class="btn btn-primary" onclick="saveChild()">저장</button>
         </div>
     </div>
 </div>
 
-<!-- 세트 제품 선택 수정 모달 -->
-<div class="modal" id="bulkEditParentModal">
+<!-- Bulk Edit Parent Modal (Quantity) -->
+<div id="bulkEditParentModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 class="modal-title">세트 제품 선택 수정</h3>
-            <button class="modal-close" onclick="closeBulkEditParentModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <h2 class="modal-title">세트 구성품 일괄 수정</h2>
+            <button class="modal-close" onclick="closeBulkEditParentModal()">&times;</button>
         </div>
         <div class="modal-body">
             <div style="background:var(--bg-hover);padding:12px;border-radius:6px;margin-bottom:16px;">
                 <p style="margin:0;color:var(--text-muted);font-size:13px;">
                     <i class="fa-solid fa-info-circle"></i> 선택한 <span id="bulkEditParentCount"
-                        style="color:var(--accent);font-weight:600;">0</span>개 세트 제품의 모든 구성품을 수정합니다.
+                        style="color:var(--accent);font-weight:600;">0</span>개 세트 제품의
+                    <br>모든 구성품 소요수량을 변경합니다.
                 </p>
             </div>
-            <h4 style="margin-bottom:16px;color:var(--accent);">구성품 일괄 수정</h4>
             <div class="form-group">
-                <label class="form-label">소요수량 (모든 구성품에 적용)</label>
-                <input type="number" id="bulkParentQuantity" class="form-input" step="0.01"
-                    placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentParentQuantity"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div style="margin-top:16px;padding:12px;background:rgba(255,193,7,0.1);border-radius:6px;font-size:13px;">
-                <strong>⚠️ 주의:</strong> 선택한 세트 제품들의 <strong>모든 구성품</strong>의 소요수량이 입력한 값으로 변경됩니다.
+                <label class="form-label">소요수량</label>
+                <input type="number" id="bulkParentQuantity" class="form-input" step="0.01">
+                <small>현재(첫번째): <span id="currentParentQuantity"></span></small>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeBulkEditParentModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-primary" onclick="saveBulkEditParent()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
+            <button class="btn btn-secondary" onclick="closeBulkEditParentModal()">취소</button>
+            <button class="btn btn-primary" onclick="saveBulkEditParent()">저장</button>
         </div>
     </div>
 </div>
 
-<!-- 구성품 선택 수정 모달 -->
-<div class="modal" id="bulkEditChildModal">
+<!-- Bulk Edit Child Modal -->
+<div id="bulkEditChildModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 class="modal-title">구성품 선택 수정</h3>
-            <button class="modal-close" onclick="closeBulkEditChildModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <h2 class="modal-title">구성품 선택 수정</h2>
+            <button class="modal-close" onclick="closeBulkEditChildModal()">&times;</button>
         </div>
         <div class="modal-body">
             <div style="background:var(--bg-hover);padding:12px;border-radius:6px;margin-bottom:16px;">
@@ -289,33 +235,23 @@
                         style="color:var(--accent);font-weight:600;">0</span>개 구성품을 수정합니다.
                 </p>
             </div>
-            <h4 style="margin-bottom:16px;color:var(--accent);">ProductBOM 테이블 정보</h4>
             <div class="form-group">
-                <label class="form-label">ChildERPCode (자식 품목코드)</label>
-                <input type="text" id="bulkChildERP" class="form-input" list="childERPList"
-                    placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentChildERP"
-                        style="font-weight:600;"></span></small>
+                <label class="form-label">자식 품목코드</label>
+                <input type="text" id="bulkChildERP" class="form-input" list="childERPList">
+                <small>현재: <span id="currentChildERP"></span></small>
             </div>
             <div class="form-group">
-                <label class="form-label">QuantityRequired (소요수량)</label>
-                <input type="number" id="bulkChildQuantity" class="form-input" step="0.01"
-                    placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentChildQuantity"
-                        style="font-weight:600;"></span></small>
+                <label class="form-label">소요수량</label>
+                <input type="number" id="bulkChildQuantity" class="form-input" step="0.01">
+                <small>현재: <span id="currentChildQuantity"></span></small>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeBulkEditChildModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-primary" onclick="saveBulkEditChild()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
+            <button class="btn btn-secondary" onclick="closeBulkEditChildModal()">취소</button>
+            <button class="btn btn-primary" onclick="saveBulkEditChild()">저장</button>
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}

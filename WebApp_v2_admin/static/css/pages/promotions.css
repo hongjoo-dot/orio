@@ -1,0 +1,55 @@
+/* Badge Styles */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* 행사유형 뱃지 */
+.badge-type-online {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+
+.badge-type-offline {
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
+}
+
+.badge-type-default {
+    background: rgba(107, 114, 128, 0.15);
+    color: #6b7280;
+}
+
+/* 상태 뱃지 */
+.badge-status-scheduled {
+    background: rgba(107, 114, 128, 0.15);
+    color: #6b7280;
+}
+
+.badge-status-active {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.badge-status-completed {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--accent);
+}
+
+.badge-status-cancelled {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+}
+
+/* 마스터 행 선택 */
+.master-row:hover {
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.master-row.selected {
+    background: rgba(99, 102, 241, 0.1);
+    border-left: 3px solid var(--accent);
+}

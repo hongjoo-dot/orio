@@ -1,26 +1,77 @@
-let currentPage = 1;
-let limit = 20;
+let masterTableManager, detailTableManager, paginationManager;
+let addBOMModal, addChildModal, bulkEditParentModal, bulkEditChildModal;
 let currentFilters = {};
-let selectedIds = new Set();
-let selectedChildIds = new Set();
 let currentParentBoxID = null;
 let currentParentERPCode = null;
+let childRowCounter = 0;
+
+// 마스터 테이블 컬럼 (세트 제품)
+const masterColumns = [
+    { key: 'BoxID', header: 'BOMID', render: (row) => row.BoxID }, // BoxID가 BOMID 역할
+    { key: 'ERPCode', header: '품목코드', render: (row) => row.ERPCode || '-' },
+    { key: 'Name', header: '제품명', render: (row) => row.Name || '-' },
+    { key: 'ChildCount', header: '구성품 수', render: (row) => row.ChildCount || 0 }
+];
+
+// 디테일 테이블 컬럼 (구성품)
+const detailColumns = [
+    { key: 'BOMID', header: 'BOMID', render: (row) => row.BOMID },
+    { key: 'ChildERPCode', header: '품목코드', render: (row) => row.ChildERPCode || '-' },
+    { key: 'ChildName', header: '제품명', render: (row) => row.ChildName || '-' },
+    { key: 'QuantityRequired', header: '소요수량', render: (row) => row.QuantityRequired || 0 }
+];
 
 document.addEventListener('DOMContentLoaded', async function () {
-    await loadParents();
+    // 모달 초기화
+    addBOMModal = new ModalManager('addBOMModal');
+    addChildModal = new ModalManager('addChildModal');
+    bulkEditParentModal = new ModalManager('bulkEditParentModal');
+    bulkEditChildModal = new ModalManager('bulkEditChildModal');
+
+    // 테이블 매니저 초기화
+    masterTableManager = new TableManager('master-table', {
+        selectable: true,
+        onSelectionChange: (selectedIds) => updateActionButtons(selectedIds),
+        onRowClick: (row, tr) => selectParent(row, tr),
+        emptyMessage: '데이터가 없습니다.'
+    });
+
+    detailTableManager = new TableManager('detail-table', {
+        selectable: true,
+        onSelectionChange: (selectedIds) => updateChildActionButtons(selectedIds),
+        emptyMessage: '구성품이 없습니다.'
+    });
+
+    // 페이지네이션 매니저 초기화
+    paginationManager = new PaginationManager('pagination', {
+        onPageChange: (page, limit) => loadParents(page, limit),
+        onLimitChange: (page, limit) => loadParents(page, limit)
+    });
+
+    // 초기 데이터 로드
     await loadMetadata();
+    loadParents(1, 20);
+
+    // 엔터키 검색 지원
+    ['filterParentERP', 'filterParentName', 'filterChildERP', 'filterChildName'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('keypress', e => {
+                if (e.key === 'Enter') applyFilters();
+            });
+        }
+    });
 });
 
-async function loadParents() {
+async function loadParents(page = 1, limit = 20) {
     try {
-        const params = new URLSearchParams({
-            page: currentPage,
-            limit: limit,
-            ...currentFilters
-        });
+        masterTableManager.showLoading(5);
 
-        const res = await api.get(`/api/bom/parents?${params}`);
+        const params = { page, limit, ...currentFilters };
+        const queryString = api.buildQueryString(params);
+        const res = await api.get(`/api/bom/parents${queryString}`);
 
+        // 필터링 카운트 표시
         const isFiltered = Object.keys(currentFilters).length > 0;
         if (isFiltered) {
             document.getElementById('totalCount').textContent = `전체 ${res.total}개`;
@@ -30,94 +81,70 @@ async function loadParents() {
             document.getElementById('filteredCount').textContent = '';
         }
 
-        const tbody = document.getElementById('parentTableBody');
-        tbody.innerHTML = '';
+        masterTableManager.render(res.data, masterColumns);
 
-        if (res.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted);">데이터가 없습니다</td></tr>';
-        } else {
-            res.data.forEach(parent => {
-                const tr = document.createElement('tr');
-                if (selectedIds.has(parent.BoxID)) tr.classList.add('selected');
+        paginationManager.render({
+            page: page,
+            limit: limit,
+            total: res.total,
+            total_pages: Math.ceil(res.total / limit)
+        });
 
-                tr.innerHTML = `
-                    <td><input type="checkbox" ${selectedIds.has(parent.BoxID) ? 'checked' : ''} onchange="toggleSelect(${parent.BoxID}, event)"></td>
-                    <td>${parent.FirstBOMID || ''}</td>
-                    <td>${parent.ERPCode || ''}</td>
-                    <td>${parent.Name || ''}</td>
-                    <td>${parent.ChildCount || 0}</td>
-                `;
-
-                tr.style.cursor = 'pointer';
-                tr.onclick = (e) => selectParent(parent.BoxID, parent.ERPCode, e);
-                tbody.appendChild(tr);
-            });
-        }
-
-        renderPagination(res.total, res.page, res.limit);
-        updateBulkButtons();
     } catch (e) {
         showAlert('세트 제품 로드 실패: ' + e.message, 'error');
+        masterTableManager.render([], masterColumns);
     }
 }
 
-function selectParent(boxId, erpCode, event) {
-    if (event.target.type === 'checkbox' || event.target.tagName === 'BUTTON' || event.target.tagName === 'I') return;
+async function selectParent(row, tr) {
+    // 행 선택 스타일 처리
+    const rows = document.querySelectorAll('#master-table tbody tr');
+    rows.forEach(r => r.classList.remove('selected'));
+    tr.classList.add('selected');
 
-    currentParentBoxID = boxId;
-    currentParentERPCode = erpCode;
-
-    const rows = document.querySelectorAll('#parentTable tbody tr');
-    rows.forEach(r => r.style.background = '');
-    event.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
-
-    loadChildren(boxId);
+    currentParentBoxID = row.BoxID;
+    currentParentERPCode = row.ERPCode;
+    loadChildren(currentParentBoxID);
 }
 
 async function loadChildren(parentBoxId) {
     try {
-        const res = await api.get(`/api/bom/children/${parentBoxId}`);
-        console.log('구성품 로드:', res);
-
         document.getElementById('detailPlaceholder').style.display = 'none';
         document.getElementById('childTableContainer').style.display = 'block';
         document.getElementById('childActionButtons').style.display = 'flex';
         document.getElementById('childCount').style.display = 'block';
 
-        const tbody = document.getElementById('childTableBody');
-        tbody.innerHTML = '';
-        selectedChildIds.clear();
+        detailTableManager.showLoading(4);
+        const res = await api.get(`/api/bom/children/${parentBoxId}`);
 
         document.getElementById('childCount').textContent = `구성품 ${res.data.length}개`;
+        detailTableManager.render(res.data, detailColumns);
 
-        if (res.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted);">구성품이 없습니다</td></tr>';
-        } else {
-            res.data.forEach(child => {
-                const tr = document.createElement('tr');
-                if (selectedChildIds.has(child.BOMID)) tr.classList.add('selected');
-
-                tr.innerHTML = `
-                    <td><input type="checkbox" ${selectedChildIds.has(child.BOMID) ? 'checked' : ''} onchange="toggleSelectChild(${child.BOMID}, event)"></td>
-                    <td>${child.BOMID || ''}</td>
-                    <td>${child.ChildERPCode || ''}</td>
-                    <td>${child.ChildName || ''}</td>
-                    <td>${child.QuantityRequired || 0}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        updateChildBulkButtons();
     } catch (e) {
         showAlert('구성품 로드 실패: ' + e.message, 'error');
+        detailTableManager.render([], detailColumns);
     }
 }
 
-function changeLimit() {
-    limit = parseInt(document.getElementById('limitSelector').value);
-    currentPage = 1;
-    loadParents();
+async function loadMetadata() {
+    try {
+        const res = await api.get('/api/bom/metadata');
+
+        const setupDatalist = (listId, items) => {
+            const el = document.getElementById(listId);
+            if (el) {
+                el.innerHTML = items.map(item => `<option value="${item}">`).join('');
+            }
+        };
+
+        setupDatalist('parentERPList', res.parent_erp_codes);
+        setupDatalist('parentNameList', res.parent_names);
+        setupDatalist('childERPList', res.child_erp_codes);
+        setupDatalist('childNameList', res.child_names);
+
+    } catch (e) {
+        console.error('메타데이터 로드 실패:', e);
+    }
 }
 
 function applyFilters() {
@@ -132,8 +159,16 @@ function applyFilters() {
     if (childERP) currentFilters.child_erp = childERP;
     if (childName) currentFilters.child_name = childName;
 
-    currentPage = 1;
-    loadParents();
+    // 디테일 초기화
+    currentParentBoxID = null;
+    currentParentERPCode = null;
+    document.getElementById('detailPlaceholder').style.display = 'block';
+    document.getElementById('childTableContainer').style.display = 'none';
+    document.getElementById('childActionButtons').style.display = 'none';
+    document.getElementById('childCount').style.display = 'none';
+    detailTableManager.render([], detailColumns);
+
+    loadParents(1, paginationManager.getLimit());
 }
 
 function resetFilters() {
@@ -142,170 +177,83 @@ function resetFilters() {
     document.getElementById('filterChildERP').value = '';
     document.getElementById('filterChildName').value = '';
     currentFilters = {};
-    currentPage = 1;
 
-    // 디테일 영역 초기화
-    currentParentBoxID = null;
-    currentParentERPCode = null;
-    selectedChildIds.clear();
-    const placeholder = document.getElementById('detailPlaceholder');
-    placeholder.style.display = 'block';
-    placeholder.style.textAlign = 'center';
-    document.getElementById('childTableContainer').style.display = 'none';
-    document.getElementById('childActionButtons').style.display = 'none';
-    document.getElementById('childCount').style.display = 'none';
-
-    loadParents();
+    applyFilters();
 }
 
-function renderPagination(total, page, limit) {
-    const totalPages = Math.ceil(total / limit);
-    const paginationDiv = document.getElementById('pagination');
-    paginationDiv.innerHTML = '';
+function updateActionButtons(selectedIds) {
+    const hasSelection = selectedIds.length > 0;
+    const editBtn = document.getElementById('editButton');
+    const deleteBtn = document.getElementById('deleteButton');
 
-    const prevBtn = document.createElement('button');
-    prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
-    prevBtn.className = 'btn btn-sm btn-secondary';
-    prevBtn.disabled = page === 1;
-    prevBtn.onclick = () => changePage(page - 1);
-    paginationDiv.appendChild(prevBtn);
-
-    const startPage = Math.max(1, page - 2);
-    const endPage = Math.min(totalPages, page + 2);
-
-    for (let i = startPage; i <= endPage; i++) {
-        const btn = document.createElement('button');
-        btn.textContent = i;
-        btn.className = i === page ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-secondary';
-        btn.onclick = () => changePage(i);
-        paginationDiv.appendChild(btn);
-    }
-
-    const nextBtn = document.createElement('button');
-    nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
-    nextBtn.className = 'btn btn-sm btn-secondary';
-    nextBtn.disabled = page === totalPages || totalPages === 0;
-    nextBtn.onclick = () => changePage(page + 1);
-    paginationDiv.appendChild(nextBtn);
-}
-
-function changePage(page) {
-    currentPage = page;
-    loadParents();
-}
-
-function toggleSelect(id, event) {
-    event.stopPropagation();
-    if (selectedIds.has(id)) {
-        selectedIds.delete(id);
+    if (hasSelection) {
+        editBtn.classList.remove('btn-disabled');
+        deleteBtn.classList.remove('btn-disabled');
+        editBtn.disabled = false;
+        deleteBtn.disabled = false;
     } else {
-        selectedIds.add(id);
+        editBtn.classList.add('btn-disabled');
+        deleteBtn.classList.add('btn-disabled');
+        editBtn.disabled = true;
+        deleteBtn.disabled = true;
     }
-    updateBulkButtons();
-
-    const row = Array.from(document.querySelectorAll('#parentTable tbody tr')).find(r => {
-        const checkbox = r.querySelector('input[type="checkbox"]');
-        return checkbox && checkbox.onchange && checkbox.onchange.toString().includes(id);
-    });
-    if (row) {
-        row.classList.toggle('selected', selectedIds.has(id));
-    }
-
-    const allRows = document.querySelectorAll('#parentTable tbody tr');
-    document.getElementById('selectAll').checked = selectedIds.size > 0 && selectedIds.size === allRows.length;
 }
 
-function toggleSelectAll() {
-    const checked = document.getElementById('selectAll').checked;
-    const rows = document.querySelectorAll('#parentTable tbody tr');
+function updateChildActionButtons(selectedIds) {
+    const hasSelection = selectedIds.length > 0;
+    const editBtn = document.getElementById('editChildButton');
+    const deleteBtn = document.getElementById('deleteChildButton');
 
-    rows.forEach(r => {
-        const checkbox = r.querySelector('input[type="checkbox"]');
-        if (checkbox && checkbox.onchange) {
-            const onchangeStr = checkbox.onchange.toString();
-            const match = onchangeStr.match(/toggleSelect\((\d+)/);
-            if (match) {
-                const id = parseInt(match[1]);
-                if (checked) {
-                    selectedIds.add(id);
-                    r.classList.add('selected');
-                    checkbox.checked = true;
-                } else {
-                    selectedIds.delete(id);
-                    r.classList.remove('selected');
-                    checkbox.checked = false;
-                }
-            }
-        }
-    });
-
-    updateBulkButtons();
+    if (hasSelection) {
+        editBtn.classList.remove('btn-disabled');
+        deleteBtn.classList.remove('btn-disabled');
+        editBtn.disabled = false;
+        deleteBtn.disabled = false;
+    } else {
+        editBtn.classList.add('btn-disabled');
+        deleteBtn.classList.add('btn-disabled');
+        editBtn.disabled = true;
+        deleteBtn.disabled = true;
+    }
 }
 
-async function selectAllData() {
+function selectAllData() {
     showConfirm('현재 필터 조건의 모든 데이터를 선택하시겠습니까?', async () => {
         try {
-            const params = new URLSearchParams({
-                limit: 10000,
-                ...currentFilters
-            });
+            const params = { limit: 10000, ...currentFilters };
+            const queryString = api.buildQueryString(params);
+            const res = await api.get(`/api/bom/parents${queryString}`);
 
-            const res = await api.get(`/api/bom/parents?${params}`);
+            res.data.forEach(p => masterTableManager.selectedRows.add(p.BoxID.toString()));
 
-            selectedIds.clear();
-            res.data.forEach(parent => selectedIds.add(parent.BoxID));
-
-            document.querySelectorAll('#parentTable tbody tr').forEach(r => {
-                const checkbox = r.querySelector('input[type="checkbox"]');
-                if (checkbox && checkbox.onchange) {
-                    const onchangeStr = checkbox.onchange.toString();
-                    const match = onchangeStr.match(/toggleSelect\((\d+)/);
-                    if (match) {
-                        const id = parseInt(match[1]);
-                        if (selectedIds.has(id)) {
-                            r.classList.add('selected');
-                            checkbox.checked = true;
-                        }
-                    }
+            // 현재 화면 체크박스 업데이트
+            const checkboxes = document.querySelectorAll('#master-table .row-checkbox');
+            checkboxes.forEach(cb => {
+                if (masterTableManager.selectedRows.has(cb.dataset.id)) {
+                    cb.checked = true;
                 }
             });
 
-            document.getElementById('selectAll').checked = true;
-            updateBulkButtons();
-
-            showAlert(`${selectedIds.size}개의 세트 제품이 선택되었습니다.`, 'success');
+            updateActionButtons(Array.from(masterTableManager.selectedRows));
+            showAlert(`${masterTableManager.selectedRows.size}개의 세트 제품이 선택되었습니다.`, 'success');
         } catch (e) {
             showAlert('전체 선택 실패: ' + e.message, 'error');
         }
     });
 }
 
-function updateBulkButtons() {
-    const hasSelection = selectedIds.size > 0;
-    const editBtn = document.getElementById('editButton');
-    const deleteBtn = document.getElementById('deleteButton');
-
-    editBtn.disabled = !hasSelection;
-    deleteBtn.disabled = !hasSelection;
-    editBtn.classList.toggle('btn-disabled', !hasSelection);
-    deleteBtn.classList.toggle('btn-disabled', !hasSelection);
-}
-
-let childRowCounter = 0;
+// ========== 모달 관련 함수들 ==========
 
 function showAddBOMModal() {
     document.getElementById('bomParentERP').value = '';
     document.getElementById('childRowsContainer').innerHTML = '';
     childRowCounter = 0;
-
-    // 초기 구성품 행 1개 추가
     addChildRow();
-
-    document.getElementById('addBOMModal').classList.add('show');
+    addBOMModal.show();
 }
 
 function closeAddBOMModal() {
-    document.getElementById('addBOMModal').classList.remove('show');
+    addBOMModal.hide();
 }
 
 function addChildRow() {
@@ -334,32 +282,26 @@ function addChildRow() {
     container.appendChild(rowDiv);
 }
 
-function removeChildRow(rowId) {
+// window 객체에 할당해야 HTML onclick에서 접근 가능 (모듈 스코프 문제 해결)
+window.addChildRow = addChildRow;
+window.removeChildRow = function (rowId) {
     const row = document.getElementById(rowId);
-    if (row) {
-        row.remove();
-    }
-
-    // 최소 1개는 유지
+    if (row) row.remove();
     const container = document.getElementById('childRowsContainer');
-    if (container.children.length === 0) {
-        addChildRow();
-    }
-}
+    if (container.children.length === 0) addChildRow();
+};
 
 async function saveBOM() {
     const parentERP = document.getElementById('bomParentERP').value.trim();
-
     if (!parentERP) {
         showAlert('부모 품목코드는 필수입니다.', 'error');
         return;
     }
 
-    // 구성품 수집
     const childERPs = document.querySelectorAll('.child-erp');
     const childQuantities = document.querySelectorAll('.child-quantity');
-
     const children = [];
+
     for (let i = 0; i < childERPs.length; i++) {
         const childERP = childERPs[i].value.trim();
         const quantity = parseFloat(childQuantities[i].value) || 1;
@@ -381,32 +323,25 @@ async function saveBOM() {
         return;
     }
 
-    console.log('BOM 추가 시작:', children);
-
     let successCount = 0;
     let failCount = 0;
     const errors = [];
 
-    // 각 구성품을 순차적으로 추가하여 개별 결과 확인
     for (let i = 0; i < children.length; i++) {
         const child = children[i];
         try {
-            console.log(`[${i + 1}/${children.length}] BOM 추가 시도:`, child);
-            const response = await api.post('/api/bom', child);
-            console.log(`[${i + 1}/${children.length}] BOM 추가 성공:`, response);
+            await api.post('/api/bom', child);
             successCount++;
         } catch (e) {
-            console.error(`[${i + 1}/${children.length}] BOM 추가 실패:`, e);
             failCount++;
             errors.push(`${child.ChildERPCode}: ${e.message}`);
         }
     }
 
-    // 결과 표시
     if (successCount > 0) {
         showAlert(`BOM이 추가되었습니다. (성공: ${successCount}개, 실패: ${failCount}개)`, failCount > 0 ? 'warning' : 'success');
         closeAddBOMModal();
-        loadParents();
+        loadParents(paginationManager.getCurrentPage(), paginationManager.getLimit());
     } else {
         showAlert(`BOM 추가 실패:\n${errors.join('\n')}`, 'error');
     }
@@ -417,19 +352,17 @@ function showAddChildModal() {
         showAlert('세트 제품을 먼저 선택하세요.', 'warning');
         return;
     }
-
     document.getElementById('childERP').value = '';
     document.getElementById('childQuantity').value = '1';
-    document.getElementById('addChildModal').classList.add('show');
+    addChildModal.show();
 }
 
 function closeAddChildModal() {
-    document.getElementById('addChildModal').classList.remove('show');
+    addChildModal.hide();
 }
 
 async function saveChild() {
     const childERP = document.getElementById('childERP').value.trim();
-
     if (!childERP) {
         showAlert('자식 품목코드는 필수입니다.', 'error');
         return;
@@ -442,119 +375,142 @@ async function saveChild() {
     };
 
     try {
-        const response = await api.post('/api/bom', data);
-        console.log('BOM 추가 성공:', response);
+        await api.post('/api/bom', data);
         showAlert('구성품이 추가되었습니다.', 'success');
         closeAddChildModal();
         loadChildren(currentParentBoxID);
-        loadParents(); // Refresh to update child count
+        loadParents(paginationManager.getCurrentPage(), paginationManager.getLimit()); // 자식 수 업데이트
     } catch (e) {
-        // 에러 메시지를 더 명확하게 표시
-        console.error('BOM 추가 실패:', e);
-        const errorMessage = e.message || '저장 실패';
-        showAlert(errorMessage, 'error');
+        showAlert('저장 실패: ' + e.message, 'error');
     }
 }
 
-function toggleSelectChild(id, event) {
-    event.stopPropagation();
-    if (selectedChildIds.has(id)) {
-        selectedChildIds.delete(id);
-    } else {
-        selectedChildIds.add(id);
-    }
-    updateChildBulkButtons();
+async function bulkEdit() {
+    const selectedIds = masterTableManager.getSelectedRows();
+    if (selectedIds.length === 0) return;
 
-    const row = Array.from(document.querySelectorAll('#childTable tbody tr')).find(r => {
-        const checkbox = r.querySelector('input[type="checkbox"]');
-        return checkbox && checkbox.onchange && checkbox.onchange.toString().includes(id);
-    });
-    if (row) {
-        row.classList.toggle('selected', selectedChildIds.has(id));
-    }
+    // 첫 번째 선택된 항목의 자식 정보를 가져와서 현재 값 표시 (대표값)
+    const firstId = selectedIds[0];
+    try {
+        const res = await api.get(`/api/bom/children/${firstId}`);
+        const firstChild = res.data[0];
 
-    const allRows = document.querySelectorAll('#childTable tbody tr');
-    document.getElementById('selectAllChildren').checked = selectedChildIds.size > 0 && selectedChildIds.size === allRows.length;
+        document.getElementById('bulkEditParentCount').textContent = selectedIds.length;
+        document.getElementById('currentParentQuantity').textContent = firstChild ? firstChild.QuantityRequired : '(없음)';
+        document.getElementById('bulkParentQuantity').value = '';
+
+        bulkEditParentModal.show();
+    } catch (e) {
+        showAlert('데이터 로드 실패: ' + e.message, 'error');
+    }
 }
 
-function toggleSelectAllChildren() {
-    const checked = document.getElementById('selectAllChildren').checked;
-    const rows = document.querySelectorAll('#childTable tbody tr');
+function closeBulkEditParentModal() {
+    bulkEditParentModal.hide();
+}
 
-    rows.forEach(r => {
-        const checkbox = r.querySelector('input[type="checkbox"]');
-        if (checkbox && checkbox.onchange) {
-            const onchangeStr = checkbox.onchange.toString();
-            const match = onchangeStr.match(/toggleSelectChild\((\d+)/);
-            if (match) {
-                const id = parseInt(match[1]);
-                if (checked) {
-                    selectedChildIds.add(id);
-                    r.classList.add('selected');
-                    checkbox.checked = true;
-                } else {
-                    selectedChildIds.delete(id);
-                    r.classList.remove('selected');
-                    checkbox.checked = false;
+async function saveBulkEditParent() {
+    const newQuantity = document.getElementById('bulkParentQuantity').value;
+    if (!newQuantity) {
+        showAlert('소요수량을 입력하세요.', 'warning');
+        return;
+    }
+
+    const quantity = parseFloat(newQuantity);
+    if (isNaN(quantity) || quantity <= 0) {
+        showAlert('올바른 숫자를 입력하세요.', 'error');
+        return;
+    }
+
+    const selectedIds = masterTableManager.getSelectedRows();
+    try {
+        const updatePromises = [];
+        for (const boxId of selectedIds) {
+            const res = await api.get(`/api/bom/children/${boxId}`);
+            const bomIds = res.data.map(child => child.BOMID);
+            bomIds.forEach(bomId => {
+                updatePromises.push(api.put(`/api/bom/${bomId}`, { QuantityRequired: quantity }));
+            });
+        }
+
+        await Promise.all(updatePromises);
+        showAlert(`${selectedIds.length}개 세트 제품의 구성품 소요수량이 변경되었습니다.`, 'success');
+        closeBulkEditParentModal();
+        masterTableManager.clearSelection();
+        loadParents(paginationManager.getCurrentPage(), paginationManager.getLimit());
+        if (currentParentBoxID) loadChildren(currentParentBoxID);
+    } catch (e) {
+        showAlert('일괄 수정 실패: ' + e.message, 'error');
+    }
+}
+
+async function bulkDelete() {
+    const selectedIds = masterTableManager.getSelectedRows();
+    if (selectedIds.length === 0) return;
+
+    showConfirm(`선택한 ${selectedIds.length}개 세트 제품의 모든 BOM을 삭제하시겠습니까?`, async () => {
+        try {
+            const deletePromises = [];
+            for (const boxId of selectedIds) {
+                const res = await api.get(`/api/bom/children/${boxId}`);
+                const bomIds = res.data.map(child => child.BOMID);
+                if (bomIds.length > 0) {
+                    deletePromises.push(api.post('/api/bom/bulk-delete', { ids: bomIds }));
                 }
             }
+
+            await Promise.all(deletePromises);
+            showAlert('선택한 세트 제품의 BOM이 삭제되었습니다.', 'success');
+            masterTableManager.clearSelection();
+            loadParents(paginationManager.getCurrentPage(), paginationManager.getLimit());
+
+            if (selectedIds.includes(currentParentBoxID?.toString())) {
+                currentParentBoxID = null;
+                currentParentERPCode = null;
+                document.getElementById('detailPlaceholder').style.display = 'block';
+                document.getElementById('childTableContainer').style.display = 'none';
+            }
+        } catch (e) {
+            showAlert('삭제 실패: ' + e.message, 'error');
         }
     });
-
-    updateChildBulkButtons();
-}
-
-function updateChildBulkButtons() {
-    const hasSelection = selectedChildIds.size > 0;
-    const editBtn = document.getElementById('editChildButton');
-    const deleteBtn = document.getElementById('deleteChildButton');
-
-    editBtn.disabled = !hasSelection;
-    deleteBtn.disabled = !hasSelection;
-    editBtn.classList.toggle('btn-disabled', !hasSelection);
-    deleteBtn.classList.toggle('btn-disabled', !hasSelection);
 }
 
 async function bulkEditChildren() {
-    if (selectedChildIds.size === 0) return;
+    const selectedIds = detailTableManager.getSelectedRows();
+    if (selectedIds.length === 0) return;
 
-    // 첫 번째 선택된 항목의 데이터를 가져와서 현재 값 표시
-    const firstId = Array.from(selectedChildIds)[0];
+    const firstId = selectedIds[0];
     try {
         const bom = await api.get(`/api/bom/${firstId}`);
-
-        // 모달에 선택 개수와 현재 값 표시
-        document.getElementById('bulkEditChildCount').textContent = selectedChildIds.size;
+        document.getElementById('bulkEditChildCount').textContent = selectedIds.length;
         document.getElementById('currentChildERP').textContent = bom.ChildERPCode || '(없음)';
         document.getElementById('currentChildQuantity').textContent = bom.QuantityRequired || '(없음)';
-
-        // 입력 필드 초기화
         document.getElementById('bulkChildERP').value = '';
         document.getElementById('bulkChildQuantity').value = '';
 
-        // 모달 열기
-        document.getElementById('bulkEditChildModal').classList.add('show');
+        bulkEditChildModal.show();
     } catch (e) {
         showAlert('데이터 로드 실패: ' + e.message, 'error');
     }
 }
 
 function closeBulkEditChildModal() {
-    document.getElementById('bulkEditChildModal').classList.remove('show');
+    bulkEditChildModal.hide();
 }
 
 async function saveBulkEditChild() {
+    const selectedIds = detailTableManager.getSelectedRows();
     const newChildERP = document.getElementById('bulkChildERP').value.trim();
     const newQuantity = document.getElementById('bulkChildQuantity').value;
 
-    // 변경할 값이 없으면 경고
     if (!newChildERP && !newQuantity) {
         showAlert('변경할 값을 입력하세요.', 'warning');
         return;
     }
 
     try {
-        const promises = Array.from(selectedChildIds).map(async bomId => {
+        const promises = selectedIds.map(async bomId => {
             const bom = await api.get(`/api/bom/${bomId}`);
             const updateData = {
                 ParentProductBoxID: bom.ParentProductBoxID,
@@ -562,9 +518,7 @@ async function saveBulkEditChild() {
                 QuantityRequired: newQuantity ? parseFloat(newQuantity) : bom.QuantityRequired
             };
 
-            // ChildERPCode가 변경된 경우, 새 ChildProductBoxID를 찾아야 함
             if (newChildERP) {
-                // ERPCode로 BoxID 조회
                 const boxRes = await api.get(`/api/productboxes?erp_code=${newChildERP}`);
                 if (boxRes.data && boxRes.data.length > 0) {
                     updateData.ChildProductBoxID = boxRes.data[0].BoxID;
@@ -577,9 +531,9 @@ async function saveBulkEditChild() {
         });
 
         await Promise.all(promises);
-        showAlert(`${selectedChildIds.size}개 구성품이 수정되었습니다.`, 'success');
+        showAlert(`${selectedIds.length}개 구성품이 수정되었습니다.`, 'success');
         closeBulkEditChildModal();
-        selectedChildIds.clear();
+        detailTableManager.clearSelection();
         loadChildren(currentParentBoxID);
     } catch (e) {
         showAlert('일괄 수정 실패: ' + e.message, 'error');
@@ -587,155 +541,18 @@ async function saveBulkEditChild() {
 }
 
 async function bulkDeleteChildren() {
-    if (selectedChildIds.size === 0) return;
+    const selectedIds = detailTableManager.getSelectedRows();
+    if (selectedIds.length === 0) return;
 
-    showConfirm(`선택한 ${selectedChildIds.size}개의 구성품을 삭제하시겠습니까?`, async () => {
+    showConfirm(`선택한 ${selectedIds.length}개의 구성품을 삭제하시겠습니까?`, async () => {
         try {
-            await api.post('/api/bom/bulk-delete', { ids: Array.from(selectedChildIds) });
-            showAlert(`${selectedChildIds.size}개 구성품이 삭제되었습니다.`, 'success');
-            selectedChildIds.clear();
+            await api.post('/api/bom/bulk-delete', { ids: selectedIds.map(id => parseInt(id)) });
+            showAlert(`${selectedIds.length}개 구성품이 삭제되었습니다.`, 'success');
+            detailTableManager.clearSelection();
             loadChildren(currentParentBoxID);
-            loadParents(); // Refresh to update child count
+            loadParents(paginationManager.getCurrentPage(), paginationManager.getLimit());
         } catch (e) {
             showAlert('일괄 삭제 실패: ' + e.message, 'error');
         }
     });
 }
-
-async function bulkEdit() {
-    if (selectedIds.size === 0) return;
-
-    // 첫 번째 선택된 항목의 데이터를 가져와서 현재 값 표시
-    const firstId = Array.from(selectedIds)[0];
-    try {
-        const res = await api.get(`/api/bom/children/${firstId}`);
-        const firstChild = res.data[0];
-
-        // 모달에 선택 개수와 현재 값 표시
-        document.getElementById('bulkEditParentCount').textContent = selectedIds.size;
-        document.getElementById('currentParentQuantity').textContent = firstChild ? firstChild.QuantityRequired : '(없음)';
-
-        // 입력 필드 초기화
-        document.getElementById('bulkParentQuantity').value = '';
-
-        // 모달 열기
-        document.getElementById('bulkEditParentModal').classList.add('show');
-    } catch (e) {
-        showAlert('데이터 로드 실패: ' + e.message, 'error');
-    }
-}
-
-function closeBulkEditParentModal() {
-    document.getElementById('bulkEditParentModal').classList.remove('show');
-}
-
-async function saveBulkEditParent() {
-    const newQuantity = document.getElementById('bulkParentQuantity').value;
-
-    if (!newQuantity) {
-        showAlert('소요수량을 입력하세요.', 'warning');
-        return;
-    }
-
-    const quantity = parseFloat(newQuantity);
-    if (isNaN(quantity) || quantity <= 0) {
-        showAlert('올바른 숫자를 입력하세요.', 'error');
-        return;
-    }
-
-    try {
-        // For each selected parent, get all child BOMIDs and update them
-        const updatePromises = [];
-        for (const boxId of selectedIds) {
-            const res = await api.get(`/api/bom/children/${boxId}`);
-            const bomIds = res.data.map(child => child.BOMID);
-
-            bomIds.forEach(bomId => {
-                updatePromises.push(
-                    api.put(`/api/bom/${bomId}`, { QuantityRequired: quantity })
-                );
-            });
-        }
-
-        await Promise.all(updatePromises);
-        showAlert(`${selectedIds.size}개 세트 제품의 구성품 소요수량이 변경되었습니다.`, 'success');
-
-        closeBulkEditParentModal();
-        selectedIds.clear();
-        loadParents();
-
-        // 현재 선택된 세트의 구성품도 새로고침
-        if (currentParentBoxID) {
-            loadChildren(currentParentBoxID);
-        }
-    } catch (e) {
-        showAlert('일괄 수정 실패: ' + e.message, 'error');
-    }
-}
-
-async function bulkDelete() {
-    if (selectedIds.size === 0) return;
-
-    showConfirm(`선택한 ${selectedIds.size}개 세트 제품의 모든 BOM을 삭제하시겠습니까?`, async () => {
-        try {
-            // For each selected parent, get all child BOMIDs and delete them
-            const deletePromises = [];
-            for (const boxId of selectedIds) {
-                const res = await api.get(`/api/bom/children/${boxId}`);
-                const bomIds = res.data.map(child => child.BOMID);
-
-                if (bomIds.length > 0) {
-                    deletePromises.push(
-                        api.post('/api/bom/bulk-delete', { ids: bomIds })
-                    );
-                }
-            }
-
-            await Promise.all(deletePromises);
-            showAlert('선택한 세트 제품의 BOM이 삭제되었습니다.', 'success');
-
-            selectedIds.clear();
-            loadParents();
-
-            if (selectedIds.has(currentParentBoxID)) {
-                currentParentBoxID = null;
-                currentParentERPCode = null;
-                document.getElementById('detailPlaceholder').style.display = 'block';
-                document.getElementById('childTableContainer').style.display = 'none';
-            }
-        } catch (e) {
-            showAlert('삭제 실패: ' + e.message, 'error');
-        }
-    });
-}
-
-async function loadMetadata() {
-    try {
-        const res = await api.get('/api/bom/metadata');
-
-        // Parent ERP Codes
-        const parentERPOptions = res.parent_erp_codes.map(erp => `<option value="${erp}">`).join('');
-        document.getElementById('parentERPList').innerHTML = parentERPOptions;
-
-        // Parent Names
-        const parentNameOptions = res.parent_names.map(name => `<option value="${name}">`).join('');
-        document.getElementById('parentNameList').innerHTML = parentNameOptions;
-
-        // Child ERP Codes
-        const childERPOptions = res.child_erp_codes.map(erp => `<option value="${erp}">`).join('');
-        document.getElementById('childERPList').innerHTML = childERPOptions;
-
-        // Child Names
-        const childNameOptions = res.child_names.map(name => `<option value="${name}">`).join('');
-        document.getElementById('childNameList').innerHTML = childNameOptions;
-    } catch (e) {
-        console.error('메타데이터 로드 실패:', e);
-    }
-}
-
-// Enter key support for filters
-['filterParentERP', 'filterParentName', 'filterChildERP', 'filterChildName'].forEach(id => {
-    document.getElementById(id).addEventListener('keypress', e => {
-        if (e.key === 'Enter') applyFilters();
-    });
-});

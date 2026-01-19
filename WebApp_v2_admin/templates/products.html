@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "components/search-filter.html" import render_search_filter %}
 
 {% block title %}제품 관리 - Orio ERP v2{% endblock %}
 
@@ -76,11 +75,10 @@
                     <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
                         <i class="fa-solid fa-check-double"></i> 전체 선택
                     </button>
-                    <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEdit()" id="editButton" disabled>
+                    <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEdit()" id="editButton">
                         <i class="fa-solid fa-edit"></i> 선택 수정
                     </button>
-                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton"
-                        disabled>
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton">
                         <i class="fa-solid fa-trash"></i> 선택 삭제
                     </button>
                 </div>
@@ -92,10 +90,9 @@
         </div>
 
         <div class="table-container">
-            <table class="table" id="productTable">
+            <table class="table" id="master-table">
                 <thead>
                     <tr>
-                        <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                         <th>ID</th>
                         <th>브랜드</th>
                         <th>제품명</th>
@@ -105,12 +102,10 @@
                         <th>상태</th>
                     </tr>
                 </thead>
-                <tbody id="productTableBody">
-                </tbody>
+                <tbody></tbody>
             </table>
         </div>
-        <div class="pagination" id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:20px;">
-        </div>
+        <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:20px;"></div>
     </div>
 
     <!-- Detail: Product Boxes -->
@@ -122,17 +117,15 @@
                     <button class="btn btn-success btn-sm" onclick="showAddBoxModal()">
                         <i class="fa-solid fa-plus"></i> 박스 추가
                     </button>
-                    <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEditBoxes()" id="editBoxButton"
-                        disabled>
+                    <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEditBoxes()" id="editBoxButton">
                         <i class="fa-solid fa-edit"></i> 선택 수정
                     </button>
-                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteBoxes()" id="deleteBoxButton"
-                        disabled>
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteBoxes()" id="deleteBoxButton">
                         <i class="fa-solid fa-trash"></i> 선택 삭제
                     </button>
                 </div>
             </div>
-            <span style="color:var(--text-muted);font-size:13px;" id="boxCount" style="display:none;">박스 0개</span>
+            <span style="color:var(--text-muted);font-size:13px;display:none;" id="boxCount">박스 0개</span>
         </div>
 
         <div id="detailPlaceholder" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
@@ -142,383 +135,251 @@
         </div>
 
         <div class="table-container" id="boxTableContainer" style="display:none;">
-            <table class="table" id="boxTable">
+            <table class="table" id="detail-table">
                 <thead>
                     <tr>
-                        <th style="width:40px;"><input type="checkbox" id="selectAllBoxes"
-                                onchange="toggleSelectAllBoxes()"></th>
                         <th>ID</th>
-                        <th>품목코드</th>
-                        <th>박스 입수</th>
+                        <th>ERP코드</th>
+                        <th>입수량</th>
                     </tr>
                 </thead>
-                <tbody id="boxTableBody">
-                </tbody>
+                <tbody></tbody>
             </table>
         </div>
     </div>
 </div>
 
-<!-- 통합 추가 모달 -->
-<div class="modal" id="integratedAddModal">
-    <div class="modal-content" style="max-width:700px;">
+<!-- Integrated Add Modal -->
+<div id="integratedAddModal" class="modal">
+    <div class="modal-content" style="max-width:800px;">
         <div class="modal-header">
-            <h3 class="modal-title">제품 + 박스 통합 추가</h3>
-            <button class="modal-close" onclick="closeIntegratedAddModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
-            <h4 style="margin-bottom:16px;color:var(--accent);">Product 테이블 정보</h4>
-            <div class="form-group">
-                <label class="form-label">브랜드</label>
-                <select id="intBrand" class="form-select">
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label required">고유코드</label>
-                <input type="text" id="intUniqueCode" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label required">상품명</label>
-                <input type="text" id="intName" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label required">TypeERP</label>
-                <select id="intTypeERP" class="form-select" required>
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label required">TypeDB</label>
-                <select id="intTypeDB" class="form-select" required>
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">바코드1</label>
-                <input type="text" id="intBaseBarcode" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">바코드2</label>
-                <input type="text" id="intBarcode2" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">사방넷코드</label>
-                <input type="text" id="intSabangnetCode" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">사방넷고유코드</label>
-                <input type="text" id="intSabangnetUniqueCode" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">단품/세트</label>
-                <select id="intBundleType" class="form-select">
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">중분류</label>
-                <input type="text" id="intCategoryMid" class="form-input" list="categoryMidList"
-                    placeholder="검색 또는 입력...">
-                <datalist id="categoryMidList"></datalist>
-            </div>
-            <div class="form-group">
-                <label class="form-label">소분류</label>
-                <input type="text" id="intCategorySub" class="form-input" list="categorySubList"
-                    placeholder="검색 또는 입력...">
-                <datalist id="categorySubList"></datalist>
-            </div>
-            <div class="form-group">
-                <label class="form-label">상태</label>
-                <select id="intStatus" class="form-select">
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">출시일</label>
-                <input type="date" id="intReleaseDate" class="form-input">
-            </div>
-
-            <hr style="border:none;border-top:1px solid var(--border);margin:24px 0;">
-
-            <h4 style="margin-bottom:16px;color:var(--accent);">ProductBox 테이블 정보</h4>
-            <div class="form-group">
-                <label class="form-label required">품목코드(ERPCode)</label>
-                <input type="text" id="intERPCode" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">박스입수</label>
-                <input type="number" id="intQuantityInBox" class="form-input" value="1">
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeIntegratedAddModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-success" onclick="saveIntegrated()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- 박스 추가 모달 -->
-<div class="modal" id="addBoxModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="modal-title">박스 추가</h3>
-            <button class="modal-close" onclick="closeAddBoxModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <h2 class="modal-title">제품 통합 추가</h2>
+            <button class="modal-close" onclick="closeIntegratedAddModal()">&times;</button>
         </div>
         <div class="modal-body">
-            <h4 style="margin-bottom:16px;color:var(--accent);">ProductBox 테이블 정보</h4>
-            <div class="form-group">
-                <label class="form-label required">품목코드(ERPCode)</label>
-                <input type="text" id="boxERPCode" class="form-input" list="erpCodeList" placeholder="검색 또는 입력..."
-                    required>
-                <datalist id="erpCodeList"></datalist>
-            </div>
-            <div class="form-group">
-                <label class="form-label">박스입수</label>
-                <input type="number" id="boxQuantityInBox" class="form-input" value="1">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+                <!-- Product Info -->
+                <div>
+                    <h4
+                        style="margin-bottom:16px;color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:8px;">
+                        제품 정보</h4>
+                    <div class="form-group">
+                        <label class="form-label">브랜드</label>
+                        <select id="intBrand" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">고유코드</label>
+                        <input type="text" id="intUniqueCode" class="form-input" placeholder="예: 10001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">제품명</label>
+                        <input type="text" id="intName" class="form-input" placeholder="제품명 입력">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label required">TypeERP</label>
+                            <select id="intTypeERP" class="form-select"></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label required">TypeDB</label>
+                            <select id="intTypeDB" class="form-select"></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">기본바코드</label>
+                            <input type="text" id="intBaseBarcode" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">바코드2</label>
+                            <input type="text" id="intBarcode2" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">사방넷코드</label>
+                            <input type="text" id="intSabangnetCode" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">사방넷고유코드</label>
+                            <input type="text" id="intSabangnetUniqueCode" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">번들타입</label>
+                            <select id="intBundleType" class="form-select"></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">상태</label>
+                            <select id="intStatus" class="form-select"></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">중분류</label>
+                            <input type="text" id="intCategoryMid" class="form-input" list="categoryMidList">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">소분류</label>
+                            <input type="text" id="intCategorySub" class="form-input" list="categorySubList">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">출시일</label>
+                        <input type="date" id="intReleaseDate" class="form-input">
+                    </div>
+                </div>
+
+                <!-- Box Info -->
+                <div>
+                    <h4
+                        style="margin-bottom:16px;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:8px;">
+                        박스 정보</h4>
+                    <div class="form-group">
+                        <label class="form-label required">ERP코드 (품목코드)</label>
+                        <input type="text" id="intERPCode" class="form-input" placeholder="예: A001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">입수량</label>
+                        <input type="number" id="intQuantityInBox" class="form-input" value="1" min="1">
+                    </div>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeAddBoxModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-success" onclick="saveBox()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
+            <button class="btn btn-secondary" onclick="closeIntegratedAddModal()">취소</button>
+            <button class="btn btn-primary" onclick="saveIntegrated()">저장</button>
         </div>
     </div>
 </div>
 
-<!-- 제품 편집 모달 -->
-<div class="modal" id="editProductModal">
-    <div class="modal-content" style="max-width:700px;">
+<!-- Add Box Modal -->
+<div id="addBoxModal" class="modal">
+    <div class="modal-content">
         <div class="modal-header">
-            <h3 class="modal-title">제품 수정</h3>
-            <button class="modal-close" onclick="closeEditProductModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <h2 class="modal-title">박스 추가</h2>
+            <button class="modal-close" onclick="closeAddBoxModal()">&times;</button>
         </div>
-        <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
-            <input type="hidden" id="editProductId">
+        <div class="modal-body">
             <div class="form-group">
-                <label class="form-label">브랜드</label>
-                <select id="editBrand" class="form-select">
-                    <option value="">선택</option>
-                </select>
+                <label class="form-label required">ERP코드 (품목코드)</label>
+                <input type="text" id="boxERPCode" class="form-input">
             </div>
             <div class="form-group">
-                <label class="form-label required">고유코드</label>
-                <input type="text" id="editUniqueCode" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label required">상품명</label>
-                <input type="text" id="editName" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label required">TypeERP</label>
-                <select id="editTypeERP" class="form-select" required>
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label required">TypeDB</label>
-                <select id="editTypeDB" class="form-select" required>
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">바코드1</label>
-                <input type="text" id="editBaseBarcode" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">바코드2</label>
-                <input type="text" id="editBarcode2" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">사방넷코드</label>
-                <input type="text" id="editSabangnetCode" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">사방넷고유코드</label>
-                <input type="text" id="editSabangnetUniqueCode" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">단품/세트</label>
-                <select id="editBundleType" class="form-select">
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">중분류</label>
-                <input type="text" id="editCategoryMid" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">소분류</label>
-                <input type="text" id="editCategorySub" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">상태</label>
-                <select id="editStatus" class="form-select">
-                    <option value="">선택</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">출시일</label>
-                <input type="date" id="editReleaseDate" class="form-input">
+                <label class="form-label required">입수량</label>
+                <input type="number" id="boxQuantityInBox" class="form-input" value="1" min="1">
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeEditProductModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-success" onclick="updateProduct()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
+            <button class="btn btn-secondary" onclick="closeAddBoxModal()">취소</button>
+            <button class="btn btn-primary" onclick="saveBox()">저장</button>
         </div>
     </div>
 </div>
 
-<!-- Product 선택 수정 모달 -->
-<div class="modal" id="bulkEditProductModal">
-    <div class="modal-content" style="max-width:700px;">
+<!-- Bulk Edit Product Modal -->
+<div id="bulkEditProductModal" class="modal">
+    <div class="modal-content" style="max-width:800px;">
         <div class="modal-header">
-            <h3 class="modal-title">제품 선택 수정</h3>
-            <button class="modal-close" onclick="closeBulkEditProductModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <h2 class="modal-title">제품 선택 수정</h2>
+            <button class="modal-close" onclick="closeBulkEditProductModal()">&times;</button>
         </div>
-        <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+        <div class="modal-body">
             <div style="background:var(--bg-hover);padding:12px;border-radius:6px;margin-bottom:16px;">
                 <p style="margin:0;color:var(--text-muted);font-size:13px;">
                     <i class="fa-solid fa-info-circle"></i> 선택한 <span id="bulkEditProductCount"
                         style="color:var(--accent);font-weight:600;">0</span>개 제품을 수정합니다.
+                    <br>값을 입력한 항목만 수정됩니다. (빈 칸은 유지)
                 </p>
             </div>
-            <h4 style="margin-bottom:16px;color:var(--accent);">Product 테이블 정보</h4>
-            <div class="form-group">
-                <label class="form-label">브랜드</label>
-                <select id="bulkBrand" class="form-select">
-                    <option value="">변경하지 않음</option>
-                </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBrand"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">고유코드</label>
-                <input type="text" id="bulkUniqueCode" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentUniqueCode"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">상품명</label>
-                <input type="text" id="bulkProductName" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentProductName"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">TypeERP</label>
-                <select id="bulkTypeERP" class="form-select">
-                    <option value="">변경하지 않음</option>
-                </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentTypeERP"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">TypeDB</label>
-                <select id="bulkTypeDB" class="form-select">
-                    <option value="">변경하지 않음</option>
-                </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentTypeDB"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">바코드1</label>
-                <input type="text" id="bulkBaseBarcode" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBaseBarcode"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">바코드2</label>
-                <input type="text" id="bulkBarcode2" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBarcode2"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">사방넷코드</label>
-                <input type="text" id="bulkSabangnetCode" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentSabangnetCode"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">사방넷고유코드</label>
-                <input type="text" id="bulkSabangnetUniqueCode" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentSabangnetUniqueCode"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">단품/세트</label>
-                <select id="bulkBundleType" class="form-select">
-                    <option value="">변경하지 않음</option>
-                </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBundleType"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">중분류</label>
-                <input type="text" id="bulkCategoryMid" class="form-input" list="categoryMidList"
-                    placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentCategoryMid"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">소분류</label>
-                <input type="text" id="bulkCategorySub" class="form-input" list="categorySubList"
-                    placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentCategorySub"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">상태</label>
-                <select id="bulkStatus" class="form-select">
-                    <option value="">변경하지 않음</option>
-                </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentStatus"
-                        style="font-weight:600;"></span></small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">출시일</label>
-                <input type="date" id="bulkReleaseDate" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentReleaseDate"
-                        style="font-weight:600;"></span></small>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div class="form-group">
+                    <label class="form-label">브랜드</label>
+                    <select id="bulkBrand" class="form-select"></select>
+                    <small>현재: <span id="currentBrand"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">고유코드</label>
+                    <input type="text" id="bulkUniqueCode" class="form-input">
+                    <small>현재: <span id="currentUniqueCode"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">제품명</label>
+                    <input type="text" id="bulkProductName" class="form-input">
+                    <small>현재: <span id="currentProductName"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">TypeERP</label>
+                    <select id="bulkTypeERP" class="form-select"></select>
+                    <small>현재: <span id="currentTypeERP"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">TypeDB</label>
+                    <select id="bulkTypeDB" class="form-select"></select>
+                    <small>현재: <span id="currentTypeDB"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">기본바코드</label>
+                    <input type="text" id="bulkBaseBarcode" class="form-input">
+                    <small>현재: <span id="currentBaseBarcode"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">바코드2</label>
+                    <input type="text" id="bulkBarcode2" class="form-input">
+                    <small>현재: <span id="currentBarcode2"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">사방넷코드</label>
+                    <input type="text" id="bulkSabangnetCode" class="form-input">
+                    <small>현재: <span id="currentSabangnetCode"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">사방넷고유코드</label>
+                    <input type="text" id="bulkSabangnetUniqueCode" class="form-input">
+                    <small>현재: <span id="currentSabangnetUniqueCode"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">번들타입</label>
+                    <select id="bulkBundleType" class="form-select"></select>
+                    <small>현재: <span id="currentBundleType"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">중분류</label>
+                    <input type="text" id="bulkCategoryMid" class="form-input" list="categoryMidList">
+                    <small>현재: <span id="currentCategoryMid"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">소분류</label>
+                    <input type="text" id="bulkCategorySub" class="form-input" list="categorySubList">
+                    <small>현재: <span id="currentCategorySub"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">상태</label>
+                    <select id="bulkStatus" class="form-select"></select>
+                    <small>현재: <span id="currentStatus"></span></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">출시일</label>
+                    <input type="date" id="bulkReleaseDate" class="form-input">
+                    <small>현재: <span id="currentReleaseDate"></span></small>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeBulkEditProductModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-primary" onclick="saveBulkEditProduct()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
+            <button class="btn btn-secondary" onclick="closeBulkEditProductModal()">취소</button>
+            <button class="btn btn-primary" onclick="saveBulkEditProduct()">저장</button>
         </div>
     </div>
 </div>
 
-<!-- 박스 선택 수정 모달 -->
-<div class="modal" id="bulkEditBoxModal">
+<!-- Bulk Edit Box Modal -->
+<div id="bulkEditBoxModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 class="modal-title">박스 선택 수정</h3>
-            <button class="modal-close" onclick="closeBulkEditBoxModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <h2 class="modal-title">박스 선택 수정</h2>
+            <button class="modal-close" onclick="closeBulkEditBoxModal()">&times;</button>
         </div>
         <div class="modal-body">
             <div style="background:var(--bg-hover);padding:12px;border-radius:6px;margin-bottom:16px;">
@@ -527,30 +388,28 @@
                         style="color:var(--accent);font-weight:600;">0</span>개 박스를 수정합니다.
                 </p>
             </div>
-            <h4 style="margin-bottom:16px;color:var(--accent);">ProductBox 테이블 정보</h4>
             <div class="form-group">
-                <label class="form-label">품목코드(ERPCode)</label>
-                <input type="text" id="bulkERPCode" class="form-input" list="erpCodeList" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentERPCode"
-                        style="font-weight:600;"></span></small>
+                <label class="form-label">ERP코드</label>
+                <input type="text" id="bulkERPCode" class="form-input">
+                <small>현재: <span id="currentERPCode"></span></small>
             </div>
             <div class="form-group">
-                <label class="form-label">박스입수</label>
-                <input type="number" id="bulkQuantityInBox" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentQuantityInBox"
-                        style="font-weight:600;"></span></small>
+                <label class="form-label">입수량</label>
+                <input type="number" id="bulkQuantityInBox" class="form-input">
+                <small>현재: <span id="currentQuantityInBox"></span></small>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeBulkEditBoxModal()">
-                <i class="fa-solid fa-times"></i> 취소
-            </button>
-            <button class="btn btn-primary" onclick="saveBulkEditBox()">
-                <i class="fa-solid fa-save"></i> 저장
-            </button>
+            <button class="btn btn-secondary" onclick="closeBulkEditBoxModal()">취소</button>
+            <button class="btn btn-primary" onclick="saveBulkEditBox()">저장</button>
         </div>
     </div>
 </div>
+
+<!-- Datalists for Autocomplete -->
+<datalist id="categoryMidList"></datalist>
+<datalist id="categorySubList"></datalist>
+<datalist id="erpCodeList"></datalist>
 {% endblock %}
 
 {% block extra_js %}

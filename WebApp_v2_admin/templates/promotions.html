@@ -2,6 +2,10 @@
 
 {% block title %}행사 관리 - Orio ERP v2{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/pages/promotions.css">
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <h1 class="page-title">행사 관리</h1>
@@ -85,10 +89,9 @@
     </div>
 
     <div class="table-container">
-        <table class="table">
+        <table class="table" id="master-table">
             <thead>
                 <tr>
-                    <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                     <th>행사ID</th>
                     <th>행사명</th>
                     <th>채널</th>
@@ -98,14 +101,7 @@
                     <th>기간</th>
                 </tr>
             </thead>
-            <tbody id="masterTable">
-                <tr>
-                    <td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">
-                        <i class="fa-solid fa-search" style="font-size:48px;margin-bottom:16px;opacity:0.5;"></i>
-                        <p>검색 버튼을 눌러 데이터를 조회하세요.</p>
-                    </td>
-                </tr>
-            </tbody>
+            <tbody></tbody>
         </table>
     </div>
 
@@ -125,7 +121,7 @@
     </div>
 
     <div class="table-container">
-        <table class="table">
+        <table class="table" id="detail-table">
             <thead>
                 <tr>
                     <th>상품코드</th>
@@ -136,8 +132,7 @@
                     <th style="text-align:right;">목표매출</th>
                 </tr>
             </thead>
-            <tbody id="detailTable">
-            </tbody>
+            <tbody></tbody>
         </table>
     </div>
 </div>
@@ -267,61 +262,4 @@
 
 {% block extra_js %}
 <script src="/static/js/pages/promotions.js"></script>
-
-<style>
-    .badge {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: 600;
-    }
-
-    /* 행사유형 뱃지 */
-    .badge-type-online {
-        background: rgba(59, 130, 246, 0.15);
-        color: #3b82f6;
-    }
-
-    .badge-type-offline {
-        background: rgba(139, 92, 246, 0.15);
-        color: #8b5cf6;
-    }
-
-    .badge-type-default {
-        background: rgba(107, 114, 128, 0.15);
-        color: #6b7280;
-    }
-
-    /* 상태 뱃지 */
-    .badge-status-scheduled {
-        background: rgba(107, 114, 128, 0.15);
-        color: #6b7280;
-    }
-
-    .badge-status-active {
-        background: rgba(16, 185, 129, 0.15);
-        color: var(--success);
-    }
-
-    .badge-status-completed {
-        background: rgba(99, 102, 241, 0.15);
-        color: var(--accent);
-    }
-
-    .badge-status-cancelled {
-        background: rgba(239, 68, 68, 0.15);
-        color: var(--danger);
-    }
-
-    /* 마스터 행 선택 */
-    .master-row:hover {
-        background: rgba(99, 102, 241, 0.05);
-    }
-
-    .master-row.selected {
-        background: rgba(99, 102, 241, 0.1);
-        border-left: 3px solid var(--accent);
-    }
-</style>
 {% endblock %}

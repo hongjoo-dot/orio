@@ -137,18 +137,19 @@ class BOMRepository(BaseRepository):
             # 데이터 쿼리
             offset = (page - 1) * limit
             data_query = f"""
-                SELECT DISTINCT
+                SELECT
                     pb.BoxID,
                     pb.ERPCode,
                     p.Name,
                     p.BrandID,
-                    (SELECT COUNT(*) FROM [dbo].[ProductBOM] WHERE ParentProductBoxID = pb.BoxID) as ChildCount,
-                    (SELECT MIN(BOMID) FROM [dbo].[ProductBOM] WHERE ParentProductBoxID = pb.BoxID) as FirstBOMID
+                    COUNT(bom.BOMID) as ChildCount,
+                    MIN(bom.BOMID) as FirstBOMID
                 FROM [dbo].[ProductBox] pb
                 JOIN [dbo].[Product] p ON pb.ProductID = p.ProductID
                 JOIN [dbo].[ProductBOM] bom ON pb.BoxID = bom.ParentProductBoxID
                 {where_sql}
-                ORDER BY p.Name
+                GROUP BY pb.BoxID, pb.ERPCode, p.Name, p.BrandID
+                ORDER BY pb.BoxID DESC
                 OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
             """
             cursor.execute(data_query, *params, offset, limit)
