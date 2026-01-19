@@ -55,10 +55,12 @@
     <!-- Master: Products -->
     <div class="card">
         <div style="margin-bottom:16px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <div
+                style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
                 <div style="display:flex;align-items:center;gap:8px;">
                     <h2 class="card-title" style="margin:0;white-space:nowrap;">제품 목록</h2>
-                    <select id="limitSelector" onchange="changeLimit()" class="form-select" style="padding:8px;font-size:13px;width:auto;">
+                    <select id="limitSelector" onchange="changeLimit()" class="form-select"
+                        style="padding:8px;font-size:13px;width:auto;">
                         <option value="20" selected>20개씩</option>
                         <option value="50">50개씩</option>
                         <option value="100">100개씩</option>
@@ -68,13 +70,17 @@
                     <button class="btn btn-success btn-sm" onclick="showIntegratedAddModal()">
                         <i class="fa-solid fa-plus"></i> 통합 추가
                     </button>
+                    <button class="btn btn-primary btn-sm" onclick="downloadExcel()">
+                        <i class="fa-solid fa-download"></i> 엑셀 다운로드
+                    </button>
                     <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
                         <i class="fa-solid fa-check-double"></i> 전체 선택
                     </button>
                     <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEdit()" id="editButton" disabled>
                         <i class="fa-solid fa-edit"></i> 선택 수정
                     </button>
-                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton" disabled>
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton"
+                        disabled>
                         <i class="fa-solid fa-trash"></i> 선택 삭제
                     </button>
                 </div>
@@ -103,7 +109,8 @@
                 </tbody>
             </table>
         </div>
-        <div class="pagination" id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:20px;"></div>
+        <div class="pagination" id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:20px;">
+        </div>
     </div>
 
     <!-- Detail: Product Boxes -->
@@ -115,10 +122,12 @@
                     <button class="btn btn-success btn-sm" onclick="showAddBoxModal()">
                         <i class="fa-solid fa-plus"></i> 박스 추가
                     </button>
-                    <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEditBoxes()" id="editBoxButton" disabled>
+                    <button class="btn btn-primary btn-sm btn-disabled" onclick="bulkEditBoxes()" id="editBoxButton"
+                        disabled>
                         <i class="fa-solid fa-edit"></i> 선택 수정
                     </button>
-                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteBoxes()" id="deleteBoxButton" disabled>
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteBoxes()" id="deleteBoxButton"
+                        disabled>
                         <i class="fa-solid fa-trash"></i> 선택 삭제
                     </button>
                 </div>
@@ -127,7 +136,8 @@
         </div>
 
         <div id="detailPlaceholder" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
-            <i class="fa-solid fa-hand-pointer" style="font-size:48px;margin-bottom:16px;opacity:0.3;display:block;"></i>
+            <i class="fa-solid fa-hand-pointer"
+                style="font-size:48px;margin-bottom:16px;opacity:0.3;display:block;"></i>
             <p>제품을 선택하세요</p>
         </div>
 
@@ -135,7 +145,8 @@
             <table class="table" id="boxTable">
                 <thead>
                     <tr>
-                        <th style="width:40px;"><input type="checkbox" id="selectAllBoxes" onchange="toggleSelectAllBoxes()"></th>
+                        <th style="width:40px;"><input type="checkbox" id="selectAllBoxes"
+                                onchange="toggleSelectAllBoxes()"></th>
                         <th>ID</th>
                         <th>품목코드</th>
                         <th>박스 입수</th>
@@ -209,12 +220,14 @@
             </div>
             <div class="form-group">
                 <label class="form-label">중분류</label>
-                <input type="text" id="intCategoryMid" class="form-input" list="categoryMidList" placeholder="검색 또는 입력...">
+                <input type="text" id="intCategoryMid" class="form-input" list="categoryMidList"
+                    placeholder="검색 또는 입력...">
                 <datalist id="categoryMidList"></datalist>
             </div>
             <div class="form-group">
                 <label class="form-label">소분류</label>
-                <input type="text" id="intCategorySub" class="form-input" list="categorySubList" placeholder="검색 또는 입력...">
+                <input type="text" id="intCategorySub" class="form-input" list="categorySubList"
+                    placeholder="검색 또는 입력...">
                 <datalist id="categorySubList"></datalist>
             </div>
             <div class="form-group">
@@ -264,7 +277,8 @@
             <h4 style="margin-bottom:16px;color:var(--accent);">ProductBox 테이블 정보</h4>
             <div class="form-group">
                 <label class="form-label required">품목코드(ERPCode)</label>
-                <input type="text" id="boxERPCode" class="form-input" list="erpCodeList" placeholder="검색 또는 입력..." required>
+                <input type="text" id="boxERPCode" class="form-input" list="erpCodeList" placeholder="검색 또는 입력..."
+                    required>
                 <datalist id="erpCodeList"></datalist>
             </div>
             <div class="form-group">
@@ -384,7 +398,8 @@
         <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
             <div style="background:var(--bg-hover);padding:12px;border-radius:6px;margin-bottom:16px;">
                 <p style="margin:0;color:var(--text-muted);font-size:13px;">
-                    <i class="fa-solid fa-info-circle"></i> 선택한 <span id="bulkEditProductCount" style="color:var(--accent);font-weight:600;">0</span>개 제품을 수정합니다.
+                    <i class="fa-solid fa-info-circle"></i> 선택한 <span id="bulkEditProductCount"
+                        style="color:var(--accent);font-weight:600;">0</span>개 제품을 수정합니다.
                 </p>
             </div>
             <h4 style="margin-bottom:16px;color:var(--accent);">Product 테이블 정보</h4>
@@ -393,80 +408,96 @@
                 <select id="bulkBrand" class="form-select">
                     <option value="">변경하지 않음</option>
                 </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBrand" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBrand"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">고유코드</label>
                 <input type="text" id="bulkUniqueCode" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentUniqueCode" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentUniqueCode"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">상품명</label>
                 <input type="text" id="bulkProductName" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentProductName" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentProductName"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">TypeERP</label>
                 <select id="bulkTypeERP" class="form-select">
                     <option value="">변경하지 않음</option>
                 </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentTypeERP" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentTypeERP"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">TypeDB</label>
                 <select id="bulkTypeDB" class="form-select">
                     <option value="">변경하지 않음</option>
                 </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentTypeDB" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentTypeDB"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">바코드1</label>
                 <input type="text" id="bulkBaseBarcode" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBaseBarcode" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBaseBarcode"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">바코드2</label>
                 <input type="text" id="bulkBarcode2" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBarcode2" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBarcode2"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">사방넷코드</label>
                 <input type="text" id="bulkSabangnetCode" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentSabangnetCode" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentSabangnetCode"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">사방넷고유코드</label>
                 <input type="text" id="bulkSabangnetUniqueCode" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentSabangnetUniqueCode" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentSabangnetUniqueCode"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">단품/세트</label>
                 <select id="bulkBundleType" class="form-select">
                     <option value="">변경하지 않음</option>
                 </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBundleType" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentBundleType"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">중분류</label>
-                <input type="text" id="bulkCategoryMid" class="form-input" list="categoryMidList" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentCategoryMid" style="font-weight:600;"></span></small>
+                <input type="text" id="bulkCategoryMid" class="form-input" list="categoryMidList"
+                    placeholder="변경하지 않으려면 비워두세요">
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentCategoryMid"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">소분류</label>
-                <input type="text" id="bulkCategorySub" class="form-input" list="categorySubList" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentCategorySub" style="font-weight:600;"></span></small>
+                <input type="text" id="bulkCategorySub" class="form-input" list="categorySubList"
+                    placeholder="변경하지 않으려면 비워두세요">
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentCategorySub"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">상태</label>
                 <select id="bulkStatus" class="form-select">
                     <option value="">변경하지 않음</option>
                 </select>
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentStatus" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentStatus"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">출시일</label>
                 <input type="date" id="bulkReleaseDate" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentReleaseDate" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentReleaseDate"
+                        style="font-weight:600;"></span></small>
             </div>
         </div>
         <div class="modal-footer">
@@ -492,19 +523,22 @@
         <div class="modal-body">
             <div style="background:var(--bg-hover);padding:12px;border-radius:6px;margin-bottom:16px;">
                 <p style="margin:0;color:var(--text-muted);font-size:13px;">
-                    <i class="fa-solid fa-info-circle"></i> 선택한 <span id="bulkEditBoxCount" style="color:var(--accent);font-weight:600;">0</span>개 박스를 수정합니다.
+                    <i class="fa-solid fa-info-circle"></i> 선택한 <span id="bulkEditBoxCount"
+                        style="color:var(--accent);font-weight:600;">0</span>개 박스를 수정합니다.
                 </p>
             </div>
             <h4 style="margin-bottom:16px;color:var(--accent);">ProductBox 테이블 정보</h4>
             <div class="form-group">
                 <label class="form-label">품목코드(ERPCode)</label>
                 <input type="text" id="bulkERPCode" class="form-input" list="erpCodeList" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentERPCode" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentERPCode"
+                        style="font-weight:600;"></span></small>
             </div>
             <div class="form-group">
                 <label class="form-label">박스입수</label>
                 <input type="number" id="bulkQuantityInBox" class="form-input" placeholder="변경하지 않으려면 비워두세요">
-                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentQuantityInBox" style="font-weight:600;"></span></small>
+                <small style="color:var(--text-muted);font-size:12px;">현재 값: <span id="currentQuantityInBox"
+                        style="font-weight:600;"></span></small>
             </div>
         </div>
         <div class="modal-footer">
@@ -528,7 +562,7 @@
     let selectedBoxIds = new Set();
     let currentProductId = null;
 
-    document.addEventListener('DOMContentLoaded', async function() {
+    document.addEventListener('DOMContentLoaded', async function () {
         await loadProducts();
         await loadBrands();
         await loadProductTypes();
@@ -1362,6 +1396,25 @@
                 showAlert('삭제 실패: ' + e.message, 'error');
             }
         });
+    }
+
+    // Excel download function
+    function downloadExcel() {
+        // 현재 필터 조건을 query parameter로 변환
+        const params = new URLSearchParams();
+        if (currentFilters.brand) params.append('brand', currentFilters.brand);
+        if (currentFilters.unique_code) params.append('unique_code', currentFilters.unique_code);
+        if (currentFilters.name) params.append('name', currentFilters.name);
+        if (currentFilters.bundle_type) params.append('bundle_type', currentFilters.bundle_type);
+
+        // 엑셀 다운로드 URL
+        const downloadUrl = `/api/products/download/excel?${params.toString()}`;
+
+        // 다운로드 실행
+        window.location.href = downloadUrl;
+
+        // 사용자 피드백
+        showAlert('엑셀 파일 다운로드를 시작합니다.', 'success');
     }
 
     // Enter key support for filters

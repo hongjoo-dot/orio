@@ -6,8 +6,13 @@ Product Router
 """
 
 from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
+import pandas as pd
+import io
+from datetime import datetime
+from urllib.parse import quote
 from repositories import ProductRepository, ProductBoxRepository, ActivityLogRepository
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
 
@@ -142,6 +147,125 @@ async def get_product_metadata():
         }
     except Exception as e:
         raise HTTPException(500, f"메타데이터 조회 실패: {str(e)}")
+
+
+@router.get("/download/excel")
+async def download_products_excel(
+    brand: Optional[str] = None,
+    unique_code: Optional[str] = None,
+    name: Optional[str] = None,
+    bundle_type: Optional[str] = None
+):
+    """
+    필터 조건에 맞는 Product 데이터를 엑셀로 다운로드
+    
+    Query Parameters:
+    - brand: 브랜드 Title 필터
+    - unique_code: 고유코드 필터 (LIKE)
+    - name: 상품명 필터 (LIKE)
+    - bundle_type: 유형 필터
+    """
+    try:
+        # 필터 딕셔너리 구성
+        filters = {}
+        if brand:
+            filters['brand'] = brand
+        if unique_code:
+            filters['unique_code'] = unique_code
+        if name:
+            filters['name'] = name
+        if bundle_type:
+            filters['bundle_type'] = bundle_type
+
+        # 페이지네이션 없이 전체 데이터 조회 (limit을 매우 크게 설정)
+        result = product_repo.get_list(
+            page=1,
+            limit=100000,  # 전체 조회
+            filters=filters,
+            order_by="p.ProductID",
+            order_dir="DESC"
+        )
+
+        products = result.get('data', [])
+
+        # 한글 칼럼명 매핑
+        column_mapping = {
+            'ProductID': '제품ID',
+            'BrandID': '브랜드ID',
+            'BrandName': '브랜드명',
+            'BrandTitle': '브랜드타이틀',
+            'UniqueCode': '고유코드',
+            'Name': '상품명',
+            'TypeERP': 'ERP유형',
+            'TypeDB': 'DB유형',
+            'BaseBarcode': '바코드1',
+            'Barcode2': '바코드2',
+            'SabangnetCode': '사방넷코드',
+            'SabangnetUniqueCode': '사방넷고유코드',
+            'BundleType': '단품세트구분',
+            'CategoryMid': '중분류',
+            'CategorySub': '소분류',
+            'Status': '상태',
+            'ReleaseDate': '출시일'
+        }
+
+        # DataFrame 생성
+        if products:
+            df = pd.DataFrame(products)
+            # 칼럼 순서 정렬 및 한글명으로 변경
+            ordered_columns = [
+                'ProductID', 'BrandName', 'BrandTitle', 'UniqueCode', 'Name',
+                'TypeERP', 'TypeDB', 'BaseBarcode', 'Barcode2',
+                'SabangnetCode', 'SabangnetUniqueCode', 'BundleType',
+                'CategoryMid', 'CategorySub', 'Status', 'ReleaseDate'
+            ]
+            # 존재하는 칼럼만 선택
+            available_columns = [col for col in ordered_columns if col in df.columns]
+            df = df[available_columns]
+            # 한글 칼럼명으로 변경
+            df.rename(columns=column_mapping, inplace=True)
+        else:
+            # 데이터가 없을 경우 빈 DataFrame 생성 (칼럼명만 포함)
+            df = pd.DataFrame(columns=[column_mapping[col] for col in [
+                'ProductID', 'BrandName', 'BrandTitle', 'UniqueCode', 'Name',
+                'TypeERP', 'TypeDB', 'BaseBarcode', 'Barcode2',
+                'SabangnetCode', 'SabangnetUniqueCode', 'BundleType',
+                'CategoryMid', 'CategorySub', 'Status', 'ReleaseDate'
+            ]])
+
+        # 엑셀 파일 생성
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='상품목록')
+            
+            # 칼럼 너비 자동 조정
+            worksheet = writer.sheets['상품목록']
+            for i, col in enumerate(df.columns):
+                max_len = max(
+                    df[col].astype(str).apply(len).max() if len(df) > 0 else 0,
+                    len(str(col))
+                ) + 2
+                worksheet.set_column(i, i, min(max_len, 50))
+
+        output.seek(0)
+
+        # 파일명: 상품목록_YYYYMMDD.xlsx
+        today = datetime.now().strftime('%Y%m%d')
+        filename = f"상품목록_{today}.xlsx"
+        encoded_filename = quote(filename)
+
+        headers = {
+            'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}"
+        }
+
+        return StreamingResponse(
+            output,
+            headers=headers,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+    except Exception as e:
+        raise HTTPException(500, f"엑셀 다운로드 실패: {str(e)}")
 
 
 @router.get("/{product_id}")
