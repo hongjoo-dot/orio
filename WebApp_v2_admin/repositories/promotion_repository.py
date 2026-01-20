@@ -225,6 +225,48 @@ class PromotionRepository(BaseRepository):
             """)
             return [row[0] for row in cursor.fetchall()]
 
+    def find_by_unique_key(
+        self,
+        brand_id: int,
+        channel_name: str,
+        promotion_name: str,
+        start_date: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        유니크 키로 행사 조회 (브랜드 + 채널명 + 행사명 + 시작일)
+
+        Args:
+            brand_id: 브랜드 ID
+            channel_name: 채널명
+            promotion_name: 행사명
+            start_date: 시작일 (YYYY-MM-DD 형식)
+
+        Returns:
+            행사 정보 또는 None
+        """
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT
+                    p.PromotionID, p.PromotionName, p.PromotionType,
+                    p.StartDate, p.EndDate, p.Status,
+                    p.BrandID, b.Name as BrandName,
+                    p.ChannelID, p.ChannelName, p.CommissionRate,
+                    p.DiscountOwner, p.CompanyShare, p.ChannelShare,
+                    p.TargetSalesAmount, p.TargetQuantity,
+                    p.Notes, p.CreatedDate, p.UpdatedDate
+                FROM [dbo].[Promotion] p
+                LEFT JOIN [dbo].[Brand] b ON p.BrandID = b.BrandID
+                WHERE p.BrandID = ?
+                  AND p.ChannelName = ?
+                  AND p.PromotionName = ?
+                  AND CONVERT(DATE, p.StartDate) = CONVERT(DATE, ?)
+            """, (brand_id, channel_name, promotion_name, start_date))
+
+            row = cursor.fetchone()
+            if row:
+                return self._row_to_dict(row)
+            return None
+
 
 class PromotionProductRepository(BaseRepository):
     """PromotionProduct(행사 상품) 테이블 Repository"""

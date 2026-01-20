@@ -4,7 +4,10 @@ Promotion 전용 엑셀 처리 핸들러
 - Promotion/PromotionProduct 데이터 파싱
 """
 
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from repositories.promotion_repository import PromotionRepository
 from datetime import date
 import pandas as pd
 from core import get_db_cursor
@@ -133,7 +136,7 @@ def get_next_promotion_id(
 class PromotionExcelHandler(ExcelBaseHandler):
     """Promotion 전용 엑셀 처리 핸들러"""
 
-    # Promotion 시트 칼럼 매핑 (한글 -> 영문)
+    # Promotion 시트 칼럼 매핑 (한글 -> 영문) - 기존 2시트 방식 호환
     PROMOTION_COL_MAP = {
         '행사ID': 'PROMOTION_ID',
         '행사명': 'PROMOTION_NAME',
@@ -152,7 +155,7 @@ class PromotionExcelHandler(ExcelBaseHandler):
         '비고': 'NOTES',
     }
 
-    # PromotionProduct 시트 칼럼 매핑 (한글 -> 영문)
+    # PromotionProduct 시트 칼럼 매핑 (한글 -> 영문) - 기존 2시트 방식 호환
     PRODUCT_COL_MAP = {
         '행사ID': 'PROMOTION_ID',
         '상품코드': 'UNIQUECODE',
@@ -172,8 +175,41 @@ class PromotionExcelHandler(ExcelBaseHandler):
         '비고': 'NOTES',
     }
 
+    # 통합 시트 칼럼 매핑 (한글 -> 영문)
+    UNIFIED_COL_MAP = {
+        # Promotion 칼럼 (파란색)
+        '행사명': 'PROMOTION_NAME',
+        '행사유형': 'PROMOTION_TYPE',
+        '시작일': 'START_DATE',
+        '종료일': 'END_DATE',
+        '상태': 'STATUS',
+        '브랜드': 'BRAND',
+        '채널명': 'CHANNEL_NAME',
+        '수수료율(%)': 'COMMISSION_RATE',
+        '할인분담주체': 'DISCOUNT_OWNER',
+        '회사분담율(%)': 'COMPANY_SHARE',
+        '채널분담율(%)': 'CHANNEL_SHARE',
+        '행사비고': 'PROMOTION_NOTES',
+        # PromotionProduct 칼럼 (초록색)
+        '상품코드': 'UNIQUECODE',
+        '판매가': 'SELLING_PRICE',
+        '행사가': 'PROMOTION_PRICE',
+        '공급가': 'SUPPLY_PRICE',
+        '쿠폰할인율(%)': 'COUPON_DISCOUNT_RATE',
+        '원가': 'UNIT_COST',
+        '물류비': 'LOGISTICS_COST',
+        '관리비': 'MANAGEMENT_COST',
+        '창고비': 'WAREHOUSE_COST',
+        'EDI비용': 'EDI_COST',
+        '잡손실': 'MIS_COST',
+        '목표매출액': 'TARGET_SALES_AMOUNT',
+        '목표수량': 'TARGET_QUANTITY',
+        '상품비고': 'PRODUCT_NOTES',
+    }
+
     PROMOTION_REQUIRED_COLS = ['PROMOTION_NAME', 'START_DATE', 'END_DATE', 'BRAND']
     PRODUCT_REQUIRED_COLS = ['PROMOTION_ID', 'UNIQUECODE']
+    UNIFIED_REQUIRED_COLS = ['PROMOTION_NAME', 'START_DATE', 'BRAND', 'CHANNEL_NAME', 'UNIQUECODE']
 
     def __init__(self):
         super().__init__()
@@ -296,3 +332,152 @@ class PromotionExcelHandler(ExcelBaseHandler):
                 records.append(record)
 
         return records
+
+    def _generate_unique_key(self, brand_id: int, channel_name: str, promotion_name: str, start_date: str) -> str:
+        """
+        행사 유니크 키 생성
+        형식: {BrandID}_{ChannelName}_{PromotionName}_{StartDate}
+        """
+        return f"{brand_id}_{channel_name}_{promotion_name}_{start_date}"
+
+    def process_unified_sheet(
+        self,
+        df: pd.DataFrame,
+        promotion_repo=None
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        통합 시트 처리 (Promotion + PromotionProduct가 한 시트에 있는 경우)
+
+        유니크 키: 브랜드 + 채널명 + 행사명 + 시작일
+        - 같은 유니크 키를 가진 행들은 같은 Promotion에 속하는 Product로 처리
+        - 기존 DB에 있으면 기존 PromotionID 사용, 없으면 새로 생성
+
+        Args:
+            df: 통합 시트 DataFrame
+            promotion_repo: PromotionRepository 인스턴스 (기존 행사 조회용)
+
+        Returns:
+            Tuple[promotion_records, product_records]
+        """
+        df = self.map_columns(df, self.UNIFIED_COL_MAP)
+        self.check_required_columns(df, self.UNIFIED_REQUIRED_COLS, "행사등록")
+
+        # 유니크 키별로 그룹핑
+        promotion_map = {}  # unique_key -> promotion_record
+        promotion_id_map = {}  # unique_key -> PromotionID
+        product_records = []
+
+        for _, row in df.iterrows():
+            # 브랜드 매핑
+            brand_name = self.safe_str(row.get('BRAND'))
+            brand_id = self.get_brand_id(brand_name)
+
+            if brand_id is None:
+                continue  # 브랜드 매핑 실패 시 스킵
+
+            # 채널명
+            channel_name = self.safe_str(row.get('CHANNEL_NAME'))
+            if not channel_name:
+                continue  # 채널명 필수
+
+            channel_id = self.get_channel_id(channel_name)
+
+            # 행사명, 시작일
+            promotion_name = self.safe_str(row.get('PROMOTION_NAME'))
+            start_date = self.safe_date(row.get('START_DATE'))
+
+            if not promotion_name or not start_date:
+                continue
+
+            # 유니크 키 생성
+            unique_key = self._generate_unique_key(brand_id, channel_name, promotion_name, start_date)
+
+            # 이미 처리한 행사가 아니면 Promotion 정보 추출
+            if unique_key not in promotion_map:
+                # PromotionType 변환 (한글 -> 영문)
+                promotion_type = self.safe_str(row.get('PROMOTION_TYPE'))
+                if promotion_type and promotion_type in PROMOTION_TYPE_KR_MAP:
+                    promotion_type = PROMOTION_TYPE_KR_MAP[promotion_type]
+
+                # Status 변환 (한글 -> 영문)
+                status = self.safe_str(row.get('STATUS'), 'SCHEDULED')
+                if status in STATUS_KR_MAP:
+                    status = STATUS_KR_MAP[status]
+
+                # 기존 DB에서 PromotionID 조회
+                promotion_id = None
+                if promotion_repo:
+                    existing = promotion_repo.find_by_unique_key(
+                        brand_id=brand_id,
+                        channel_name=channel_name,
+                        promotion_name=promotion_name,
+                        start_date=start_date
+                    )
+                    if existing:
+                        promotion_id = existing['PromotionID']
+
+                # 없으면 새로 생성
+                if not promotion_id:
+                    brand_code = self.get_brand_code(brand_id)
+                    if brand_code and promotion_type and start_date:
+                        start_date_obj = pd.to_datetime(row.get('START_DATE')).date()
+                        promotion_id = generate_promotion_id(brand_code, promotion_type, start_date_obj)
+                    else:
+                        continue  # 자동 생성 실패 시 스킵
+
+                promotion_id_map[unique_key] = promotion_id
+
+                promotion_map[unique_key] = {
+                    'PromotionID': promotion_id,
+                    'PromotionName': promotion_name,
+                    'PromotionType': promotion_type,
+                    'StartDate': start_date,
+                    'EndDate': self.safe_date(row.get('END_DATE')),
+                    'Status': status,
+                    'BrandID': brand_id,
+                    'ChannelID': channel_id,
+                    'ChannelName': channel_name,
+                    'CommissionRate': self.safe_float(row.get('COMMISSION_RATE')),
+                    'DiscountOwner': self.safe_str(row.get('DISCOUNT_OWNER')),
+                    'CompanyShare': self.safe_float(row.get('COMPANY_SHARE')),
+                    'ChannelShare': self.safe_float(row.get('CHANNEL_SHARE')),
+                    'TargetSalesAmount': None,  # 통합 시트에서는 상품별 목표로 관리
+                    'TargetQuantity': None,
+                    'Notes': self.safe_str(row.get('PROMOTION_NOTES')),
+                }
+
+            # PromotionProduct 정보 추출
+            promotion_id = promotion_id_map.get(unique_key)
+            if not promotion_id:
+                continue
+
+            uniquecode = self.safe_int(row.get('UNIQUECODE'))
+            product_id = self.get_product_id(uniquecode)
+
+            if product_id is None:
+                continue  # 상품 매핑 실패 시 스킵
+
+            product_record = {
+                'PromotionID': promotion_id,
+                'ProductID': product_id,
+                'Uniquecode': uniquecode,
+                'SellingPrice': self.safe_float(row.get('SELLING_PRICE')),
+                'PromotionPrice': self.safe_float(row.get('PROMOTION_PRICE')),
+                'SupplyPrice': self.safe_float(row.get('SUPPLY_PRICE')),
+                'CouponDiscountRate': self.safe_float(row.get('COUPON_DISCOUNT_RATE')),
+                'UnitCost': self.safe_float(row.get('UNIT_COST')),
+                'LogisticsCost': self.safe_float(row.get('LOGISTICS_COST')),
+                'ManagementCost': self.safe_float(row.get('MANAGEMENT_COST')),
+                'WarehouseCost': self.safe_float(row.get('WAREHOUSE_COST')),
+                'EDICost': self.safe_float(row.get('EDI_COST')),
+                'MisCost': self.safe_float(row.get('MIS_COST')),
+                'TargetSalesAmount': self.safe_float(row.get('TARGET_SALES_AMOUNT')),
+                'TargetQuantity': self.safe_int(row.get('TARGET_QUANTITY')),
+                'Notes': self.safe_str(row.get('PRODUCT_NOTES')),
+            }
+
+            product_records.append(product_record)
+
+        promotion_records = list(promotion_map.values())
+
+        return promotion_records, product_records

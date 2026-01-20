@@ -97,9 +97,11 @@ WebApp_v2_admin/
 │   ├── security.py             # JWT 인증, 비밀번호 해싱
 │   └── dependencies.py         # FastAPI 의존성 주입
 │
-├── repositories/               # 데이터 접근 계층 (10개 Repository)
+├── repositories/               # 데이터 접근 계층 (11개 Repository)
 │   ├── product_repository.py   # Product 테이블 CRUD
 │   ├── bom_repository.py       # ProductBOM 테이블 CRUD
+│   ├── promotion_repository.py # Promotion/PromotionProduct CRUD
+│   ├── target_sales_repository.py # TargetSalesProduct CRUD (목표매출)
 │   └── ...
 │
 ├── routers/                    # API 라우터 (11개 Router)
@@ -108,10 +110,11 @@ WebApp_v2_admin/
 │   └── ...
 │
 ├── utils/                      # 공통 유틸리티
-│   ├── excel/                  # Excel Handler System (신규)
+│   ├── excel/                  # Excel Handler System
 │   │   ├── base_handler.py     # 공통 엑셀 처리 로직 (부모)
 │   │   ├── product_handler.py  # 제품 엑셀 처리
 │   │   ├── sales_handler.py    # 매출 엑셀 처리
+│   │   ├── promotion_handler.py # 행사 엑셀 처리 (통합시트/2시트 지원)
 │   │   └── ...
 │   └── slack_notifier.py       # Slack 알림
 │
