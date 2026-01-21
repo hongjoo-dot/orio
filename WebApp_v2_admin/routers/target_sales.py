@@ -310,37 +310,28 @@ async def download_template():
     )
 
 
-@router.get("/download/data")
-async def download_data(
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
-    sales_type: Optional[str] = None,
-    year: Optional[int] = None,
-    month: Optional[int] = None
-):
+class DownloadDataRequest(BaseModel):
+    ids: List[int]
+
+
+@router.post("/download/data")
+async def download_data(request_body: DownloadDataRequest):
     """
-    기존 목표매출 데이터 다운로드 (수정용)
+    선택한 목표매출 데이터 다운로드 (수정용)
 
     컬럼: 목표ID | 연도 | 월 | 브랜드 | 채널명 | 상품코드 | 매출유형 | 목표매출액 | 목표수량 | 비고
     (목표ID 포함 - 수정용)
     """
     try:
-        # 필터 적용
-        filters = {}
-        if brand_id is not None:
-            filters['brand_id'] = brand_id
-        if channel_id:
-            filters['channel_id'] = channel_id
-        if sales_type:
-            filters['sales_type'] = sales_type
-        if year:
-            filters['year'] = year
-        if month:
-            filters['month'] = month
+        if not request_body.ids:
+            raise HTTPException(400, "다운로드할 데이터를 선택해주세요")
 
-        # 전체 데이터 조회 (페이지네이션 없이)
-        result = target_sales_repo.get_list(page=1, limit=100000, filters=filters)
-        data = result.get('data', [])
+        # 선택된 ID로 데이터 조회
+        data = []
+        for target_id in request_body.ids:
+            item = target_sales_repo.get_by_id(target_id)
+            if item:
+                data.append(item)
 
         if not data:
             raise HTTPException(404, "다운로드할 데이터가 없습니다")
@@ -416,13 +407,8 @@ async def download_data(
 
         output.seek(0)
 
-        # 파일명에 필터 정보 포함
-        filename_parts = ['target_sales']
-        if year:
-            filename_parts.append(str(year))
-        if month:
-            filename_parts.append(f'{month:02d}')
-        filename = '_'.join(filename_parts) + '.xlsx'
+        # 파일명 생성 (선택된 데이터 기반)
+        filename = f'target_sales_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
 
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"'

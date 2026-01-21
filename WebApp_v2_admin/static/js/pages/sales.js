@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 테이블 매니저 초기화
     tableManager = new TableManager('sales-table', {
         selectable: true,
+        idKey: 'IDX',
         onSelectionChange: (selectedIds) => {
             updateActionButtons(selectedIds);
         },

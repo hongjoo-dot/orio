@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 테이블 매니저 초기화
     masterTableManager = new TableManager('master-table', {
         selectable: true,
+        idKey: 'BoxID',
         onSelectionChange: (selectedIds) => updateActionButtons(selectedIds),
         onRowClick: (row, tr) => selectParent(row, tr),
         emptyMessage: '데이터가 없습니다.'
@@ -38,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     detailTableManager = new TableManager('detail-table', {
         selectable: true,
+        idKey: 'BOMID',
         onSelectionChange: (selectedIds) => updateChildActionButtons(selectedIds),
         emptyMessage: '구성품이 없습니다.'
     });

@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Expected View 테이블
     masterTableManager = new TableManager('master-table', {
         selectable: true,
+        idKey: 'PromotionID',
         onSelectionChange: (selectedIds) => updateActionButtons(selectedIds),
         onRowClick: (row, tr) => showDetail(row, tr),
         emptyMessage: '데이터가 없습니다.'
@@ -84,6 +85,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Target View 테이블
     targetTableManager = new TableManager('target-table', {
         selectable: true,
+        idKey: 'TargetID',
         onSelectionChange: (selectedIds) => updateTargetActionButtons(selectedIds),
         emptyMessage: '데이터가 없습니다.'
     });
@@ -495,11 +497,51 @@ function downloadTargetTemplate() {
     window.location.href = '/api/target-sales/download/template';
 }
 
-function downloadTargetData() {
-    // 현재 필터 조건으로 데이터 다운로드
-    const params = { ...targetFilters };
-    const queryString = api.buildQueryString(params);
-    window.location.href = `/api/target-sales/download/data${queryString}`;
+async function downloadTargetData() {
+    // 선택된 행의 ID만 다운로드
+    const selectedIds = targetTableManager.getSelectedRows();
+
+    if (selectedIds.length === 0) {
+        showAlert('다운로드할 데이터를 선택해주세요.', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/target-sales/download/data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ids: selectedIds.map(id => parseInt(id)) })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '다운로드 실패');
+        }
+
+        // Blob으로 파일 다운로드
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        // Content-Disposition 헤더에서 파일명 추출
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'target_sales.xlsx';
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="?([^"]+)"?/);
+            if (match) filename = match[1];
+        }
+
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    } catch (e) {
+        showAlert('다운로드 오류: ' + e.message, 'error');
+    }
 }
 
 function showTargetUploadModal() {
