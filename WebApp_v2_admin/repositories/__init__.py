@@ -9,6 +9,7 @@ from .revenue_plan_repository import RevenuePlanRepository
 from .bom_repository import BOMRepository
 from .user_repository import UserRepository, RoleRepository
 from .activity_log_repository import ActivityLogRepository
+from .expected_sales_repository import ExpectedSalesProductRepository
 from .target_sales_repository import TargetSalesProductRepository
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     'UserRepository',
     'RoleRepository',
     'ActivityLogRepository',
+    'ExpectedSalesProductRepository',
     'TargetSalesProductRepository',
 ]
 

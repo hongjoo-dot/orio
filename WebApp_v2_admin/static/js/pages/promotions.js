@@ -2,6 +2,7 @@ let masterTableManager, detailTableManager, paginationManager;
 let uploadModal, uploadResultModal;
 let currentFilters = {};
 let selectedPromotionId = null;
+let currentView = 'expected'; // 'expected' or 'target'
 
 // 마스터 테이블 컬럼
 const masterColumns = [
@@ -28,10 +29,10 @@ const masterColumns = [
         }
     },
     {
-        key: 'TargetSalesAmount',
-        header: '매출목표',
+        key: 'ExpectedSalesAmount',
+        header: '예상매출',
         className: 'text-right',
-        render: (row) => `<div style="text-align:right;">${row.TargetSalesAmount?.toLocaleString() || 0}</div>`
+        render: (row) => `<div style="text-align:right;">${row.ExpectedSalesAmount?.toLocaleString() || 0}</div>`
     },
     {
         key: 'Period',
@@ -46,8 +47,8 @@ const detailColumns = [
     { key: 'ProductName', header: '상품명', render: (row) => row.ProductName || '-' },
     { key: 'SellingPrice', header: '판매가', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.SellingPrice?.toLocaleString() || '-'}</div>` },
     { key: 'PromotionPrice', header: '행사가', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.PromotionPrice?.toLocaleString() || '-'}</div>` },
-    { key: 'TargetQuantity', header: '목표수량', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.TargetQuantity?.toLocaleString() || '-'}</div>` },
-    { key: 'TargetSalesAmount', header: '목표매출', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.TargetSalesAmount?.toLocaleString() || '-'}</div>` }
+    { key: 'ExpectedQuantity', header: '예상수량', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.ExpectedQuantity?.toLocaleString() || '-'}</div>` },
+    { key: 'ExpectedSalesAmount', header: '예상매출', className: 'text-right', render: (row) => `<div style="text-align:right;">${row.ExpectedSalesAmount?.toLocaleString() || '-'}</div>` }
 ];
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -269,6 +270,27 @@ function handleFileSelect(event) {
         document.getElementById('fileName').textContent = file.name;
         document.getElementById('fileInfo').style.display = 'block';
         document.getElementById('uploadButton').disabled = false;
+    }
+}
+
+/**
+ * 예상/목표 뷰 전환
+ */
+function switchView(view) {
+    currentView = view;
+
+    // 토글 버튼 상태 변경
+    document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+
+    // 뷰 표시/숨김
+    document.getElementById('expectedView').style.display = view === 'expected' ? 'block' : 'none';
+    document.getElementById('targetView').style.display = view === 'target' ? 'block' : 'none';
+
+    // 예상 뷰로 전환 시 디테일 닫기
+    if (view === 'expected') {
+        hideDetail();
     }
 }
 

@@ -150,8 +150,8 @@ class PromotionExcelHandler(ExcelBaseHandler):
         '할인분담주체': 'DISCOUNT_OWNER',
         '회사분담율(%)': 'COMPANY_SHARE',
         '채널분담율(%)': 'CHANNEL_SHARE',
-        '목표매출액': 'TARGET_SALES_AMOUNT',
-        '목표수량': 'TARGET_QUANTITY',
+        '예상매출액': 'EXPECTED_SALES_AMOUNT',
+        '예상수량': 'EXPECTED_QUANTITY',
         '비고': 'NOTES',
     }
 
@@ -170,8 +170,8 @@ class PromotionExcelHandler(ExcelBaseHandler):
         '창고비': 'WAREHOUSE_COST',
         'EDI비용': 'EDI_COST',
         '잡손실': 'MIS_COST',
-        '목표매출액': 'TARGET_SALES_AMOUNT',
-        '목표수량': 'TARGET_QUANTITY',
+        '예상매출액': 'EXPECTED_SALES_AMOUNT',
+        '예상수량': 'EXPECTED_QUANTITY',
         '비고': 'NOTES',
     }
 
@@ -202,8 +202,8 @@ class PromotionExcelHandler(ExcelBaseHandler):
         '창고비': 'WAREHOUSE_COST',
         'EDI비용': 'EDI_COST',
         '잡손실': 'MIS_COST',
-        '목표매출액': 'TARGET_SALES_AMOUNT',
-        '목표수량': 'TARGET_QUANTITY',
+        '예상매출액': 'EXPECTED_SALES_AMOUNT',
+        '예상수량': 'EXPECTED_QUANTITY',
         '상품비고': 'PRODUCT_NOTES',
     }
 
@@ -271,8 +271,8 @@ class PromotionExcelHandler(ExcelBaseHandler):
             'DiscountOwner': self.safe_str(row.get('DISCOUNT_OWNER')),
             'CompanyShare': self.safe_float(row.get('COMPANY_SHARE')),
             'ChannelShare': self.safe_float(row.get('CHANNEL_SHARE')),
-            'TargetSalesAmount': self.safe_float(row.get('TARGET_SALES_AMOUNT')),
-            'TargetQuantity': self.safe_int(row.get('TARGET_QUANTITY')),
+            'ExpectedSalesAmount': self.safe_float(row.get('EXPECTED_SALES_AMOUNT')),
+            'ExpectedQuantity': self.safe_int(row.get('EXPECTED_QUANTITY')),
             'Notes': self.safe_str(row.get('NOTES')),
         }
 
@@ -302,8 +302,8 @@ class PromotionExcelHandler(ExcelBaseHandler):
             'WarehouseCost': self.safe_float(row.get('WAREHOUSE_COST')),
             'EDICost': self.safe_float(row.get('EDI_COST')),
             'MisCost': self.safe_float(row.get('MIS_COST')),
-            'TargetSalesAmount': self.safe_float(row.get('TARGET_SALES_AMOUNT')),
-            'TargetQuantity': self.safe_int(row.get('TARGET_QUANTITY')),
+            'ExpectedSalesAmount': self.safe_float(row.get('EXPECTED_SALES_AMOUNT')),
+            'ExpectedQuantity': self.safe_int(row.get('EXPECTED_QUANTITY')),
             'Notes': self.safe_str(row.get('NOTES')),
         }
 
@@ -441,8 +441,8 @@ class PromotionExcelHandler(ExcelBaseHandler):
                     'DiscountOwner': self.safe_str(row.get('DISCOUNT_OWNER')),
                     'CompanyShare': self.safe_float(row.get('COMPANY_SHARE')),
                     'ChannelShare': self.safe_float(row.get('CHANNEL_SHARE')),
-                    'TargetSalesAmount': None,  # 통합 시트에서는 상품별 목표로 관리
-                    'TargetQuantity': None,
+                    'ExpectedSalesAmount': None,  # 통합 시트에서는 상품별 목표로 관리
+                    'ExpectedQuantity': None,
                     'Notes': self.safe_str(row.get('PROMOTION_NOTES')),
                 }
 
@@ -471,8 +471,8 @@ class PromotionExcelHandler(ExcelBaseHandler):
                 'WarehouseCost': self.safe_float(row.get('WAREHOUSE_COST')),
                 'EDICost': self.safe_float(row.get('EDI_COST')),
                 'MisCost': self.safe_float(row.get('MIS_COST')),
-                'TargetSalesAmount': self.safe_float(row.get('TARGET_SALES_AMOUNT')),
-                'TargetQuantity': self.safe_int(row.get('TARGET_QUANTITY')),
+                'ExpectedSalesAmount': self.safe_float(row.get('EXPECTED_SALES_AMOUNT')),
+                'ExpectedQuantity': self.safe_int(row.get('EXPECTED_QUANTITY')),
                 'Notes': self.safe_str(row.get('PRODUCT_NOTES')),
             }
 

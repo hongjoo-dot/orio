@@ -1,3 +1,46 @@
+/* View Toggle (예상/목표) */
+.view-toggle-container {
+    margin-bottom: 20px;
+}
+
+.view-toggle {
+    display: inline-flex;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+}
+
+.view-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-toggle-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.view-toggle-btn.active {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.view-toggle-btn i {
+    font-size: 14px;
+}
+
 /* Badge Styles */
 .badge {
     display: inline-block;

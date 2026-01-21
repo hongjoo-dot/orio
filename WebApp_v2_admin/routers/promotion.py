@@ -19,7 +19,7 @@ from repositories.promotion_repository import (
     STATUS_MAP,
     STATUS_REVERSE_MAP
 )
-from repositories import ActivityLogRepository, TargetSalesProductRepository
+from repositories import ActivityLogRepository, ExpectedSalesProductRepository
 from core import get_db_cursor
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
 from utils.excel import PromotionExcelHandler
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/promotions", tags=["Promotions"])
 # Repository 인스턴스
 promotion_repo = PromotionRepository()
 promotion_product_repo = PromotionProductRepository()
-target_sales_repo = TargetSalesProductRepository()
+expected_sales_repo = ExpectedSalesProductRepository()
 activity_log_repo = ActivityLogRepository()
 
 
@@ -124,8 +124,8 @@ async def delete_promotion(
         if not promotion_repo.exists(promotion_id):
             raise HTTPException(404, "행사를 찾을 수 없습니다")
 
-        # 먼저 TargetSalesProduct 삭제 (FK 제약 때문에 먼저)
-        deleted_target_sales = target_sales_repo.delete_by_promotion_id(promotion_id)
+        # 먼저 ExpectedSalesProduct 삭제 (FK 제약 때문에 먼저)
+        deleted_expected_sales = expected_sales_repo.delete_by_promotion_id(promotion_id)
 
         # 연관 상품 삭제
         deleted_products = promotion_product_repo.delete_by_promotion_id(promotion_id)
@@ -143,7 +143,7 @@ async def delete_promotion(
                 target_id=promotion_id,
                 details={
                     "deleted_products": deleted_products,
-                    "deleted_target_sales": deleted_target_sales
+                    "deleted_expected_sales": deleted_expected_sales
                 },
                 ip_address=get_client_ip(request)
             )
@@ -151,7 +151,7 @@ async def delete_promotion(
         return {
             "message": "삭제되었습니다",
             "deleted_products": deleted_products,
-            "deleted_target_sales": deleted_target_sales
+            "deleted_expected_sales": deleted_expected_sales
         }
     except HTTPException:
         raise
@@ -171,13 +171,13 @@ async def bulk_delete_promotions(
             raise HTTPException(400, "삭제할 ID가 없습니다")
 
         total_deleted_products = 0
-        total_deleted_target_sales = 0
+        total_deleted_expected_sales = 0
         deleted_promotions = 0
 
         for promotion_id in request_body.ids:
-            # TargetSalesProduct 삭제 (FK 제약 때문에 먼저)
-            deleted_target_sales = target_sales_repo.delete_by_promotion_id(promotion_id)
-            total_deleted_target_sales += deleted_target_sales
+            # ExpectedSalesProduct 삭제 (FK 제약 때문에 먼저)
+            deleted_expected_sales = expected_sales_repo.delete_by_promotion_id(promotion_id)
+            total_deleted_expected_sales += deleted_expected_sales
 
             # 연관 상품 삭제
             deleted_products = promotion_product_repo.delete_by_promotion_id(promotion_id)
@@ -196,7 +196,7 @@ async def bulk_delete_promotions(
                     "deleted_ids": request_body.ids,
                     "deleted_count": deleted_promotions,
                     "deleted_products": total_deleted_products,
-                    "deleted_target_sales": total_deleted_target_sales
+                    "deleted_expected_sales": total_deleted_expected_sales
                 },
                 ip_address=get_client_ip(request)
             )
@@ -205,7 +205,7 @@ async def bulk_delete_promotions(
             "message": "삭제되었습니다",
             "deleted_count": deleted_promotions,
             "deleted_products": total_deleted_products,
-            "deleted_target_sales": total_deleted_target_sales
+            "deleted_expected_sales": total_deleted_expected_sales
         }
     except HTTPException:
         raise
@@ -255,7 +255,7 @@ async def download_template():
     product_columns = [
         '상품코드', '판매가', '행사가', '공급가', '쿠폰할인율(%)',
         '원가', '물류비', '관리비', '창고비', 'EDI비용', '잡손실',
-        '목표매출액', '목표수량', '상품비고'
+        '예상매출액', '예상수량', '상품비고'
     ]
 
     all_columns = promotion_columns + product_columns
@@ -288,8 +288,8 @@ async def download_template():
             '창고비': 200,
             'EDI비용': 100,
             '잡손실': 50,
-            '목표매출액': 50000000,
-            '목표수량': 2500,
+            '예상매출액': 50000000,
+            '예상수량': 2500,
             '상품비고': ''
         },
         {
@@ -318,8 +318,8 @@ async def download_template():
             '창고비': 300,
             'EDI비용': 150,
             '잡손실': 80,
-            '목표매출액': 50000000,
-            '목표수량': 2500,
+            '예상매출액': 50000000,
+            '예상수량': 2500,
             '상품비고': ''
         },
         {
@@ -348,8 +348,8 @@ async def download_template():
             '창고비': 150,
             'EDI비용': 80,
             '잡손실': 30,
-            '목표매출액': 30000000,
-            '목표수량': 3000,
+            '예상매출액': 30000000,
+            '예상수량': 3000,
             '상품비고': ''
         }
     ]
@@ -526,21 +526,21 @@ async def upload_excel(
         if product_records:
             product_result = promotion_product_repo.bulk_insert(product_records)
 
-        # ========== TargetSalesProduct 자동 생성 (PROMOTION 타입) ==========
-        target_sales_result = {'inserted': 0, 'updated': 0}
+        # ========== ExpectedSalesProduct 자동 생성 (PROMOTION 타입) ==========
+        expected_sales_result = {'inserted': 0, 'updated': 0}
 
         if product_records:
             try:
-                target_sales_records = _build_target_sales_records(
+                expected_sales_records = _build_expected_sales_records(
                     promotion_records, product_records
                 )
-                print(f"   TargetSalesProduct 레코드 생성: {len(target_sales_records):,}건")
+                print(f"   ExpectedSalesProduct 레코드 생성: {len(expected_sales_records):,}건")
 
-                if target_sales_records:
-                    target_sales_result = target_sales_repo.bulk_insert(target_sales_records)
-                    print(f"   TargetSalesProduct: INSERT {target_sales_result['inserted']:,}건, UPDATE {target_sales_result['updated']:,}건")
+                if expected_sales_records:
+                    expected_sales_result = expected_sales_repo.bulk_insert(expected_sales_records)
+                    print(f"   ExpectedSalesProduct: INSERT {expected_sales_result['inserted']:,}건, UPDATE {expected_sales_result['updated']:,}건")
             except Exception as e:
-                print(f"   [경고] TargetSalesProduct 자동 생성 실패: {str(e)} - 스킵")
+                print(f"   [경고] ExpectedSalesProduct 자동 생성 실패: {str(e)} - 스킵")
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
@@ -562,8 +562,8 @@ async def upload_excel(
                     "promotion_updated": promotion_result['updated'],
                     "product_inserted": product_result['inserted'],
                     "product_updated": product_result['updated'],
-                    "target_sales_inserted": target_sales_result['inserted'],
-                    "target_sales_updated": target_sales_result['updated'],
+                    "expected_sales_inserted": expected_sales_result['inserted'],
+                    "expected_sales_updated": expected_sales_result['updated'],
                     "unmapped_brands": warnings['unmapped_brands']['count'],
                     "unmapped_products": warnings['unmapped_products']['count'],
                     "duration_seconds": duration
@@ -575,7 +575,7 @@ async def upload_excel(
         print(f"업로드 완료:")
         print(f"   Promotion: INSERT {promotion_result['inserted']:,}건, UPDATE {promotion_result['updated']:,}건")
         print(f"   PromotionProduct: INSERT {product_result['inserted']:,}건, UPDATE {product_result['updated']:,}건")
-        print(f"   TargetSalesProduct: INSERT {target_sales_result['inserted']:,}건, UPDATE {target_sales_result['updated']:,}건")
+        print(f"   ExpectedSalesProduct: INSERT {expected_sales_result['inserted']:,}건, UPDATE {expected_sales_result['updated']:,}건")
         if warnings['unmapped_brands']['items']:
             print(f"   [경고] 매핑 안 된 브랜드: {warnings['unmapped_brands']['items']}")
         if warnings['unmapped_channels']['items']:
@@ -598,9 +598,9 @@ async def upload_excel(
                 "inserted": product_result['inserted'],
                 "updated": product_result['updated']
             },
-            "target_sales_product": {
-                "inserted": target_sales_result['inserted'],
-                "updated": target_sales_result['updated']
+            "expected_sales_product": {
+                "inserted": expected_sales_result['inserted'],
+                "updated": expected_sales_result['updated']
             },
             "warnings": warnings,
             "duration_seconds": duration
@@ -614,26 +614,26 @@ async def upload_excel(
         raise HTTPException(500, f"업로드 실패: {str(e)}")
 
 
-def _build_target_sales_records(
+def _build_expected_sales_records(
     promotion_records: List[Dict[str, Any]],
     product_records: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
     """
-    Promotion + PromotionProduct 데이터로 TargetSalesProduct 레코드 생성
+    Promotion + PromotionProduct 데이터로 ExpectedSalesProduct 레코드 생성
 
     Args:
         promotion_records: Promotion 레코드 리스트
         product_records: PromotionProduct 레코드 리스트
 
     Returns:
-        TargetSalesProduct 레코드 리스트
+        ExpectedSalesProduct 레코드 리스트
     """
     # Promotion 정보를 딕셔너리로 변환 (PromotionID -> Promotion 정보)
     promotion_map = {}
     for promo in promotion_records:
         promotion_map[promo['PromotionID']] = promo
 
-    target_records = []
+    expected_records = []
 
     for product in product_records:
         promotion_id = product['PromotionID']
@@ -660,8 +660,8 @@ def _build_target_sales_records(
         year = start_date.year
         month = start_date.month
 
-        # TargetSalesProduct 레코드 생성
-        target_record = {
+        # ExpectedSalesProduct 레코드 생성
+        expected_record = {
             'Year': year,
             'Month': month,
             'BrandID': promotion['BrandID'],
@@ -670,15 +670,15 @@ def _build_target_sales_records(
             'SalesType': 'PROMOTION',
             'PromotionID': promotion_id,
             'PromotionProductID': None,  # 아직 PromotionProductID가 없음 (INSERT 후 생성됨)
-            'TargetAmount': product.get('TargetSalesAmount'),
-            'TargetQuantity': product.get('TargetQuantity')
+            'ExpectedAmount': product.get('ExpectedSalesAmount'),
+            'ExpectedQuantity': product.get('ExpectedQuantity')
         }
 
         # 필수 값 체크
-        if not target_record['ChannelID']:
+        if not expected_record['ChannelID']:
             print(f"   [경고] PromotionID '{promotion_id}' ChannelID 없음 - 스킵")
             continue
 
-        target_records.append(target_record)
+        expected_records.append(expected_record)
 
-    return target_records
+    return expected_records

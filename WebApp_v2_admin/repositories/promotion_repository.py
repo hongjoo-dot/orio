@@ -47,7 +47,7 @@ class PromotionRepository(BaseRepository):
                 p.BrandID, b.Name as BrandName,
                 p.ChannelID, p.ChannelName, p.CommissionRate,
                 p.DiscountOwner, p.CompanyShare, p.ChannelShare,
-                p.TargetSalesAmount, p.TargetQuantity,
+                p.ExpectedSalesAmount, p.ExpectedQuantity,
                 p.Notes, p.CreatedDate, p.UpdatedDate
             FROM [dbo].[Promotion] p
             LEFT JOIN [dbo].[Brand] b ON p.BrandID = b.BrandID
@@ -74,8 +74,8 @@ class PromotionRepository(BaseRepository):
             "DiscountOwner": row[11],
             "CompanyShare": float(row[12]) if row[12] else None,
             "ChannelShare": float(row[13]) if row[13] else None,
-            "TargetSalesAmount": float(row[14]) if row[14] else 0,
-            "TargetQuantity": row[15],
+            "ExpectedSalesAmount": float(row[14]) if row[14] else 0,
+            "ExpectedQuantity": row[15],
             "Notes": row[16],
             "CreatedDate": row[17].strftime('%Y-%m-%d %H:%M:%S') if row[17] else None,
             "UpdatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None
@@ -134,7 +134,7 @@ class PromotionRepository(BaseRepository):
             "p.BrandID", "b.Name as BrandName",
             "p.ChannelID", "p.ChannelName", "p.CommissionRate",
             "p.DiscountOwner", "p.CompanyShare", "p.ChannelShare",
-            "p.TargetSalesAmount", "p.TargetQuantity",
+            "p.ExpectedSalesAmount", "p.ExpectedQuantity",
             "p.Notes", "p.CreatedDate", "p.UpdatedDate"
         )
 
@@ -169,15 +169,15 @@ class PromotionRepository(BaseRepository):
                     DiscountOwner = ?,
                     CompanyShare = ?,
                     ChannelShare = ?,
-                    TargetSalesAmount = ?,
-                    TargetQuantity = ?,
+                    ExpectedSalesAmount = ?,
+                    ExpectedQuantity = ?,
                     Notes = ?,
                     UpdatedDate = GETDATE()
             WHEN NOT MATCHED THEN
                 INSERT (PromotionID, PromotionName, PromotionType, StartDate, EndDate, Status,
                         BrandID, ChannelID, ChannelName, CommissionRate,
                         DiscountOwner, CompanyShare, ChannelShare,
-                        TargetSalesAmount, TargetQuantity, Notes, CreatedDate, UpdatedDate)
+                        ExpectedSalesAmount, ExpectedQuantity, Notes, CreatedDate, UpdatedDate)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
             OUTPUT $action;
         """
@@ -193,7 +193,7 @@ class PromotionRepository(BaseRepository):
                     record['BrandID'], record.get('ChannelID'), record.get('ChannelName'),
                     record.get('CommissionRate'), record.get('DiscountOwner'),
                     record.get('CompanyShare'), record.get('ChannelShare'),
-                    record.get('TargetSalesAmount'), record.get('TargetQuantity'),
+                    record.get('ExpectedSalesAmount'), record.get('ExpectedQuantity'),
                     record.get('Notes'),
                     # INSERT VALUES
                     record['PromotionID'], record['PromotionName'], record.get('PromotionType'),
@@ -201,7 +201,7 @@ class PromotionRepository(BaseRepository):
                     record['BrandID'], record.get('ChannelID'), record.get('ChannelName'),
                     record.get('CommissionRate'), record.get('DiscountOwner'),
                     record.get('CompanyShare'), record.get('ChannelShare'),
-                    record.get('TargetSalesAmount'), record.get('TargetQuantity'),
+                    record.get('ExpectedSalesAmount'), record.get('ExpectedQuantity'),
                     record.get('Notes')
                 )
                 cursor.execute(sql, params)
@@ -252,7 +252,7 @@ class PromotionRepository(BaseRepository):
                     p.BrandID, b.Name as BrandName,
                     p.ChannelID, p.ChannelName, p.CommissionRate,
                     p.DiscountOwner, p.CompanyShare, p.ChannelShare,
-                    p.TargetSalesAmount, p.TargetQuantity,
+                    p.ExpectedSalesAmount, p.ExpectedQuantity,
                     p.Notes, p.CreatedDate, p.UpdatedDate
                 FROM [dbo].[Promotion] p
                 LEFT JOIN [dbo].[Brand] b ON p.BrandID = b.BrandID
@@ -282,7 +282,7 @@ class PromotionProductRepository(BaseRepository):
                 pr.Name as ProductName,
                 pp.SellingPrice, pp.PromotionPrice, pp.SupplyPrice, pp.CouponDiscountRate,
                 pp.UnitCost, pp.LogisticsCost, pp.ManagementCost, pp.WarehouseCost, pp.EDICost, pp.MisCost,
-                pp.TargetSalesAmount, pp.TargetQuantity,
+                pp.ExpectedSalesAmount, pp.ExpectedQuantity,
                 pp.Notes, pp.CreatedDate, pp.UpdatedDate
             FROM [dbo].[PromotionProduct] pp
             LEFT JOIN [dbo].[Product] pr ON pp.ProductID = pr.ProductID
@@ -306,8 +306,8 @@ class PromotionProductRepository(BaseRepository):
             "WarehouseCost": float(row[12]) if row[12] else None,
             "EDICost": float(row[13]) if row[13] else None,
             "MisCost": float(row[14]) if row[14] else None,
-            "TargetSalesAmount": float(row[15]) if row[15] else 0,
-            "TargetQuantity": row[16],
+            "ExpectedSalesAmount": float(row[15]) if row[15] else 0,
+            "ExpectedQuantity": row[16],
             "Notes": row[17],
             "CreatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None,
             "UpdatedDate": row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else None
@@ -337,7 +337,7 @@ class PromotionProductRepository(BaseRepository):
             "pr.Name as ProductName",
             "pp.SellingPrice", "pp.PromotionPrice", "pp.SupplyPrice", "pp.CouponDiscountRate",
             "pp.UnitCost", "pp.LogisticsCost", "pp.ManagementCost", "pp.WarehouseCost", "pp.EDICost", "pp.MisCost",
-            "pp.TargetSalesAmount", "pp.TargetQuantity",
+            "pp.ExpectedSalesAmount", "pp.ExpectedQuantity",
             "pp.Notes", "pp.CreatedDate", "pp.UpdatedDate"
         )
 
@@ -375,15 +375,15 @@ class PromotionProductRepository(BaseRepository):
                     WarehouseCost = ?,
                     EDICost = ?,
                     MisCost = ?,
-                    TargetSalesAmount = ?,
-                    TargetQuantity = ?,
+                    ExpectedSalesAmount = ?,
+                    ExpectedQuantity = ?,
                     Notes = ?,
                     UpdatedDate = GETDATE()
             WHEN NOT MATCHED THEN
                 INSERT (PromotionID, ProductID, Uniquecode,
                         SellingPrice, PromotionPrice, SupplyPrice, CouponDiscountRate,
                         UnitCost, LogisticsCost, ManagementCost, WarehouseCost, EDICost, MisCost,
-                        TargetSalesAmount, TargetQuantity, Notes, CreatedDate, UpdatedDate)
+                        ExpectedSalesAmount, ExpectedQuantity, Notes, CreatedDate, UpdatedDate)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
             OUTPUT $action;
         """
@@ -400,7 +400,7 @@ class PromotionProductRepository(BaseRepository):
                     record.get('UnitCost'), record.get('LogisticsCost'),
                     record.get('ManagementCost'), record.get('WarehouseCost'),
                     record.get('EDICost'), record.get('MisCost'),
-                    record.get('TargetSalesAmount'), record.get('TargetQuantity'),
+                    record.get('ExpectedSalesAmount'), record.get('ExpectedQuantity'),
                     record.get('Notes'),
                     # INSERT VALUES
                     record['PromotionID'], record['ProductID'], record['Uniquecode'],
@@ -409,7 +409,7 @@ class PromotionProductRepository(BaseRepository):
                     record.get('UnitCost'), record.get('LogisticsCost'),
                     record.get('ManagementCost'), record.get('WarehouseCost'),
                     record.get('EDICost'), record.get('MisCost'),
-                    record.get('TargetSalesAmount'), record.get('TargetQuantity'),
+                    record.get('ExpectedSalesAmount'), record.get('ExpectedQuantity'),
                     record.get('Notes')
                 )
                 cursor.execute(sql, params)
