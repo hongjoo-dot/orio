@@ -10,6 +10,7 @@ from .promotion_handler import PromotionExcelHandler, generate_promotion_id
 from .sales_handler import SalesExcelHandler
 from .revenue_plan_handler import RevenuePlanExcelHandler
 from .product_handler import ProductExcelHandler
+from .target_sales_handler import TargetSalesExcelHandler
 
 __all__ = [
     'ExcelBaseHandler',
@@ -18,4 +19,5 @@ __all__ = [
     'SalesExcelHandler',
     'RevenuePlanExcelHandler',
     'ProductExcelHandler',
+    'TargetSalesExcelHandler',
 ]

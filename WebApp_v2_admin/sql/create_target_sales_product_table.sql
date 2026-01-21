@@ -28,9 +28,14 @@ CREATE TABLE [dbo].[TargetSalesProduct] (
         REFERENCES [dbo].[Product](ProductID),
 
     -- 유니크 제약조건
-    -- Year + Month + Brand + Channel + Product 조합 유니크
+    -- Year + Month + Brand + Channel + Product + SalesType 조합 유니크
     CONSTRAINT UQ_TargetSalesProduct UNIQUE (
-        [Year], [Month], BrandID, ChannelID, ProductID
+        [Year], [Month], BrandID, ChannelID, ProductID, SalesType
+    ),
+
+    -- CHECK 제약조건
+    CONSTRAINT CK_TargetSales_SalesType CHECK (
+        SalesType IN ('BASE', 'PROMOTION')
     )
 );
 GO
@@ -40,4 +45,5 @@ CREATE INDEX IX_TargetSales_YearMonth ON [dbo].[TargetSalesProduct]([Year], [Mon
 CREATE INDEX IX_TargetSales_Brand ON [dbo].[TargetSalesProduct](BrandID);
 CREATE INDEX IX_TargetSales_Channel ON [dbo].[TargetSalesProduct](ChannelID);
 CREATE INDEX IX_TargetSales_Product ON [dbo].[TargetSalesProduct](ProductID);
+CREATE INDEX IX_TargetSales_SalesType ON [dbo].[TargetSalesProduct](SalesType);
 GO

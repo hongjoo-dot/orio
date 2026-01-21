@@ -199,18 +199,218 @@
 <!-- End of Expected View -->
 </div>
 
-<!-- Target View (목표 매출) - 추후 구현 -->
+<!-- Target View (목표 매출) -->
 <div id="targetView" style="display:none;">
-    <div class="card">
-        <div style="text-align:center;padding:60px 20px;">
-            <i class="fa-solid fa-bullseye" style="font-size:64px;color:var(--text-muted);margin-bottom:20px;"></i>
-            <h3 style="font-size:20px;margin-bottom:12px;color:var(--text-secondary);">목표 매출 관리</h3>
-            <p style="color:var(--text-muted);font-size:14px;max-width:400px;margin:0 auto;">
-                이 기능은 준비 중입니다.<br>
-                채널/브랜드별 월 목표 매출을 설정하고 관리할 수 있습니다.
-            </p>
+
+<!-- Target Search Filters -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 검색 필터</div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetTargetFilters()">
+                <i class="fa-solid fa-rotate-right"></i> 초기화
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="applyTargetFilters()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
         </div>
     </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;">
+        <div>
+            <label class="form-label">연도</label>
+            <select id="targetSearchYear" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">월</label>
+            <select id="targetSearchMonth" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">브랜드</label>
+            <select id="targetSearchBrand" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">채널</label>
+            <select id="targetSearchChannel" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">매출유형</label>
+            <select id="targetSearchSalesType" class="form-select">
+                <option value="">전체</option>
+                <option value="BASE">비행사</option>
+                <option value="PROMOTION">행사</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Target Table -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
+            <h2 class="card-title" style="margin:0;white-space:nowrap;">
+                목표매출 목록 <span id="targetResultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
+            </h2>
+            <select id="targetLimitSelector" onchange="changeTargetLimit()" class="form-select"
+                style="width:auto;padding:8px 12px;font-size:13px;">
+                <option value="20" selected>20개씩</option>
+                <option value="50">50개씩</option>
+                <option value="100">100개씩</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="selectAllTargetVisible()">
+                <i class="fa-solid fa-check-double"></i> 전체 선택
+            </button>
+            <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteTarget()" id="targetDeleteButton">
+                <i class="fa-solid fa-trash"></i> 선택 삭제
+            </button>
+            <button class="btn btn-success btn-sm" onclick="downloadTargetTemplate()">
+                <i class="fa-solid fa-download"></i> 템플릿 다운로드
+            </button>
+            <button class="btn btn-info btn-sm" onclick="downloadTargetData()">
+                <i class="fa-solid fa-file-excel"></i> 수정파일
+            </button>
+            <button class="btn btn-sm" onclick="showTargetUploadModal()" style="background:#f59e0b;color:white;">
+                <i class="fa-solid fa-upload"></i> 엑셀 업로드
+            </button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="table" id="target-table">
+            <thead>
+                <tr>
+                    <th>연도</th>
+                    <th>월</th>
+                    <th>브랜드</th>
+                    <th>채널</th>
+                    <th>상품</th>
+                    <th>매출유형</th>
+                    <th style="text-align:right;">목표매출액</th>
+                    <th style="text-align:right;">목표수량</th>
+                    <th>비고</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div id="targetPagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
+</div>
+
+<!-- Target Upload Modal -->
+<div id="targetUploadModal" class="modal">
+    <div class="modal-content" style="max-width:600px;">
+        <div class="modal-header">
+            <h2 class="modal-title">목표매출 업로드</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="upload-zone" onclick="document.getElementById('targetFileInput').click()"
+                style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:all 0.2s;">
+                <input type="file" id="targetFileInput" accept=".xlsx,.xls" onchange="handleTargetFileSelect(event)"
+                    style="display:none;">
+                <i class="fa-solid fa-cloud-arrow-up"
+                    style="font-size:48px;color:var(--text-muted);margin-bottom:16px;"></i>
+                <p style="font-size:16px;margin-bottom:8px;">파일을 드래그하거나 클릭하여 선택</p>
+                <p style="font-size:13px;color:var(--text-muted);">지원 형식: .xlsx, .xls</p>
+            </div>
+            <div id="targetFileInfo" style="margin-top:16px;display:none;">
+                <p><strong>선택된 파일:</strong> <span id="targetFileName"></span></p>
+            </div>
+            <div style="margin-top:16px;padding:12px;background:var(--bg-hover);border-radius:8px;">
+                <p style="font-size:13px;color:var(--text-muted);margin:0;">
+                    <i class="fa-solid fa-info-circle"></i>
+                    시트명: <strong>목표매출</strong><br>
+                    <span style="margin-left:16px;">• 목표ID 없음: 유니크키로 신규/수정 판단</span><br>
+                    <span style="margin-left:16px;">• 목표ID 있음: 해당 ID 직접 수정</span>
+                </p>
+            </div>
+            <div id="targetUploadProgress" style="margin-top:16px;display:none;">
+                <div style="background:var(--border);border-radius:8px;overflow:hidden;height:8px;">
+                    <div id="targetProgressBar" style="background:var(--success);height:100%;width:0%;transition:width 0.3s;">
+                    </div>
+                </div>
+                <p id="targetProgressText" style="margin-top:8px;font-size:13px;color:var(--text-muted);text-align:center;">0%
+                </p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-primary" id="targetUploadButton" onclick="uploadTargetFile()" disabled>
+                <i class="fa-solid fa-upload"></i> 업로드
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Target Upload Result Modal -->
+<div id="targetUploadResultModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">업로드 결과</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom:24px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                    <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--success);"></i>
+                    <div>
+                        <h3 style="font-size:20px;margin-bottom:4px;">업로드 완료</h3>
+                        <p style="color:var(--text-muted);font-size:14px;">목표매출 데이터가 성공적으로 업로드되었습니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 목표매출 통계 -->
+            <div style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:16px;">
+                <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
+                    <i class="fa-solid fa-bullseye"></i> TargetSalesProduct (목표매출)
+                </h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">총 레코드</div>
+                        <div style="font-size:20px;font-weight:600;" id="targetUploadTotal">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">ID로 수정</div>
+                        <div style="font-size:20px;font-weight:600;color:#3b82f6;" id="targetUploadUpdatedById">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">신규 삽입</div>
+                        <div style="font-size:20px;font-weight:600;color:var(--success);" id="targetUploadInserted">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">MERGE 수정</div>
+                        <div style="font-size:20px;font-weight:600;color:#8b5cf6;" id="targetUploadUpdated">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="targetUploadWarnings"
+                style="display:none;background:rgba(245,158,11,0.1);border-radius:12px;padding:16px;">
+                <h4 style="font-size:14px;margin-bottom:12px;color:var(--warning);">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 매핑 경고
+                </h4>
+                <div id="targetUploadWarningContent" style="font-size:13px;color:var(--text-muted);"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" data-modal-close>
+                <i class="fa-solid fa-check"></i> 확인
+            </button>
+        </div>
+    </div>
+</div>
+
 </div>
 
 <!-- Upload Result Modal -->

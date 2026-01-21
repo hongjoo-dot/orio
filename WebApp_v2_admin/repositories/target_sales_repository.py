@@ -22,6 +22,7 @@ class TargetSalesProductRepository(BaseRepository):
                 t.BrandID, b.Name as BrandName,
                 t.ChannelID, c.Name as ChannelName,
                 t.ProductID, p.Name as ProductName,
+                t.SalesType,
                 t.TargetAmount, t.TargetQuantity,
                 t.Notes, t.CreatedDate, t.UpdatedDate
             FROM [dbo].[TargetSalesProduct] t
@@ -42,11 +43,12 @@ class TargetSalesProductRepository(BaseRepository):
             "ChannelName": row[6],
             "ProductID": row[7],
             "ProductName": row[8],
-            "TargetAmount": float(row[9]) if row[9] else 0,
-            "TargetQuantity": row[10],
-            "Notes": row[11],
-            "CreatedDate": row[12].strftime('%Y-%m-%d %H:%M:%S') if row[12] else None,
-            "UpdatedDate": row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None
+            "SalesType": row[9],
+            "TargetAmount": float(row[10]) if row[10] else 0,
+            "TargetQuantity": row[11],
+            "Notes": row[12],
+            "CreatedDate": row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
+            "UpdatedDate": row[14].strftime('%Y-%m-%d %H:%M:%S') if row[14] else None
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -57,6 +59,7 @@ class TargetSalesProductRepository(BaseRepository):
         - brand_id: BrandID 완전 일치
         - channel_id: ChannelID 완전 일치
         - product_id: ProductID 완전 일치
+        - sales_type: SalesType 완전 일치 ('BASE' / 'PROMOTION')
         - year: 연도 필터
         - month: 월 필터
         """
@@ -68,6 +71,9 @@ class TargetSalesProductRepository(BaseRepository):
 
         if filters.get('product_id'):
             builder.where_equals("t.ProductID", filters['product_id'])
+
+        if filters.get('sales_type'):
+            builder.where_equals("t.SalesType", filters['sales_type'])
 
         if filters.get('year'):
             builder.where_equals("t.[Year]", filters['year'])
@@ -90,6 +96,7 @@ class TargetSalesProductRepository(BaseRepository):
             "t.BrandID", "b.Name as BrandName",
             "t.ChannelID", "c.Name as ChannelName",
             "t.ProductID", "p.Name as ProductName",
+            "t.SalesType",
             "t.TargetAmount", "t.TargetQuantity",
             "t.Notes", "t.CreatedDate", "t.UpdatedDate"
         )
@@ -103,19 +110,21 @@ class TargetSalesProductRepository(BaseRepository):
     def bulk_insert(self, records: List[Dict[str, Any]]) -> Dict[str, int]:
         """
         대량 INSERT/UPDATE 처리 (MERGE)
-        유니크 키: Year + Month + BrandID + ChannelID + ProductID
+        유니크 키: Year + Month + BrandID + ChannelID + ProductID + SalesType
         """
         inserted = 0
         updated = 0
 
         sql = """
             MERGE INTO [dbo].[TargetSalesProduct] AS target
-            USING (SELECT ? AS [Year], ? AS [Month], ? AS BrandID, ? AS ChannelID, ? AS ProductID) AS source
+            USING (SELECT ? AS [Year], ? AS [Month], ? AS BrandID, ? AS ChannelID,
+                          ? AS ProductID, ? AS SalesType) AS source
             ON target.[Year] = source.[Year]
                AND target.[Month] = source.[Month]
                AND target.BrandID = source.BrandID
                AND target.ChannelID = source.ChannelID
                AND target.ProductID = source.ProductID
+               AND target.SalesType = source.SalesType
             WHEN MATCHED THEN
                 UPDATE SET
                     TargetAmount = ?,
@@ -123,10 +132,10 @@ class TargetSalesProductRepository(BaseRepository):
                     Notes = ?,
                     UpdatedDate = GETDATE()
             WHEN NOT MATCHED THEN
-                INSERT ([Year], [Month], BrandID, ChannelID, ProductID,
+                INSERT ([Year], [Month], BrandID, ChannelID, ProductID, SalesType,
                         TargetAmount, TargetQuantity, Notes,
                         CreatedDate, UpdatedDate)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
             OUTPUT $action;
         """
 
@@ -135,13 +144,13 @@ class TargetSalesProductRepository(BaseRepository):
                 params = (
                     # USING (유니크 키)
                     record['Year'], record['Month'], record['BrandID'],
-                    record['ChannelID'], record['ProductID'],
+                    record['ChannelID'], record['ProductID'], record['SalesType'],
                     # UPDATE SET
                     record.get('TargetAmount'), record.get('TargetQuantity'),
                     record.get('Notes'),
                     # INSERT VALUES
                     record['Year'], record['Month'], record['BrandID'],
-                    record['ChannelID'], record['ProductID'],
+                    record['ChannelID'], record['ProductID'], record['SalesType'],
                     record.get('TargetAmount'), record.get('TargetQuantity'),
                     record.get('Notes')
                 )
@@ -154,102 +163,3 @@ class TargetSalesProductRepository(BaseRepository):
                         updated += 1
 
         return {'inserted': inserted, 'updated': updated}
-
-    def get_summary_by_month(self, year: int) -> List[Dict[str, Any]]:
-        """
-        월별 목표매출 합계 조회
-
-        Args:
-            year: 연도
-
-        Returns:
-            [{'Month': 1, 'TotalAmount': 1000000, 'TotalQuantity': 100}, ...]
-        """
-        with get_db_cursor(commit=False) as cursor:
-            sql = """
-                SELECT
-                    [Month],
-                    SUM(TargetAmount) as TotalAmount,
-                    SUM(TargetQuantity) as TotalQuantity
-                FROM [dbo].[TargetSalesProduct]
-                WHERE [Year] = ?
-                GROUP BY [Month]
-                ORDER BY [Month]
-            """
-            cursor.execute(sql, [year])
-            return [
-                {
-                    'Month': row[0],
-                    'TotalAmount': float(row[1]) if row[1] else 0,
-                    'TotalQuantity': row[2] if row[2] else 0
-                }
-                for row in cursor.fetchall()
-            ]
-
-    def get_summary_by_channel(self, year: int, month: int = None) -> List[Dict[str, Any]]:
-        """
-        채널별 목표매출 합계 조회
-        """
-        with get_db_cursor(commit=False) as cursor:
-            sql = """
-                SELECT
-                    t.ChannelID,
-                    c.Name as ChannelName,
-                    SUM(t.TargetAmount) as TotalAmount,
-                    SUM(t.TargetQuantity) as TotalQuantity
-                FROM [dbo].[TargetSalesProduct] t
-                LEFT JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
-                WHERE t.[Year] = ?
-            """
-            params = [year]
-
-            if month:
-                sql += " AND t.[Month] = ?"
-                params.append(month)
-
-            sql += " GROUP BY t.ChannelID, c.Name ORDER BY TotalAmount DESC"
-
-            cursor.execute(sql, params)
-            return [
-                {
-                    'ChannelID': row[0],
-                    'ChannelName': row[1],
-                    'TotalAmount': float(row[2]) if row[2] else 0,
-                    'TotalQuantity': row[3] if row[3] else 0
-                }
-                for row in cursor.fetchall()
-            ]
-
-    def get_summary_by_brand(self, year: int, month: int = None) -> List[Dict[str, Any]]:
-        """
-        브랜드별 목표매출 합계 조회
-        """
-        with get_db_cursor(commit=False) as cursor:
-            sql = """
-                SELECT
-                    t.BrandID,
-                    b.Name as BrandName,
-                    SUM(t.TargetAmount) as TotalAmount,
-                    SUM(t.TargetQuantity) as TotalQuantity
-                FROM [dbo].[TargetSalesProduct] t
-                LEFT JOIN [dbo].[Brand] b ON t.BrandID = b.BrandID
-                WHERE t.[Year] = ?
-            """
-            params = [year]
-
-            if month:
-                sql += " AND t.[Month] = ?"
-                params.append(month)
-
-            sql += " GROUP BY t.BrandID, b.Name ORDER BY TotalAmount DESC"
-
-            cursor.execute(sql, params)
-            return [
-                {
-                    'BrandID': row[0],
-                    'BrandName': row[1],
-                    'TotalAmount': float(row[2]) if row[2] else 0,
-                    'TotalQuantity': row[3] if row[3] else 0
-                }
-                for row in cursor.fetchall()
-            ]
