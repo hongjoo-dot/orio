@@ -520,19 +520,12 @@ async def upload_excel(
         # ========== Promotion INSERT/UPDATE ==========
         promotion_result = {'inserted': 0, 'updated': 0}
         if promotion_records:
-            print(f"   [DEBUG] Promotion bulk_insert 시작: {len(promotion_records)}건")
             promotion_result = promotion_repo.bulk_insert(promotion_records)
-            print(f"   [DEBUG] Promotion bulk_insert 완료")
 
         # ========== PromotionProduct INSERT/UPDATE ==========
         product_result = {'inserted': 0, 'updated': 0}
         if product_records:
-            # 디버그: product_records의 ProductID 타입 확인
-            for i, rec in enumerate(product_records[:3]):  # 처음 3개만 출력
-                print(f"   [DEBUG] product_records[{i}]: ProductID={rec.get('ProductID')} (타입: {type(rec.get('ProductID')).__name__}), Uniquecode={rec.get('Uniquecode')}")
-            print(f"   [DEBUG] PromotionProduct bulk_insert 시작: {len(product_records)}건")
             product_result = promotion_product_repo.bulk_insert(product_records)
-            print(f"   [DEBUG] PromotionProduct bulk_insert 완료")
 
         # ========== ExpectedSalesProduct 자동 생성 (PROMOTION 타입) ==========
         expected_sales_result = {'inserted': 0, 'updated': 0}
@@ -648,54 +641,37 @@ def _build_expected_sales_records(
         promotion = promotion_map.get(promotion_id)
 
         if not promotion:
-            print(f"   [경고] PromotionID '{promotion_id}' 에 해당하는 Promotion 정보 없음 - 스킵")
             continue
 
-        # ProductID 타입 검증 (반드시 int여야 함)
         product_id = product.get('ProductID')
         if product_id is None:
-            print(f"   [경고] PromotionID '{promotion_id}' ProductID 없음 - 스킵")
-            continue
-        if not isinstance(product_id, int):
-            print(f"   [경고] PromotionID '{promotion_id}' ProductID 타입 오류: {type(product_id).__name__} = {product_id} - 스킵")
             continue
 
-        # StartDate에서 Year, Month 추출
         start_date = promotion.get('StartDate')
         if not start_date:
-            print(f"   [경고] PromotionID '{promotion_id}' StartDate 없음 - 스킵")
             continue
 
-        # start_date가 문자열인 경우 파싱
         if isinstance(start_date, str):
             try:
                 start_date = datetime.strptime(start_date, '%Y-%m-%d')
             except ValueError:
-                print(f"   [경고] PromotionID '{promotion_id}' StartDate 파싱 실패: {start_date} - 스킵")
                 continue
 
-        year = start_date.year
-        month = start_date.month
+        channel_id = promotion.get('ChannelID')
+        if not channel_id:
+            continue
 
-        # ExpectedSalesProduct 레코드 생성
-        expected_record = {
-            'Year': year,
-            'Month': month,
+        expected_records.append({
+            'Year': start_date.year,
+            'Month': start_date.month,
             'BrandID': promotion['BrandID'],
-            'ChannelID': promotion.get('ChannelID'),
+            'ChannelID': channel_id,
             'ProductID': product_id,
             'SalesType': 'PROMOTION',
             'PromotionID': promotion_id,
-            'PromotionProductID': None,  # 아직 PromotionProductID가 없음 (INSERT 후 생성됨)
+            'PromotionProductID': None,
             'ExpectedAmount': product.get('ExpectedSalesAmount'),
             'ExpectedQuantity': product.get('ExpectedQuantity')
-        }
-
-        # 필수 값 체크
-        if not expected_record['ChannelID']:
-            print(f"   [경고] PromotionID '{promotion_id}' ChannelID 없음 - 스킵")
-            continue
-
-        expected_records.append(expected_record)
+        })
 
     return expected_records

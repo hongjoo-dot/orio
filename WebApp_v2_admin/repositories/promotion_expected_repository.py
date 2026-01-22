@@ -1,9 +1,6 @@
 """
 Promotion Expected Repository
-- Promotion(행사 마스터) 테이블 CRUD 작업
-- PromotionProduct(행사 상품) 테이블 CRUD 작업
-- ExpectedSalesProduct(예상매출) 테이블 CRUD 작업
-- 2026-01-22 ProductID 타입 검증 추가
+- Promotion, PromotionProduct, ExpectedSalesProduct 테이블 CRUD
 """
 
 from typing import Dict, Any, Optional, List
@@ -406,30 +403,14 @@ class PromotionProductRepository(BaseRepository):
         """
 
         with get_db_cursor(commit=True) as cursor:
-            # DB 테이블 스키마 확인 (디버그)
-            cursor.execute("""
-                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = 'PromotionProduct'
-                ORDER BY ORDINAL_POSITION
-            """)
-            schema_rows = cursor.fetchall()
-            print(f"   [DEBUG] PromotionProduct 테이블 스키마:")
-            for row in schema_rows:
-                print(f"      - {row[0]}: {row[1]}({row[2]})")
-
             for record in records:
-                # ProductID 타입 검증 (반드시 int여야 함)
                 product_id = record.get('ProductID')
-                if product_id is None or not isinstance(product_id, int):
-                    print(f"   [경고] PromotionProduct ProductID 타입 오류: {type(product_id).__name__} = {product_id} - 스킵")
+                if product_id is None:
                     skipped += 1
                     continue
 
                 params = (
-                    # USING
                     record['PromotionID'], product_id,
-                    # UPDATE SET
                     record.get('Uniquecode'),
                     record.get('SellingPrice'), record.get('PromotionPrice'),
                     record.get('SupplyPrice'), record.get('CouponDiscountRate'),
@@ -438,7 +419,6 @@ class PromotionProductRepository(BaseRepository):
                     record.get('EDICost'), record.get('MisCost'),
                     record.get('ExpectedSalesAmount'), record.get('ExpectedQuantity'),
                     record.get('Notes'),
-                    # INSERT VALUES
                     record['PromotionID'], product_id, record.get('Uniquecode'),
                     record.get('SellingPrice'), record.get('PromotionPrice'),
                     record.get('SupplyPrice'), record.get('CouponDiscountRate'),
@@ -448,9 +428,6 @@ class PromotionProductRepository(BaseRepository):
                     record.get('ExpectedSalesAmount'), record.get('ExpectedQuantity'),
                     record.get('Notes')
                 )
-                # 디버그: params 출력
-                print(f"   [DEBUG] PromotionProduct params[0:5]: {params[0:5]}")
-                print(f"   [DEBUG] params types: PromotionID={type(params[0]).__name__}, ProductID={type(params[1]).__name__}, Uniquecode={type(params[2]).__name__}")
                 cursor.execute(sql, params)
                 result = cursor.fetchone()
                 if result:
@@ -459,10 +436,7 @@ class PromotionProductRepository(BaseRepository):
                     else:
                         updated += 1
 
-        if skipped > 0:
-            print(f"   [경고] PromotionProduct 스킵된 레코드: {skipped}건 (ProductID 타입 오류)")
-
-        return {'inserted': inserted, 'updated': updated}
+        return {'inserted': inserted, 'updated': updated, 'skipped': skipped}
 
     def delete_by_promotion_id(self, promotion_id: str) -> int:
         """특정 행사의 모든 상품 삭제"""
@@ -614,21 +588,16 @@ class ExpectedSalesProductRepository(BaseRepository):
 
         with get_db_cursor(commit=True) as cursor:
             for record in records:
-                # ProductID 타입 검증 (반드시 int여야 함)
                 product_id = record.get('ProductID')
-                if product_id is None or not isinstance(product_id, int):
-                    print(f"   [경고] ExpectedSalesProduct ProductID 타입 오류: {type(product_id).__name__} = {product_id} - 스킵")
+                if product_id is None:
                     skipped += 1
                     continue
 
                 params = (
-                    # USING (유니크 키)
                     record['Year'], record['Month'], record['BrandID'], record['ChannelID'],
                     product_id, record['SalesType'], record.get('PromotionID'),
-                    # UPDATE SET
                     record.get('PromotionProductID'),
                     record.get('ExpectedAmount'), record.get('ExpectedQuantity'),
-                    # INSERT VALUES
                     record['Year'], record['Month'], record['BrandID'], record['ChannelID'],
                     product_id, record['SalesType'], record.get('PromotionID'),
                     record.get('PromotionProductID'), record.get('ExpectedAmount'), record.get('ExpectedQuantity')
@@ -641,10 +610,7 @@ class ExpectedSalesProductRepository(BaseRepository):
                     else:
                         updated += 1
 
-        if skipped > 0:
-            print(f"   [경고] ExpectedSalesProduct 스킵된 레코드: {skipped}건 (ProductID 타입 오류)")
-
-        return {'inserted': inserted, 'updated': updated}
+        return {'inserted': inserted, 'updated': updated, 'skipped': skipped}
 
     def delete_by_promotion_id(self, promotion_id: str) -> int:
         """특정 행사의 모든 예상매출 삭제"""

@@ -286,16 +286,11 @@ class PromotionExcelHandler(ExcelBaseHandler):
         product_id = self.get_product_id(uniquecode)
 
         if product_id is None:
-            return None  # 상품 매핑 실패 시 스킵
-
-        # ProductID 타입 검증 (디버깅용)
-        if not isinstance(product_id, int):
-            print(f"   [경고] PromotionProduct 시트 ProductID 타입 오류: Uniquecode={uniquecode}, ProductID={product_id} ({type(product_id).__name__})")
             return None
 
         return {
             'PromotionID': promotion_id,
-            'ProductID': int(product_id),  # 명시적 int 변환
+            'ProductID': product_id,
             'Uniquecode': self.safe_str(uniquecode),
             'SellingPrice': self.safe_float(row.get('SELLING_PRICE')),
             'PromotionPrice': self.safe_float(row.get('PROMOTION_PRICE')),
@@ -463,21 +458,11 @@ class PromotionExcelHandler(ExcelBaseHandler):
             product_id = self.get_product_id(uniquecode)
 
             if product_id is None:
-                continue  # 상품 매핑 실패 시 스킵
-
-            # ProductID 타입 검증 (디버깅용)
-            if not isinstance(product_id, int):
-                print(f"   [경고] 통합시트 ProductID 타입 오류: Uniquecode={uniquecode}, ProductID={product_id} ({type(product_id).__name__})")
-                continue
-
-            # 최종 검증: ProductID가 확실히 int인지 확인
-            if not isinstance(product_id, int):
-                print(f"   [오류] 최종 검증 실패: Uniquecode={uniquecode}, ProductID={product_id} (타입: {type(product_id).__name__})")
                 continue
 
             product_record = {
                 'PromotionID': promotion_id,
-                'ProductID': int(product_id),  # 명시적 int 변환
+                'ProductID': product_id,
                 'Uniquecode': self.safe_str(uniquecode),
                 'SellingPrice': self.safe_float(row.get('SELLING_PRICE')),
                 'PromotionPrice': self.safe_float(row.get('PROMOTION_PRICE')),
