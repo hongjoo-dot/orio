@@ -11,7 +11,7 @@ from pathlib import Path
 # Routers
 from routers import product, brand, channel, sales, bom, pages
 from routers import auth, admin, system_config
-from routers import revenue_plan, promotion, target_sales
+from routers import revenue_plan, promotion_expected, promotion_target
 
 app = FastAPI(
     title="Orio ERP System v2",
@@ -51,8 +51,8 @@ app.include_router(channel.router)
 app.include_router(channel.channeldetail_router)  # ChannelDetail 독립 라우터
 app.include_router(sales.router)
 app.include_router(revenue_plan.router)
-app.include_router(promotion.router)
-app.include_router(target_sales.router)
+app.include_router(promotion_expected.router)
+app.include_router(promotion_target.router)
 app.include_router(bom.router)
 app.include_router(system_config.router)
 

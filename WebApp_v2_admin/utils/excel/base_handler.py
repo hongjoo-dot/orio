@@ -22,13 +22,13 @@ class ExcelBaseHandler:
     def __init__(self):
         self._brand_map: Dict[str, int] = {}
         self._channel_map: Dict[str, int] = {}
-        self._product_map: Dict[int, int] = {}  # Uniquecode -> ProductID
+        self._product_map: Dict[str, int] = {}  # Uniquecode(str) -> ProductID
         self._brand_code_map: Dict[int, str] = {}  # BrandID -> BrandCode
 
         # 매핑 실패 추적
         self.unmapped_brands: Set[str] = set()
         self.unmapped_channels: Set[str] = set()
-        self.unmapped_products: Set[int] = set()
+        self.unmapped_products: Set[str] = set()
 
     def reset_unmapped(self):
         """매핑 실패 추적 초기화"""
@@ -131,7 +131,18 @@ class ExcelBaseHandler:
 
             if load_product:
                 cursor.execute("SELECT Uniquecode, ProductID FROM [dbo].[Product]")
-                self._product_map = {row[0]: row[1] for row in cursor.fetchall()}
+                # Uniquecode를 문자열로 저장 (엑셀에서 문자열로 올 수 있음)
+                self._product_map = {}
+                for row in cursor.fetchall():
+                    if row[0] is not None:
+                        uniquecode_key = str(row[0])
+                        product_id_val = row[1]
+                        # ProductID가 int인지 확인
+                        if isinstance(product_id_val, int):
+                            self._product_map[uniquecode_key] = product_id_val
+                        else:
+                            print(f"   [경고] DB Product 테이블 이상: Uniquecode={uniquecode_key}, ProductID={product_id_val} (타입: {type(product_id_val).__name__})")
+                print(f"   Product 매핑 로드 완료: {len(self._product_map)}건")
 
     def get_brand_id(self, brand_name: Optional[str]) -> Optional[int]:
         """브랜드명 -> BrandID 매핑"""
@@ -163,15 +174,26 @@ class ExcelBaseHandler:
 
         return channel_id
 
-    def get_product_id(self, uniquecode: Optional[int]) -> Optional[int]:
+    def get_product_id(self, uniquecode) -> Optional[int]:
         """상품코드(Uniquecode) -> ProductID 매핑"""
-        if uniquecode is None:
+        if uniquecode is None or pd.isna(uniquecode):
             return None
 
-        product_id = self._product_map.get(uniquecode)
+        # 문자열로 변환하여 매핑 (int/float/str 모두 지원)
+        uniquecode_str = str(uniquecode).strip()
+        # float로 변환되었을 경우 ".0" 제거
+        if uniquecode_str.endswith('.0'):
+            uniquecode_str = uniquecode_str[:-2]
+
+        product_id = self._product_map.get(uniquecode_str)
 
         if product_id is None:
-            self.unmapped_products.add(uniquecode)
+            self.unmapped_products.add(uniquecode_str)
+        elif not isinstance(product_id, int):
+            # ProductID가 int가 아닌 경우 경고 (DB 데이터 이상)
+            print(f"   [경고] DB 매핑 오류: Uniquecode={uniquecode_str}, ProductID={product_id} ({type(product_id).__name__})")
+            self.unmapped_products.add(uniquecode_str)
+            return None
 
         return product_id
 

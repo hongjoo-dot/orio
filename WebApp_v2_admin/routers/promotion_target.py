@@ -350,7 +350,7 @@ async def download_data(request_body: DownloadDataRequest):
                 '월': item['Month'],
                 '브랜드': item['BrandName'],
                 '채널명': item['ChannelName'],
-                '상품코드': item.get('ProductID'),  # TODO: Uniquecode 조회 필요시 수정
+                '상품코드': item.get('Uniquecode'),
                 '매출유형': sales_type_map.get(item['SalesType'], item['SalesType']),
                 '목표매출액': item['TargetAmount'],
                 '목표수량': item['TargetQuantity'],

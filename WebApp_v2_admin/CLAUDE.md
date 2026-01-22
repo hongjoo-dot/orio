@@ -100,8 +100,8 @@ WebApp_v2_admin/
 ├── repositories/               # 데이터 접근 계층 (11개 Repository)
 │   ├── product_repository.py   # Product 테이블 CRUD
 │   ├── bom_repository.py       # ProductBOM 테이블 CRUD
-│   ├── promotion_repository.py # Promotion/PromotionProduct CRUD
-│   ├── target_sales_repository.py # TargetSalesProduct CRUD (목표매출)
+│   ├── promotion_expected_repository.py # Promotion/PromotionProduct/ExpectedSales CRUD (예상매출)
+│   ├── promotion_target_repository.py   # TargetSalesProduct CRUD (목표매출)
 │   └── ...
 │
 ├── routers/                    # API 라우터 (11개 Router)
@@ -114,7 +114,8 @@ WebApp_v2_admin/
 │   │   ├── base_handler.py     # 공통 엑셀 처리 로직 (부모)
 │   │   ├── product_handler.py  # 제품 엑셀 처리
 │   │   ├── sales_handler.py    # 매출 엑셀 처리
-│   │   ├── promotion_handler.py # 행사 엑셀 처리 (통합시트/2시트 지원)
+│   │   ├── promotion_expected_handler.py # 예상매출 엑셀 처리 (통합시트/2시트 지원)
+│   │   ├── promotion_target_handler.py   # 목표매출 엑셀 처리
 │   │   └── ...
 │   └── slack_notifier.py       # Slack 알림
 │

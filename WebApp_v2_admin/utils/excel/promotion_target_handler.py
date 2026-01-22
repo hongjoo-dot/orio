@@ -61,8 +61,8 @@ class TargetSalesExcelHandler(ExcelBaseHandler):
         if channel_id is None:
             return None  # 채널 매핑 실패 시 스킵
 
-        # 상품 매핑
-        uniquecode = self.safe_int(row.get('UNIQUECODE'))
+        # 상품 매핑 (문자열 Uniquecode 지원)
+        uniquecode = row.get('UNIQUECODE')
         product_id = self.get_product_id(uniquecode)
 
         if product_id is None:
