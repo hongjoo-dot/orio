@@ -80,6 +80,17 @@ async def bom_page(request: Request, redirect = Depends(require_login_for_page))
     })
 
 
+@router.get("/targets", response_class=HTMLResponse)
+async def targets_page(request: Request, redirect = Depends(require_login_for_page)):
+    """목표 관리 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("targets.html", {
+        "request": request,
+        "active_page": "targets"
+    })
+
+
 # ========================
 # Admin Pages (Admin only)
 # ========================

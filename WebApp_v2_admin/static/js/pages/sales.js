@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', function () {
         onSelectionChange: (selectedIds) => {
             updateActionButtons(selectedIds);
         },
-        emptyMessage: '데이터가 없습니다.'
+        emptyMessage: '검색 조건을 선택 후 검색 버튼을 눌러주세요.'
     });
 
     // 페이지네이션 매니저 초기화
@@ -44,10 +44,12 @@ document.addEventListener('DOMContentLoaded', function () {
         onLimitChange: (page, limit) => loadSales(page, limit)
     });
 
-    // 초기 데이터 로드
+    // 필터 옵션만 로드 (데이터는 검색 시 로드)
     loadBrands();
     loadChannelNames();
-    loadSales(1, 20);
+
+    // 초기 빈 테이블 렌더링 (안내 메시지 표시)
+    tableManager.render([], columns);
 });
 
 async function loadSales(page = 1, limit = 20) {

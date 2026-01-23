@@ -18,10 +18,32 @@
 
         <div class="nav-section-title">Management / 관리</div>
 
-        <!-- 판매 관리 (임시 - 새 섹션 구축 후 재정리) -->
-        <a href="/sales" class="nav-item {% if active_page == 'sales' %}active{% endif %}">
-            <i class="fa-solid fa-receipt"></i> <span class="nav-text">판매 관리</span>
-        </a>
+        <!-- 판매 관리 그룹 -->
+        <div class="nav-group {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}open{% endif %}">
+            <div class="nav-item nav-group-header {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}active{% endif %}" onclick="toggleNavGroup(this)">
+                <i class="fa-solid fa-won-sign"></i>
+                <span class="nav-text">판매 관리</span>
+                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            </div>
+            <div class="nav-group-items {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}expanded{% endif %}">
+                <a href="/sales" class="nav-item nav-sub-item {% if active_page == 'sales' %}active{% endif %}">
+                    <i class="fa-solid fa-receipt"></i> <span class="nav-text">판매 현황</span>
+                </a>
+                <a href="/targets" class="nav-item nav-sub-item {% if active_page == 'targets' %}active{% endif %}">
+                    <i class="fa-solid fa-bullseye"></i> <span class="nav-text">목표 관리</span>
+                </a>
+                <!-- 매출 예측, 행사 관리는 추후 구현 -->
+                <!--
+                <a href="/expected" class="nav-item nav-sub-item {% if active_page == 'expected' %}active{% endif %}">
+                    <i class="fa-solid fa-chart-simple"></i> <span class="nav-text">매출 예측</span>
+                </a>
+                <a href="/promotions" class="nav-item nav-sub-item {% if active_page == 'promotions' %}active{% endif %}">
+                    <i class="fa-solid fa-tags"></i> <span class="nav-text">행사 관리</span>
+                </a>
+                -->
+            </div>
+        </div>
+
         <a href="/products" class="nav-item {% if active_page == 'products' %}active{% endif %}">
             <i class="fa-solid fa-box"></i> <span class="nav-text">상품 관리</span>
         </a>
