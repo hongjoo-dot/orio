@@ -11,7 +11,7 @@ class TableManager {
         this.tbody = this.table?.querySelector('tbody');
         this.options = {
             selectable: options.selectable || false,
-            idKey: options.idKey || null,  // 명시적 ID 키 지정 (예: 'TargetID', 'PromotionID')
+            idKey: options.idKey || null,  // 명시적 ID 키 지정 (예: 'TargetID', 'ProductID')
             onRowClick: options.onRowClick || null,
             onSelectionChange: options.onSelectionChange || null,
             emptyMessage: options.emptyMessage || '데이터가 없습니다'
@@ -54,7 +54,7 @@ class TableManager {
         // idKey가 명시적으로 지정된 경우 해당 키 사용, 아니면 폴백
         tr.dataset.id = this.options.idKey
             ? (rowData[this.options.idKey] || index)
-            : (rowData.id || rowData.IDX || rowData.TargetID || rowData.PromotionID || rowData.ProductID || index);
+            : (rowData.id || rowData.IDX || rowData.TargetID || rowData.ProductID || index);
 
         // 선택 가능한 행
         if (this.options.selectable) {

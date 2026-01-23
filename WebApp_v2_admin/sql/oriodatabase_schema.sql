@@ -73,8 +73,13 @@ CREATE TABLE oriodatabase.dbo.AdDataMeta (
 	ThumbnailURL nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CollectedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
+	PreviewURL nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK_AdDataMeta PRIMARY KEY (Idx)
 );
+ CREATE NONCLUSTERED INDEX IX_AdDataMeta_AccountName_Date ON oriodatabase.dbo.AdDataMeta (  AccountName ASC  , Date ASC  )  
+	 INCLUDE ( Purchase , PurchaseValue , Spend , SpendKRW ) 
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_AdDataMeta_Date_AdID ON oriodatabase.dbo.AdDataMeta (  Date ASC  , AdID ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
@@ -166,6 +171,37 @@ CREATE TABLE oriodatabase.dbo.AdDataNaver (
 	 ON [PRIMARY ] ;
 
 
+-- oriodatabase.dbo.AdDataNaver_Frog definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.AdDataNaver_Frog;
+
+CREATE TABLE oriodatabase.dbo.AdDataNaver_Frog (
+	Idx bigint IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	CampaignID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CampaignName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	AdGroupID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	AdGroupName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	KeywordID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Keyword nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	AdID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	AdName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Device nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Impressions int DEFAULT 0 NULL,
+	Clicks int DEFAULT 0 NULL,
+	Conversions int DEFAULT 0 NULL,
+	ConversionValue float DEFAULT 0 NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK_AdDataNaver_Frog PRIMARY KEY (Idx)
+);
+ CREATE NONCLUSTERED INDEX IX_AdDataNaver_Frog_Date_AdID ON oriodatabase.dbo.AdDataNaver_Frog (  Date ASC  , AdID ASC  , KeywordID ASC  , Device ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
 -- oriodatabase.dbo.Brand definition
 
 -- Drop table
@@ -178,6 +214,7 @@ CREATE TABLE oriodatabase.dbo.Brand (
 	UpdatedDate datetime2 DEFAULT getdate() NULL,
 	Title nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	IsActive bit DEFAULT 1 NOT NULL,
+	BrandCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK_Brand PRIMARY KEY (BrandID)
 );
  CREATE NONCLUSTERED INDEX IX_Brand_IsActive ON oriodatabase.dbo.Brand (  IsActive ASC  )  
@@ -278,6 +315,9 @@ CREATE TABLE oriodatabase.dbo.Cafe24Orders (
  CREATE NONCLUSTERED INDEX IX_Cafe24Orders_payment_date ON oriodatabase.dbo.Cafe24Orders (  payment_date DESC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_Cafe24Orders_shipped_date ON oriodatabase.dbo.Cafe24Orders (  shipped_date ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_Cafe24Orders_shipping_status ON oriodatabase.dbo.Cafe24Orders (  shipping_status ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
@@ -301,6 +341,12 @@ CREATE TABLE oriodatabase.dbo.Channel (
 	SabangnetMallID nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK_Channel PRIMARY KEY (ChannelID)
 );
+ CREATE NONCLUSTERED INDEX IX_Channel_LiveSource ON oriodatabase.dbo.Channel (  LiveSource ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_Channel_SabangnetMallID ON oriodatabase.dbo.Channel (  SabangnetMallID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
 
 
 -- oriodatabase.dbo.GoogleAdsSearchVolume definition
@@ -464,6 +510,34 @@ CREATE TABLE oriodatabase.dbo.ActivityLog (
 	 ON [PRIMARY ] ;
 
 
+-- oriodatabase.dbo.AdContractNaver definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.AdContractNaver;
+
+CREATE TABLE oriodatabase.dbo.AdContractNaver (
+	ContractID int IDENTITY(1,1) NOT NULL,
+	ContractName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	BrandID int NULL,
+	CampaignID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	StartDate date NOT NULL,
+	EndDate date NOT NULL,
+	TotalBudget decimal(18,2) NOT NULL,
+	IsActive bit DEFAULT 1 NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__AdContra__C90D3409C5FB26BF PRIMARY KEY (ContractID),
+	CONSTRAINT FK_AdContractNaver_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
+);
+ CREATE NONCLUSTERED INDEX IX_AdContractNaver_BrandID ON oriodatabase.dbo.AdContractNaver (  BrandID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_AdContractNaver_Dates ON oriodatabase.dbo.AdContractNaver (  StartDate ASC  , EndDate ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
 -- oriodatabase.dbo.Cafe24OrdersDetail definition
 
 -- Drop table
@@ -534,6 +608,9 @@ CREATE TABLE oriodatabase.dbo.ChannelDetail (
 	CONSTRAINT PK_ChannelDetail PRIMARY KEY (ChannelDetailID),
 	CONSTRAINT FK_ChannelDetail_Channel FOREIGN KEY (ChannelID) REFERENCES oriodatabase.dbo.Channel(ChannelID)
 );
+ CREATE NONCLUSTERED INDEX IX_ChannelDetail_ChannelID ON oriodatabase.dbo.ChannelDetail (  ChannelID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
 
 
 -- oriodatabase.dbo.Keyword definition
@@ -603,6 +680,9 @@ CREATE TABLE oriodatabase.dbo.NaverAdsSearchVolume (
  CREATE NONCLUSTERED INDEX IX_NaverAdsSearchVolume_BrandID ON oriodatabase.dbo.NaverAdsSearchVolume (  BrandID ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_NaverAdsSearchVolume_Brand_Date ON oriodatabase.dbo.NaverAdsSearchVolume (  BrandID ASC  , CollectionDate ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_NaverAdsSearchVolume_CollectionDate ON oriodatabase.dbo.NaverAdsSearchVolume (  CollectionDate ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
@@ -641,6 +721,9 @@ CREATE TABLE oriodatabase.dbo.Product (
 	CONSTRAINT PK_Product PRIMARY KEY (ProductID),
 	CONSTRAINT FK_Product_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
 );
+ CREATE NONCLUSTERED INDEX IX_Product_BrandID ON oriodatabase.dbo.Product (  BrandID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
  CREATE UNIQUE NONCLUSTERED INDEX UQ_Product_UniqueCode ON oriodatabase.dbo.Product (  UniqueCode ASC  )  
 	 WHERE  ([UniqueCode] IS NOT NULL)
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
@@ -662,9 +745,119 @@ CREATE TABLE oriodatabase.dbo.ProductBox (
 	CONSTRAINT PK_ProductBox PRIMARY KEY (BoxID),
 	CONSTRAINT FK_ProductBox_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
 );
+ CREATE NONCLUSTERED INDEX IX_ProductBox_ProductID ON oriodatabase.dbo.ProductBox (  ProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
  CREATE UNIQUE NONCLUSTERED INDEX UQ_ProductBox_ERPCode ON oriodatabase.dbo.ProductBox (  ERPCode ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.Promotion definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Promotion;
+
+CREATE TABLE oriodatabase.dbo.Promotion (
+	PromotionID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	PromotionName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	PromotionType nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	StartDate date NOT NULL,
+	EndDate date NOT NULL,
+	Status nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS DEFAULT 'SCHEDULED' NULL,
+	BrandID int NOT NULL,
+	ChannelID int NOT NULL,
+	ChannelName nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CommissionRate decimal(5,2) NULL,
+	DiscountOwner nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CompanyShare decimal(5,2) NULL,
+	ChannelShare decimal(5,2) NULL,
+	ExpectedSalesAmount decimal(18,2) NULL,
+	ExpectedQuantity int NULL,
+	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Promotio__52C42F2FAC396937 PRIMARY KEY (PromotionID),
+	CONSTRAINT FK_Promotion_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
+);
+ CREATE NONCLUSTERED INDEX IX_Promotion_Brand ON oriodatabase.dbo.Promotion (  BrandID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_Promotion_Date ON oriodatabase.dbo.Promotion (  StartDate ASC  , EndDate ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_Promotion_Status ON oriodatabase.dbo.Promotion (  Status ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_Promotion_Type ON oriodatabase.dbo.Promotion (  PromotionType ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.PromotionProduct definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.PromotionProduct;
+
+CREATE TABLE oriodatabase.dbo.PromotionProduct (
+	PromotionProductID int IDENTITY(1,1) NOT NULL,
+	PromotionID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ProductID int NOT NULL,
+	SellingPrice decimal(18,2) NULL,
+	PromotionPrice decimal(18,2) NULL,
+	SupplyPrice decimal(18,2) NULL,
+	CouponDiscountRate decimal(5,2) NULL,
+	UnitCost decimal(18,2) NULL,
+	LogisticsCost decimal(18,2) NULL,
+	ManagementCost decimal(18,2) NULL,
+	WarehouseCost decimal(18,2) NULL,
+	EDICost decimal(18,2) NULL,
+	MisCost decimal(18,2) NULL,
+	ExpectedSalesAmount decimal(18,2) NULL,
+	ExpectedQuantity int NULL,
+	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	Uniquecode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__Promotio__C7B85D3C8D1C6BE9 PRIMARY KEY (PromotionProductID),
+	CONSTRAINT UQ_PromotionProduct UNIQUE (PromotionID,ProductID),
+	CONSTRAINT FK_PromotionProduct_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID),
+	CONSTRAINT FK_PromotionProduct_Promotion FOREIGN KEY (PromotionID) REFERENCES oriodatabase.dbo.Promotion(PromotionID)
+);
+ CREATE NONCLUSTERED INDEX IX_PromotionProduct_Product ON oriodatabase.dbo.PromotionProduct (  ProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_PromotionProduct_Promotion ON oriodatabase.dbo.PromotionProduct (  PromotionID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.RevenuePlan definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.RevenuePlan;
+
+CREATE TABLE oriodatabase.dbo.RevenuePlan (
+	PlanID int IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	BrandID int NOT NULL,
+	ChannelID int NOT NULL,
+	PlanType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	Amount decimal(18,2) DEFAULT 0 NOT NULL,
+	CreatedAt datetime2 DEFAULT getdate() NULL,
+	UpdatedAt datetime2 DEFAULT getdate() NULL,
+	ChannelDetail nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__RevenueP__755C22D7EF9DB387 PRIMARY KEY (PlanID),
+	CONSTRAINT FK_RevenuePlan_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID),
+	CONSTRAINT FK_RevenuePlan_Channel FOREIGN KEY (ChannelID) REFERENCES oriodatabase.dbo.Channel(ChannelID)
+);
+ CREATE NONCLUSTERED INDEX IX_RevenuePlan_PlanType ON oriodatabase.dbo.RevenuePlan (  PlanType ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ALTER TABLE oriodatabase.dbo.RevenuePlan WITH NOCHECK ADD CONSTRAINT CK_RevenuePlan_PlanType CHECK (([PlanType]='EXPECTED' OR [PlanType]='TARGET'));
 
 
 -- oriodatabase.dbo.SabangnetOrders definition
@@ -701,10 +894,16 @@ CREATE TABLE oriodatabase.dbo.SabangnetOrders (
  CREATE NONCLUSTERED INDEX IX_SabangnetOrders_ChannelID ON oriodatabase.dbo.SabangnetOrders (  ChannelID ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_SabangnetOrders_DeliveryConfirmDate ON oriodatabase.dbo.SabangnetOrders (  DELIVERY_CONFIRM_DATE ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_SabangnetOrders_OrderDate ON oriodatabase.dbo.SabangnetOrders (  ORDER_DATE ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_SabangnetOrders_OrderID ON oriodatabase.dbo.SabangnetOrders (  ORDER_ID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_SabangnetOrders_ProductID ON oriodatabase.dbo.SabangnetOrders (  ProductID ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
 
@@ -739,6 +938,50 @@ CREATE TABLE oriodatabase.dbo.SabangnetOrdersDetail (
  CREATE NONCLUSTERED INDEX IX_SabangnetOrdersDetail_ord_field2 ON oriodatabase.dbo.SabangnetOrdersDetail (  ord_field2 ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.TargetSalesProduct definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.TargetSalesProduct;
+
+CREATE TABLE oriodatabase.dbo.TargetSalesProduct (
+	TargetID int IDENTITY(1,1) NOT NULL,
+	[Year] int NOT NULL,
+	[Month] int NOT NULL,
+	BrandID int NOT NULL,
+	ChannelID int NOT NULL,
+	ProductID int NOT NULL,
+	SalesType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	TargetAmount decimal(18,2) NULL,
+	TargetQuantity int NULL,
+	Notes nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	PromotionType nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__TargetSa__2B1F0FB67A8A9498 PRIMARY KEY (TargetID),
+	CONSTRAINT UQ_TargetSalesProduct UNIQUE ([Year],[Month],BrandID,ChannelID,ProductID,SalesType),
+	CONSTRAINT FK_TargetSales_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID),
+	CONSTRAINT FK_TargetSales_Channel FOREIGN KEY (ChannelID) REFERENCES oriodatabase.dbo.Channel(ChannelID),
+	CONSTRAINT FK_TargetSales_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
+);
+ CREATE NONCLUSTERED INDEX IX_TargetSales_Brand ON oriodatabase.dbo.TargetSalesProduct (  BrandID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_TargetSales_Channel ON oriodatabase.dbo.TargetSalesProduct (  ChannelID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_TargetSales_Product ON oriodatabase.dbo.TargetSalesProduct (  ProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_TargetSales_SalesType ON oriodatabase.dbo.TargetSalesProduct (  SalesType ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_TargetSales_YearMonth ON oriodatabase.dbo.TargetSalesProduct (  Year ASC  , Month ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ALTER TABLE oriodatabase.dbo.TargetSalesProduct WITH NOCHECK ADD CONSTRAINT CK_TargetSales_SalesType CHECK (([SalesType]='PROMOTION' OR [SalesType]='BASE'));
 
 
 -- oriodatabase.dbo.UserRole definition
@@ -806,9 +1049,72 @@ CREATE TABLE oriodatabase.dbo.ERPSales (
  CREATE NONCLUSTERED INDEX IX_ERPSales_Date ON oriodatabase.dbo.ERPSales (  DATE ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ERPSales_Date_Brand ON oriodatabase.dbo.ERPSales (  DATE ASC  , BrandID ASC  )  
+	 INCLUDE ( Quantity , TaxableAmount ) 
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ERPSales_Date_Channel ON oriodatabase.dbo.ERPSales (  DATE ASC  , ChannelID ASC  )  
+	 INCLUDE ( Quantity , TaxableAmount ) 
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ERPSales_Date_Product ON oriodatabase.dbo.ERPSales (  DATE ASC  , ProductID ASC  )  
+	 INCLUDE ( Quantity , TaxableAmount ) 
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_ERPSales_ProductID ON oriodatabase.dbo.ERPSales (  ProductID ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.ExpectedSalesProduct definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.ExpectedSalesProduct;
+
+CREATE TABLE oriodatabase.dbo.ExpectedSalesProduct (
+	ExpectedID int IDENTITY(1,1) NOT NULL,
+	[Year] int NOT NULL,
+	[Month] int NOT NULL,
+	BrandID int NOT NULL,
+	ChannelID int NOT NULL,
+	ProductID int NOT NULL,
+	SalesType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	PromotionID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	PromotionProductID int NULL,
+	ExpectedAmount decimal(18,2) NULL,
+	ExpectedQuantity int NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Expected__D0C9C474B49FF80F PRIMARY KEY (ExpectedID),
+	CONSTRAINT UQ_ExpectedSalesProduct UNIQUE ([Year],[Month],BrandID,ChannelID,ProductID,SalesType,PromotionID),
+	CONSTRAINT FK_ExpectedSales_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID),
+	CONSTRAINT FK_ExpectedSales_Channel FOREIGN KEY (ChannelID) REFERENCES oriodatabase.dbo.Channel(ChannelID),
+	CONSTRAINT FK_ExpectedSales_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID),
+	CONSTRAINT FK_ExpectedSales_Promotion FOREIGN KEY (PromotionID) REFERENCES oriodatabase.dbo.Promotion(PromotionID),
+	CONSTRAINT FK_ExpectedSales_PromotionProduct FOREIGN KEY (PromotionProductID) REFERENCES oriodatabase.dbo.PromotionProduct(PromotionProductID)
+);
+ CREATE NONCLUSTERED INDEX IX_ExpectedSales_Brand ON oriodatabase.dbo.ExpectedSalesProduct (  BrandID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ExpectedSales_Channel ON oriodatabase.dbo.ExpectedSalesProduct (  ChannelID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ExpectedSales_Product ON oriodatabase.dbo.ExpectedSalesProduct (  ProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ExpectedSales_Promotion ON oriodatabase.dbo.ExpectedSalesProduct (  PromotionID ASC  )  
+	 WHERE  ([PromotionID] IS NOT NULL)
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ExpectedSales_SalesType ON oriodatabase.dbo.ExpectedSalesProduct (  SalesType ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ExpectedSales_YearMonth ON oriodatabase.dbo.ExpectedSalesProduct (  Year ASC  , Month ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ALTER TABLE oriodatabase.dbo.ExpectedSalesProduct WITH NOCHECK ADD CONSTRAINT CK_ExpectedSales_SalesType CHECK (([SalesType]='PROMOTION' OR [SalesType]='BASE'));
+ALTER TABLE oriodatabase.dbo.ExpectedSalesProduct WITH NOCHECK ADD CONSTRAINT CK_ExpectedSales_PromotionRequired CHECK (([SalesType]='BASE' AND [PromotionID] IS NULL OR [SalesType]='PROMOTION' AND [PromotionID] IS NOT NULL));
 
 
 -- oriodatabase.dbo.OrdersRealtime definition
@@ -840,13 +1146,17 @@ CREATE TABLE oriodatabase.dbo.OrdersRealtime (
 	CONSTRAINT FK_OrdersRT_Channel FOREIGN KEY (ChannelID) REFERENCES oriodatabase.dbo.Channel(ChannelID),
 	CONSTRAINT FK_OrdersRT_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
 );
- CREATE NONCLUSTERED INDEX IX_OrdersRT_BrandID ON oriodatabase.dbo.OrdersRealtime (  BrandID ASC  , OrderDate ASC  )  
+ CREATE NONCLUSTERED INDEX IX_OrdersRT_BrandID_Covering ON oriodatabase.dbo.OrdersRealtime (  BrandID ASC  , OrderDate ASC  )  
+	 INCLUDE ( OrderAmount , OrderPrice , OrderQuantity ) 
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_OrdersRT_ChannelID ON oriodatabase.dbo.OrdersRealtime (  ChannelID ASC  , OrderDate ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_OrdersRT_ProductID ON oriodatabase.dbo.OrdersRealtime (  ProductID ASC  , OrderDate ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_OrdersRT_SourceChannel ON oriodatabase.dbo.OrdersRealtime (  SourceChannel ASC  , OrderDate ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_OrdersRT_TransactionType ON oriodatabase.dbo.OrdersRealtime (  ContractType ASC  , OrderDate ASC  )  
@@ -872,97 +1182,26 @@ CREATE TABLE oriodatabase.dbo.ProductBOM (
 	CONSTRAINT FK_ProductBOM_Child FOREIGN KEY (ChildProductBoxID) REFERENCES oriodatabase.dbo.ProductBox(BoxID),
 	CONSTRAINT FK_ProductBOM_Parent FOREIGN KEY (ParentProductBoxID) REFERENCES oriodatabase.dbo.ProductBox(BoxID)
 );
+ CREATE NONCLUSTERED INDEX IX_ProductBOM_ChildBoxID ON oriodatabase.dbo.ProductBOM (  ChildProductBoxID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ProductBOM_ChildProductID ON oriodatabase.dbo.ProductBOM (  ChildProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ProductBOM_ParentBoxID ON oriodatabase.dbo.ProductBOM (  ParentProductBoxID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ProductBOM_ParentProductID ON oriodatabase.dbo.ProductBOM (  ParentProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
 
 
--- ============================================
--- 광고비 계약 테이블 (통합 - 1개)
--- ============================================
-CREATE TABLE dbo.AdContractNaver (
-    ContractID int IDENTITY(1,1) PRIMARY KEY,
-    ContractName nvarchar(200) NOT NULL,
-    BrandID int NULL,
-    CampaignID nvarchar(50) NULL,
-    StartDate date NOT NULL,
-    EndDate date NOT NULL,
-    TotalBudget decimal(18,2) NOT NULL,
-    IsActive bit DEFAULT 1,
-    CreatedDate datetime DEFAULT GETDATE(),
-    UpdatedDate datetime DEFAULT GETDATE(),
-    
-    CONSTRAINT FK_AdContractNaver_Brand FOREIGN KEY (BrandID) 
-        REFERENCES dbo.Brand(BrandID)
-);
-
-CREATE NONCLUSTERED INDEX IX_AdContractNaver_Dates 
-    ON dbo.AdContractNaver (StartDate, EndDate);
-CREATE NONCLUSTERED INDEX IX_AdContractNaver_BrandID 
-    ON dbo.AdContractNaver (BrandID);
-
+-- dbo.vw_NaverAdWithCost_Frog source
 
 -- ============================================
--- 광고 데이터 테이블 - Frog
+-- 5. View - Frog (BrandID = 0 가정)
 -- ============================================
-CREATE TABLE dbo.AdDataNaver_Frog (
-    Idx bigint IDENTITY(1,1) NOT NULL,
-    [Date] date NOT NULL,
-    CampaignID nvarchar(50) NULL,
-    CampaignName nvarchar(200) NULL,
-    AdGroupID nvarchar(50) NULL,
-    AdGroupName nvarchar(200) NULL,
-    KeywordID nvarchar(50) NULL,
-    Keyword nvarchar(200) NULL,
-    AdID nvarchar(50) NOT NULL,
-    AdName nvarchar(200) NULL,
-    Device nvarchar(20) NULL,
-    Impressions int DEFAULT 0 NULL,
-    Clicks int DEFAULT 0 NULL,
-    Conversions int DEFAULT 0 NULL,
-    ConversionValue float DEFAULT 0 NULL,
-    CollectedDate datetime DEFAULT GETDATE() NULL,
-    UpdatedDate datetime DEFAULT GETDATE() NULL,
-    CONSTRAINT PK_AdDataNaver_Frog PRIMARY KEY (Idx)
-);
-
-CREATE NONCLUSTERED INDEX IX_AdDataNaver_Frog_Date_AdID 
-    ON dbo.AdDataNaver_Frog ([Date], AdID, KeywordID, Device);
-GO
-
--- ============================================
--- View - ScrubDaddy (BrandID = 3)
--- ============================================
-CREATE OR ALTER VIEW vw_NaverAdWithCost_ScrubDaddy AS
-SELECT 
-    ad.Idx,
-    ad.Date,
-    ad.CampaignID,
-    ad.CampaignName,
-    ad.AdGroupID,
-    ad.AdGroupName,
-    ad.KeywordID,
-    ad.Keyword,
-    ad.AdID,
-    ad.AdName,
-    ad.Device,
-    ad.Impressions,
-    ad.Clicks,
-    ad.Conversions,
-    ad.ConversionValue,
-    ad.CollectedDate,
-    ad.UpdatedDate,
-    c.ContractName,
-    ISNULL(c.TotalBudget / (DATEDIFF(day, c.StartDate, c.EndDate) + 1), 0) AS DailyBudget
-FROM dbo.AdDataNaver ad
-LEFT JOIN dbo.AdContractNaver c 
-    ON ad.Date BETWEEN c.StartDate AND c.EndDate
-    AND c.IsActive = 1
-    AND c.BrandID = 3
-    AND (c.CampaignID IS NULL OR c.CampaignID = ad.CampaignID);
-GO
-
--- ============================================
--- View - Frog (BrandID = 0)
--- ============================================
-CREATE OR ALTER VIEW vw_NaverAdWithCost_Frog AS
+ALTER   VIEW vw_NaverAdWithCost_Frog AS
 SELECT 
     ad.Idx,
     ad.Date,
@@ -989,4 +1228,17 @@ LEFT JOIN dbo.AdContractNaver c
     AND c.IsActive = 1
     AND c.BrandID = 0
     AND (c.CampaignID IS NULL OR c.CampaignID = ad.CampaignID);
-GO
+
+
+-- dbo.vw_NaverAdWithCost_ScrubDaddy source
+
+ALTER   VIEW vw_NaverAdWithCost_ScrubDaddy AS
+SELECT 
+    ad.*,
+    c.ContractName,
+    ISNULL(c.TotalBudget / (DATEDIFF(day, c.StartDate, c.EndDate) + 1), 0) AS DailyBudget
+FROM dbo.AdDataNaver ad
+LEFT JOIN dbo.AdContractNaver c 
+    ON ad.Date BETWEEN c.StartDate AND c.EndDate
+    AND c.IsActive = 1
+    AND c.BrandID = 3;

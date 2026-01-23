@@ -22,47 +22,63 @@ class SystemConfig:
         self._load_all_configs()
 
     def _load_all_configs(self):
-        """모든 설정을 캐시에 로드"""
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
+        """모든 설정을 캐시에 로드 (재시도 로직 포함)"""
+        import time
 
-            cursor.execute("""
-                SELECT Category, ConfigKey, ConfigValue, DataType
-                FROM [dbo].[SystemConfig]
-                WHERE IsActive = 1
-            """)
+        max_retries = 3
+        retry_delay = 10  # Serverless DB 깨어나는 시간 고려
 
-            count = 0
-            for row in cursor.fetchall():
-                category, key, value, data_type = row[0], row[1], row[2], row[3]
+        for attempt in range(max_retries):
+            try:
+                logging.info(f"[SystemConfig] DB 연결 시도 ({attempt + 1}/{max_retries})...")
+                conn = get_db_connection()
+                cursor = conn.cursor()
 
-                if category not in self._cache:
-                    self._cache[category] = {}
+                cursor.execute("""
+                    SELECT Category, ConfigKey, ConfigValue, DataType
+                    FROM [dbo].[SystemConfig]
+                    WHERE IsActive = 1
+                """)
 
-                # 데이터 타입 변환
-                if data_type == 'int':
-                    self._cache[category][key] = int(value) if value else None
-                elif data_type == 'bool':
-                    self._cache[category][key] = value.lower() in ('true', '1', 'yes') if value else None
-                elif data_type == 'json':
-                    import json
-                    self._cache[category][key] = json.loads(value) if value else None
+                count = 0
+                for row in cursor.fetchall():
+                    category, key, value, data_type = row[0], row[1], row[2], row[3]
+
+                    if category not in self._cache:
+                        self._cache[category] = {}
+
+                    # 데이터 타입 변환
+                    if data_type == 'int':
+                        self._cache[category][key] = int(value) if value else None
+                    elif data_type == 'bool':
+                        self._cache[category][key] = value.lower() in ('true', '1', 'yes') if value else None
+                    elif data_type == 'json':
+                        import json
+                        self._cache[category][key] = json.loads(value) if value else None
+                    else:
+                        self._cache[category][key] = value
+
+                    count += 1
+
+                cursor.close()
+                conn.close()
+
+                logging.info(f"[SystemConfig] 로드 완료: {count}건")
+                logging.info(f"[SystemConfig] 카테고리: {list(self._cache.keys())}")
+                for cat in self._cache:
+                    logging.info(f"  - {cat}: {list(self._cache[cat].keys())}")
+
+                return  # 성공 시 함수 종료
+
+            except Exception as e:
+                logging.error(f"[ERROR] SystemConfig 로드 실패 (시도 {attempt + 1}/{max_retries}): {e}", exc_info=True)
+
+                if attempt < max_retries - 1:
+                    logging.info(f"[SystemConfig] {retry_delay}초 후 재시도...")
+                    time.sleep(retry_delay)
                 else:
-                    self._cache[category][key] = value
-
-                count += 1
-
-            cursor.close()
-            conn.close()
-
-            logging.info(f"[SystemConfig] 로드 완료: {count}건")
-            logging.info(f"[SystemConfig] 카테고리: {list(self._cache.keys())}")
-            for cat in self._cache:
-                logging.info(f"  - {cat}: {list(self._cache[cat].keys())}")
-
-        except Exception as e:
-            logging.error(f"[ERROR] SystemConfig 로드 실패: {e}", exc_info=True)
+                    logging.error(f"[ERROR] SystemConfig 로드 최종 실패 - 모든 재시도 소진")
+                    raise  # 최종 실패 시 예외 발생
 
     def get(self, category: str, key: str, default: Any = None) -> Optional[Any]:
         """설정값 조회 (캐시에서)"""

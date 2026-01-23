@@ -97,11 +97,10 @@ WebApp_v2_admin/
 │   ├── security.py             # JWT 인증, 비밀번호 해싱
 │   └── dependencies.py         # FastAPI 의존성 주입
 │
-├── repositories/               # 데이터 접근 계층 (11개 Repository)
+├── repositories/               # 데이터 접근 계층
 │   ├── product_repository.py   # Product 테이블 CRUD
 │   ├── bom_repository.py       # ProductBOM 테이블 CRUD
-│   ├── promotion_expected_repository.py # Promotion/PromotionProduct/ExpectedSales CRUD (예상매출)
-│   ├── promotion_target_repository.py   # TargetSalesProduct CRUD (목표매출)
+│   ├── sales_repository.py     # Sales 테이블 CRUD
 │   └── ...
 │
 ├── routers/                    # API 라우터 (11개 Router)
@@ -114,8 +113,6 @@ WebApp_v2_admin/
 │   │   ├── base_handler.py     # 공통 엑셀 처리 로직 (부모)
 │   │   ├── product_handler.py  # 제품 엑셀 처리
 │   │   ├── sales_handler.py    # 매출 엑셀 처리
-│   │   ├── promotion_expected_handler.py # 예상매출 엑셀 처리 (통합시트/2시트 지원)
-│   │   ├── promotion_target_handler.py   # 목표매출 엑셀 처리
 │   │   └── ...
 │   └── slack_notifier.py       # Slack 알림
 │
@@ -129,8 +126,7 @@ WebApp_v2_admin/
 │   ├── css/
 │   │   ├── base.css            # 기본 스타일
 │   │   ├── components.css      # 공통 컴포넌트 스타일
-│   │   └── pages/              # 페이지별 전용 CSS (신규)
-│   │       └── promotions.css
+│   │   └── pages/              # 페이지별 전용 CSS
 │   └── js/
 │       ├── api-client.js       # REST API 래퍼
 │       ├── table-manager.js    # 테이블 렌더링/선택 관리
@@ -212,9 +208,7 @@ async function loadData() {
 - `/api/products`: 제품 관리
 - `/api/bom`: BOM 관리
 - `/api/sales`: 매출 관리
-- `/api/promotions`: 프로모션 관리
 - `/api/channels`: 채널 관리
-- `/api/revenue-plan`: 매출 계획
 - `/api/system-config`: 시스템 설정
 
 ## 새 기능 추가 가이드

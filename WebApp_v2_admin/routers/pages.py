@@ -58,28 +58,6 @@ async def sales_page(request: Request, redirect = Depends(require_login_for_page
     })
 
 
-@router.get("/revenue-plan", response_class=HTMLResponse)
-async def revenue_plan_page(request: Request, redirect = Depends(require_login_for_page)):
-    """매출 계획 페이지"""
-    if redirect:
-        return redirect
-    return templates.TemplateResponse("revenue_plan.html", {
-        "request": request,
-        "active_page": "revenue-plan"
-    })
-
-
-@router.get("/promotions", response_class=HTMLResponse)
-async def promotions_page(request: Request, redirect = Depends(require_login_for_page)):
-    """행사 관리 페이지"""
-    if redirect:
-        return redirect
-    return templates.TemplateResponse("promotions.html", {
-        "request": request,
-        "active_page": "promotions"
-    })
-
-
 @router.get("/channels", response_class=HTMLResponse)
 async def channels_page(request: Request, redirect = Depends(require_login_for_page)):
     """채널 관리 페이지"""

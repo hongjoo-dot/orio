@@ -13,10 +13,8 @@ from .slack_notifier import (
 
 from .excel import (
     ExcelBaseHandler,
-    PromotionExcelHandler,
-    generate_promotion_id,
     SalesExcelHandler,
-    RevenuePlanExcelHandler,
+    ProductExcelHandler,
 )
 
 __all__ = [
@@ -29,8 +27,6 @@ __all__ = [
     'send_sync_notification',
     # Excel
     'ExcelBaseHandler',
-    'PromotionExcelHandler',
-    'generate_promotion_id',
     'SalesExcelHandler',
-    'RevenuePlanExcelHandler',
+    'ProductExcelHandler',
 ]
