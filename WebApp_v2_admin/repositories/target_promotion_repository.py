@@ -24,7 +24,8 @@ class TargetPromotionRepository(BaseRepository):
                 t.ChannelID, t.ChannelName,
                 t.UniqueCode, t.ProductName,
                 t.TargetAmount, t.TargetQuantity,
-                t.Notes, t.CreatedDate, t.UpdatedDate
+                t.Notes, t.PromotionType,
+                t.CreatedDate, t.UpdatedDate
             FROM [dbo].[TargetPromotionProduct] t
         """
 
@@ -47,8 +48,9 @@ class TargetPromotionRepository(BaseRepository):
             "TargetAmount": float(row[13]) if row[13] else 0,
             "TargetQuantity": int(row[14]) if row[14] else 0,
             "Notes": row[15],
-            "CreatedDate": row[16].strftime('%Y-%m-%d %H:%M:%S') if row[16] else None,
-            "UpdatedDate": row[17].strftime('%Y-%m-%d %H:%M:%S') if row[17] else None,
+            "PromotionType": row[16],
+            "CreatedDate": row[17].strftime('%Y-%m-%d %H:%M:%S') if row[17] else None,
+            "UpdatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None,
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -95,7 +97,8 @@ class TargetPromotionRepository(BaseRepository):
             "t.ChannelID", "t.ChannelName",
             "t.UniqueCode", "t.ProductName",
             "t.TargetAmount", "t.TargetQuantity",
-            "t.Notes", "t.CreatedDate", "t.UpdatedDate"
+            "t.Notes", "t.PromotionType",
+            "t.CreatedDate", "t.UpdatedDate"
         )
 
         # 필터 적용
@@ -127,22 +130,13 @@ class TargetPromotionRepository(BaseRepository):
                 for record in batch:
                     target_id = record.get('TargetPromotionID')
 
-                    # ID가 있으면 ID 기반 UPDATE
+                    # ID가 있으면 ID 기반 UPDATE (PromotionID는 변경 불가)
                     if target_id:
                         update_query = """
                             UPDATE [dbo].[TargetPromotionProduct]
-                            SET PromotionID = ?,
-                                PromotionName = ?,
-                                StartDate = ?,
+                            SET PromotionName = ?,
                                 StartTime = ?,
-                                EndDate = ?,
                                 EndTime = ?,
-                                BrandID = ?,
-                                BrandName = ?,
-                                ChannelID = ?,
-                                ChannelName = ?,
-                                UniqueCode = ?,
-                                ProductName = ?,
                                 TargetAmount = ?,
                                 TargetQuantity = ?,
                                 Notes = ?,
@@ -150,18 +144,9 @@ class TargetPromotionRepository(BaseRepository):
                             WHERE TargetPromotionID = ?
                         """
                         params = [
-                            record.get('PromotionID'),
                             record.get('PromotionName'),
-                            record.get('StartDate'),
                             record.get('StartTime', '00:00:00'),
-                            record.get('EndDate'),
                             record.get('EndTime', '00:00:00'),
-                            record.get('BrandID'),
-                            record.get('BrandName'),
-                            record.get('ChannelID'),
-                            record.get('ChannelName'),
-                            record.get('UniqueCode'),
-                            record.get('ProductName'),
                             record.get('TargetAmount'),
                             record.get('TargetQuantity'),
                             record.get('Notes'),
@@ -193,12 +178,13 @@ class TargetPromotionRepository(BaseRepository):
                                     TargetAmount = ?,
                                     TargetQuantity = ?,
                                     Notes = ?,
+                                    PromotionType = ?,
                                     UpdatedDate = GETDATE()
                             WHEN NOT MATCHED THEN
                                 INSERT (PromotionID, PromotionName, StartDate, StartTime, EndDate, EndTime,
                                         BrandID, BrandName, ChannelID, ChannelName,
-                                        UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes, PromotionType)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             OUTPUT $action;
                         """
 
@@ -210,7 +196,7 @@ class TargetPromotionRepository(BaseRepository):
                             record.get('EndDate'),
                             record.get('EndTime', '00:00:00'),
                             record.get('UniqueCode'),
-                            # UPDATE 파라미터 (9개)
+                            # UPDATE 파라미터 (10개)
                             record.get('PromotionName'),
                             record.get('BrandID'),
                             record.get('BrandName'),
@@ -220,7 +206,8 @@ class TargetPromotionRepository(BaseRepository):
                             record.get('TargetAmount'),
                             record.get('TargetQuantity'),
                             record.get('Notes'),
-                            # INSERT 파라미터 (15개)
+                            record.get('PromotionType'),
+                            # INSERT 파라미터 (16개)
                             record.get('PromotionID'),
                             record.get('PromotionName'),
                             record.get('StartDate'),
@@ -236,6 +223,7 @@ class TargetPromotionRepository(BaseRepository):
                             record.get('TargetAmount'),
                             record.get('TargetQuantity'),
                             record.get('Notes'),
+                            record.get('PromotionType'),
                         ]
 
                         cursor.execute(merge_query, *params)
@@ -274,7 +262,8 @@ class TargetPromotionRepository(BaseRepository):
                     t.ChannelID, t.ChannelName,
                     t.UniqueCode, t.ProductName,
                     t.TargetAmount, t.TargetQuantity,
-                    t.Notes, t.CreatedDate, t.UpdatedDate
+                    t.Notes, t.PromotionType,
+                    t.CreatedDate, t.UpdatedDate
                 FROM [dbo].[TargetPromotionProduct] t
                 WHERE t.TargetPromotionID IN ({placeholders})
                 ORDER BY t.StartDate DESC
@@ -358,3 +347,62 @@ class TargetPromotionRepository(BaseRepository):
                 cursor.execute(query)
 
             return [{"PromotionID": row[0], "PromotionName": row[1]} for row in cursor.fetchall()]
+
+    def get_next_sequence(self, prefix: str) -> int:
+        """
+        PromotionID 접두사 기반 다음 순번 조회
+
+        Args:
+            prefix: PromotionID 접두사 (BrandCode + TypeCode + YYMM)
+
+        Returns:
+            int: 다음 순번 (1부터 시작, 최대 99)
+        """
+        with get_db_cursor(commit=False) as cursor:
+            # 해당 접두사로 시작하는 PromotionID 중 가장 큰 순번 조회
+            query = """
+                SELECT MAX(CAST(RIGHT(PromotionID, 2) AS INT))
+                FROM [dbo].[TargetPromotionProduct]
+                WHERE PromotionID LIKE ? + '%'
+                  AND LEN(PromotionID) > 2
+            """
+            cursor.execute(query, prefix)
+            row = cursor.fetchone()
+
+            if row and row[0] is not None:
+                return min(row[0] + 1, 99)  # 최대 99까지
+            return 1
+
+    def get_max_sequences_by_prefixes(self, prefixes: List[str]) -> Dict[str, int]:
+        """
+        여러 접두사에 대한 현재 최대 순번 일괄 조회
+
+        Args:
+            prefixes: PromotionID 접두사 리스트
+
+        Returns:
+            Dict[str, int]: {prefix: max_sequence} 매핑
+        """
+        if not prefixes:
+            return {}
+
+        result = {prefix: 0 for prefix in prefixes}
+
+        with get_db_cursor(commit=False) as cursor:
+            # 모든 PromotionID 조회 후 접두사별로 그룹화
+            unique_prefixes = list(set(prefixes))
+
+            for prefix in unique_prefixes:
+                query = """
+                    SELECT MAX(CAST(RIGHT(PromotionID, 2) AS INT))
+                    FROM [dbo].[TargetPromotionProduct]
+                    WHERE PromotionID LIKE ? + '%'
+                      AND LEN(PromotionID) > 2
+                """
+                cursor.execute(query, prefix)
+                row = cursor.fetchone()
+
+                if row and row[0] is not None:
+                    result[prefix] = row[0]
+
+        return result

@@ -113,6 +113,131 @@ async def get_target_base_year_months():
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
 
 
+@router.get("/download")
+async def download_target_base(
+    year_month: Optional[str] = None,
+    brand_id: Optional[int] = None,
+    channel_id: Optional[int] = None,
+    ids: Optional[str] = None
+):
+    """기본 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
+    try:
+        data = []
+
+        # 선택된 ID가 있으면 해당 ID들만 조회
+        if ids:
+            id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
+            data = target_base_repo.get_by_ids(id_list)
+        elif year_month or brand_id or channel_id:
+            # 필터 조건이 있으면 해당 조건으로 조회
+            filters = {}
+            if year_month:
+                filters['year_month'] = year_month
+            if brand_id:
+                filters['brand_id'] = brand_id
+            if channel_id:
+                filters['channel_id'] = channel_id
+
+            result = target_base_repo.get_list(page=1, limit=100000, filters=filters)
+            data = result['data']
+
+        # 컬럼 정의 (ID 포함 - 통합 양식)
+        export_columns = ['ID', '날짜', '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고']
+
+        if not data:
+            # 데이터가 없으면 헤더만 있는 빈 양식 반환
+            df = pd.DataFrame(columns=export_columns)
+        else:
+            # DataFrame 생성
+            df = pd.DataFrame(data)
+
+            # 컬럼 순서 및 이름 변경
+            column_map = {
+                'TargetBaseID': 'ID',
+                'Date': '날짜',
+                'BrandName': '브랜드명',
+                'ChannelName': '채널명',
+                'UniqueCode': '상품코드',
+                'TargetAmount': '목표금액',
+                'TargetQuantity': '목표수량',
+                'Notes': '비고'
+            }
+
+            # 필요한 컬럼만 선택
+            internal_columns = list(column_map.keys())
+            df = df[[col for col in internal_columns if col in df.columns]]
+            df = df.rename(columns=column_map)
+
+        # 안내 시트 데이터
+        guide_data = [
+            ['[기본 목표 업로드 안내]', ''],
+            ['', ''],
+            ['■ 업로드 방식', ''],
+            ['ID가 있는 행', 'ID 기준으로 해당 데이터를 수정합니다.'],
+            ['ID가 없는 행', '날짜+채널+상품코드 기준으로 신규 등록 또는 수정합니다.'],
+            ['', ''],
+            ['■ 필수 항목', ''],
+            ['날짜', '목표 날짜 (YYYY-MM-DD 형식)'],
+            ['브랜드명', 'Brand 테이블에 등록된 브랜드명'],
+            ['채널명', 'Channel 테이블에 등록된 채널명'],
+            ['상품코드', 'Product 테이블에 등록된 상품코드 (UniqueCode)'],
+            ['', ''],
+            ['■ 선택 항목', ''],
+            ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
+            ['목표금액', '숫자 (예: 1000000)'],
+            ['목표수량', '숫자 (예: 100)'],
+            ['비고', '메모'],
+            ['', ''],
+            ['■ 주의사항', ''],
+            ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
+            ['2. 동일한 날짜+채널+상품코드 조합이 있으면 기존 데이터가 수정됩니다.', ''],
+            ['3. 브랜드명, 채널명, 상품코드는 반드시 DB에 등록된 값이어야 합니다.', ''],
+        ]
+        guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='기본목표')
+            guide_df.to_excel(writer, index=False, sheet_name='안내')
+
+            workbook = writer.book
+            worksheet = writer.sheets['기본목표']
+
+            # ID 컬럼 헤더 빨간색 강조
+            red_header_format = workbook.add_format({
+                'bold': True,
+                'font_color': 'red',
+                'bg_color': '#FFC7CE',
+                'border': 1
+            })
+            worksheet.write(0, 0, 'ID', red_header_format)
+
+            # 컬럼 너비 설정
+            for i in range(len(export_columns)):
+                worksheet.set_column(i, i, 15)
+
+            guide_sheet = writer.sheets['안내']
+            guide_sheet.set_column(0, 0, 55)
+            guide_sheet.set_column(1, 1, 40)
+
+        output.seek(0)
+
+        filename = f"target_base_{year_month or 'template'}.xlsx"
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        }
+
+        return StreamingResponse(
+            output,
+            headers=headers,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"다운로드 실패: {str(e)}")
+
+
 @router.get("/{target_id}")
 async def get_target_base_item(target_id: int):
     """기본 목표 단일 조회"""
@@ -281,113 +406,6 @@ async def filter_delete_target_base(
 
 
 # ========== 기본 목표 엑셀 ==========
-
-@router.get("/download/template")
-async def download_target_base_template():
-    """기본 목표 신규 등록용 양식 다운로드"""
-    columns = ['날짜', '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고']
-
-    df = pd.DataFrame(columns=columns)
-
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='기본목표_양식')
-
-        worksheet = writer.sheets['기본목표_양식']
-        for i, col in enumerate(columns):
-            worksheet.set_column(i, i, 15)
-
-    output.seek(0)
-
-    headers = {
-        'Content-Disposition': 'attachment; filename="target_base_template.xlsx"'
-    }
-
-    return StreamingResponse(
-        output,
-        headers=headers,
-        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-
-
-@router.get("/download/data")
-async def download_target_base_data(
-    year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
-    ids: Optional[str] = None
-):
-    """기본 목표 데이터 다운로드 (수정용)"""
-    try:
-        # 선택된 ID가 있으면 해당 ID들만 조회
-        if ids:
-            id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
-            data = target_base_repo.get_by_ids(id_list)
-        else:
-            # 필터 조건으로 조회
-            filters = {}
-            if year_month:
-                filters['year_month'] = year_month
-            if brand_id:
-                filters['brand_id'] = brand_id
-            if channel_id:
-                filters['channel_id'] = channel_id
-
-            result = target_base_repo.get_list(page=1, limit=100000, filters=filters)
-            data = result['data']
-
-        # 수정용 컬럼 정의
-        export_columns = ['ID', '날짜', '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고']
-
-        if not data:
-            # 데이터가 없으면 헤더만 있는 빈 양식 반환
-            df = pd.DataFrame(columns=export_columns)
-        else:
-            # DataFrame 생성
-            df = pd.DataFrame(data)
-
-            # 컬럼 순서 및 이름 변경
-            column_map = {
-                'TargetBaseID': 'ID',
-                'Date': '날짜',
-                'BrandName': '브랜드명',
-                'ChannelName': '채널명',
-                'UniqueCode': '상품코드',
-                'TargetAmount': '목표금액',
-                'TargetQuantity': '목표수량',
-                'Notes': '비고'
-            }
-
-            # 필요한 컬럼만 선택
-            internal_columns = list(column_map.keys())
-            df = df[[col for col in internal_columns if col in df.columns]]
-            df = df.rename(columns=column_map)
-
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='기본목표_데이터')
-
-            worksheet = writer.sheets['기본목표_데이터']
-            for i in range(len(df.columns)):
-                worksheet.set_column(i, i, 15)
-
-        output.seek(0)
-
-        filename = f"target_base_data_{year_month or 'all'}.xlsx"
-        headers = {
-            'Content-Disposition': f'attachment; filename="{filename}"'
-        }
-
-        return StreamingResponse(
-            output,
-            headers=headers,
-            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"다운로드 실패: {str(e)}")
-
 
 @router.post("/upload")
 async def upload_target_base(
@@ -687,6 +705,270 @@ async def get_promotions_list(year_month: Optional[str] = None):
         raise HTTPException(500, f"행사 목록 조회 실패: {str(e)}")
 
 
+@promotion_router.get("/download")
+async def download_target_promotion(
+    year_month: Optional[str] = None,
+    brand_id: Optional[int] = None,
+    channel_id: Optional[int] = None,
+    promotion_id: Optional[str] = None,
+    ids: Optional[str] = None
+):
+    """행사 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
+    try:
+        data = []
+
+        # 선택된 ID가 있으면 해당 ID들만 조회
+        if ids:
+            id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
+            data = target_promotion_repo.get_by_ids(id_list)
+        elif year_month or brand_id or channel_id or promotion_id:
+            # 필터 조건이 있으면 해당 조건으로 조회
+            filters = {}
+            if year_month:
+                filters['year_month'] = year_month
+            if brand_id:
+                filters['brand_id'] = brand_id
+            if channel_id:
+                filters['channel_id'] = channel_id
+            if promotion_id:
+                filters['promotion_id'] = promotion_id
+
+            result = target_promotion_repo.get_list(page=1, limit=100000, filters=filters)
+            data = result['data']
+
+        # 컬럼 정의
+        export_columns = [
+            'ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
+            '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고'
+        ]
+        # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
+        readonly_columns = [2, 3, 5, 7, 8, 9]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 상품코드
+        id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
+
+        if not data:
+            # 데이터가 없으면 헤더만 있는 빈 양식 반환
+            df = pd.DataFrame(columns=export_columns)
+        else:
+            df = pd.DataFrame(data)
+
+            column_map = {
+                'TargetPromotionID': 'ID',
+                'PromotionName': '행사명',
+                'PromotionType': '행사유형',
+                'StartDate': '시작일',
+                'StartTime': '시작시간',
+                'EndDate': '종료일',
+                'EndTime': '종료시간',
+                'BrandName': '브랜드명',
+                'ChannelName': '채널명',
+                'UniqueCode': '상품코드',
+                'TargetAmount': '목표금액',
+                'TargetQuantity': '목표수량',
+                'Notes': '비고'
+            }
+
+            internal_columns = list(column_map.keys())
+            df = df[[col for col in internal_columns if col in df.columns]]
+            df = df.rename(columns=column_map)
+
+        # 안내 시트 데이터
+        guide_data = [
+            ['[행사 목표 업로드 안내]', ''],
+            ['', ''],
+            ['■ 업로드 방식', ''],
+            ['ID가 있는 행', 'ID 기준으로 해당 데이터를 수정합니다.'],
+            ['ID가 없는 행', '브랜드+행사유형+시작일 기준으로 행사ID가 자동 생성됩니다.'],
+            ['', ''],
+            ['■ 행사ID 자동 생성 규칙', ''],
+            ['형식', 'BrandCode(2자리) + TypeCode(2자리) + YYMM(4자리) + 순번(2자리)'],
+            ['예시', 'OREN250101 (오리온 + 에누리 + 25년01월 + 01번)'],
+            ['참고', 'TypeCode는 PromotionType 테이블의 TypeCode 값 (2자리 알파벳)'],
+            ['', ''],
+            ['■ 컬럼 설명', ''],
+            ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
+            ['행사명', '행사 이름'],
+            ['행사유형', '아래 행사유형 목록 참조 (행사ID 생성에 필요)'],
+            ['시작일', '행사 시작 날짜 (YYYY-MM-DD 형식)'],
+            ['시작시간', 'HH:MM:SS 형식 (예: 09:00:00, 기본값: 00:00:00)'],
+            ['종료일', '행사 종료 날짜 (YYYY-MM-DD 형식)'],
+            ['종료시간', 'HH:MM:SS 형식 (예: 23:59:59, 기본값: 00:00:00)'],
+            ['브랜드명', 'Brand 테이블에 등록된 브랜드명 (행사ID 생성에 필요)'],
+            ['채널명', 'Channel 테이블에 등록된 채널명'],
+            ['상품코드', 'Product 테이블에 등록된 상품코드 (UniqueCode)'],
+            ['목표금액', '숫자 (예: 1000000)'],
+            ['목표수량', '숫자 (예: 100)'],
+            ['비고', '메모'],
+            ['', ''],
+            ['■ 수정 가능/불가 컬럼', ''],
+            ['수정 가능', '행사명, 시작시간, 종료시간, 목표금액, 목표수량, 비고'],
+            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 상품코드'],
+            ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
+            ['', ''],
+            ['■ 행사유형 목록', ''],
+            ['에누리', ''],
+            ['쿠폰', ''],
+            ['판매가+쿠폰', ''],
+            ['판매가할인', ''],
+            ['정산후보정', ''],
+            ['기획상품', ''],
+            ['원매가할인', ''],
+            ['', ''],
+            ['■ 주의사항', ''],
+            ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
+            ['2. 행사ID는 자동 생성되며, 같은 조건(브랜드+행사유형+YYMM)에서 순번이 증가합니다.', ''],
+            ['3. 브랜드명, 채널명, 상품코드, 행사유형은 반드시 DB에 등록된 값이어야 합니다.', ''],
+            ['4. 검정색/빨간색 배경 컬럼은 수정해도 반영되지 않습니다.', ''],
+        ]
+        guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
+
+        # 드롭다운용 목록 조회
+        channels = channel_repo.get_channel_list()
+        brands = brand_repo.get_all_brands()
+        channel_names = [ch['Name'] for ch in channels]
+        brand_names = [br['Name'] for br in brands]
+        promotion_types = ['에누리', '쿠폰', '판매가+쿠폰', '판매가할인', '정산후보정', '기획상품', '원매가할인']
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='행사목표')
+            guide_df.to_excel(writer, index=False, sheet_name='안내')
+
+            workbook = writer.book
+            worksheet = writer.sheets['행사목표']
+
+            # 목록 시트 생성 (드롭다운 소스용)
+            list_sheet = workbook.add_worksheet('목록')
+            list_sheet.hide()  # 숨김 처리
+
+            # 채널 목록 작성 (A열)
+            for i, name in enumerate(channel_names):
+                list_sheet.write(i, 0, name)
+
+            # 브랜드 목록 작성 (B열)
+            for i, name in enumerate(brand_names):
+                list_sheet.write(i, 1, name)
+
+            # 행사유형 목록 작성 (C열)
+            for i, name in enumerate(promotion_types):
+                list_sheet.write(i, 2, name)
+
+            # 드롭다운 적용 범위 (2행~1000행)
+            max_row = max(len(df) + 100, 1000)  # 데이터 + 여유분
+
+            # 채널명 드롭다운 (I열, 인덱스 8)
+            if channel_names:
+                worksheet.data_validation(1, 8, max_row, 8, {
+                    'validate': 'list',
+                    'source': f'=목록!$A$1:$A${len(channel_names)}',
+                    'input_message': '채널을 선택하세요',
+                    'error_message': '목록에서 선택해주세요'
+                })
+
+            # 브랜드명 드롭다운 (H열, 인덱스 7)
+            if brand_names:
+                worksheet.data_validation(1, 7, max_row, 7, {
+                    'validate': 'list',
+                    'source': f'=목록!$B$1:$B${len(brand_names)}',
+                    'input_message': '브랜드를 선택하세요',
+                    'error_message': '목록에서 선택해주세요'
+                })
+
+            # 행사유형 드롭다운 (C열, 인덱스 2)
+            worksheet.data_validation(1, 2, max_row, 2, {
+                'validate': 'list',
+                'source': f'=목록!$C$1:$C${len(promotion_types)}',
+                'input_message': '행사유형을 선택하세요',
+                'error_message': '목록에서 선택해주세요'
+            })
+
+            # ID 컬럼 헤더 서식 (빨간색 배경 + 흰 글자)
+            id_header_format = workbook.add_format({
+                'bold': True,
+                'font_color': 'white',
+                'bg_color': '#dc2626',
+                'border': 1
+            })
+
+            # 수정 불가 컬럼 헤더 서식 (검정 배경 + 흰 글자)
+            readonly_header_format = workbook.add_format({
+                'bold': True,
+                'font_color': 'white',
+                'bg_color': '#000000',
+                'border': 1
+            })
+
+            # 수정 가능 컬럼 헤더 서식 (기본)
+            editable_header_format = workbook.add_format({
+                'bold': True,
+                'border': 1
+            })
+
+            # 헤더 서식 적용
+            for col_idx, col_name in enumerate(export_columns):
+                if col_idx == id_column_idx:
+                    worksheet.write(0, col_idx, col_name, id_header_format)
+                elif col_idx in readonly_columns:
+                    worksheet.write(0, col_idx, col_name, readonly_header_format)
+                else:
+                    worksheet.write(0, col_idx, col_name, editable_header_format)
+
+            # ID 컬럼 데이터 서식 (빨간색 배경 + 흰 글자)
+            id_data_format = workbook.add_format({
+                'font_color': 'white',
+                'bg_color': '#ef4444',
+                'border': 1
+            })
+
+            # 데이터 행 서식 (수정 불가 컬럼)
+            readonly_data_format = workbook.add_format({
+                'font_color': 'white',
+                'bg_color': '#333333',
+                'border': 1
+            })
+
+            # 데이터 행에 서식 적용
+            if len(df) > 0:
+                for row_idx in range(len(df)):
+                    # ID 컬럼 빨간색 적용
+                    col_name = export_columns[id_column_idx]
+                    if col_name in df.columns:
+                        value = df.iloc[row_idx][col_name]
+                        worksheet.write(row_idx + 1, id_column_idx, value, id_data_format)
+
+                    # 수정 불가 컬럼 검정색 적용
+                    for col_idx in readonly_columns:
+                        if col_idx < len(export_columns):
+                            col_name = export_columns[col_idx]
+                            if col_name in df.columns:
+                                value = df.iloc[row_idx][col_name]
+                                worksheet.write(row_idx + 1, col_idx, value, readonly_data_format)
+
+            # 컬럼 너비 설정
+            for i in range(len(export_columns)):
+                worksheet.set_column(i, i, 15)
+
+            guide_sheet = writer.sheets['안내']
+            guide_sheet.set_column(0, 0, 65)
+            guide_sheet.set_column(1, 1, 40)
+
+        output.seek(0)
+
+        filename = f"target_promotion_{year_month or 'template'}.xlsx"
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        }
+
+        return StreamingResponse(
+            output,
+            headers=headers,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"다운로드 실패: {str(e)}")
+
+
 @promotion_router.get("/{target_id}")
 async def get_target_promotion_item(target_id: int):
     """행사 목표 단일 조회"""
@@ -857,124 +1139,6 @@ async def filter_delete_target_promotion(
 
 # ========== 행사 목표 엑셀 ==========
 
-@promotion_router.get("/download/template")
-async def download_target_promotion_template():
-    """행사 목표 신규 등록용 양식 다운로드"""
-    columns = [
-        '행사ID', '행사명', '시작일', '시작시간', '종료일', '종료시간',
-        '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고'
-    ]
-
-    df = pd.DataFrame(columns=columns)
-
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='행사목표_양식')
-
-        worksheet = writer.sheets['행사목표_양식']
-        for i, col in enumerate(columns):
-            worksheet.set_column(i, i, 15)
-
-    output.seek(0)
-
-    headers = {
-        'Content-Disposition': 'attachment; filename="target_promotion_template.xlsx"'
-    }
-
-    return StreamingResponse(
-        output,
-        headers=headers,
-        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-
-
-@promotion_router.get("/download/data")
-async def download_target_promotion_data(
-    year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
-    promotion_id: Optional[str] = None,
-    ids: Optional[str] = None
-):
-    """행사 목표 데이터 다운로드 (수정용)"""
-    try:
-        # 선택된 ID가 있으면 해당 ID들만 조회
-        if ids:
-            id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
-            data = target_promotion_repo.get_by_ids(id_list)
-        else:
-            # 필터 조건으로 조회
-            filters = {}
-            if year_month:
-                filters['year_month'] = year_month
-            if brand_id:
-                filters['brand_id'] = brand_id
-            if channel_id:
-                filters['channel_id'] = channel_id
-            if promotion_id:
-                filters['promotion_id'] = promotion_id
-
-            result = target_promotion_repo.get_list(page=1, limit=100000, filters=filters)
-            data = result['data']
-
-        # 수정용 컬럼 정의
-        export_columns = [
-            'ID', '행사ID', '행사명', '시작일', '시작시간', '종료일', '종료시간',
-            '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고'
-        ]
-
-        if not data:
-            # 데이터가 없으면 헤더만 있는 빈 양식 반환
-            df = pd.DataFrame(columns=export_columns)
-        else:
-            df = pd.DataFrame(data)
-
-            column_map = {
-                'TargetPromotionID': 'ID',
-                'PromotionID': '행사ID',
-                'PromotionName': '행사명',
-                'StartDate': '시작일',
-                'StartTime': '시작시간',
-                'EndDate': '종료일',
-                'EndTime': '종료시간',
-                'BrandName': '브랜드명',
-                'ChannelName': '채널명',
-                'UniqueCode': '상품코드',
-                'TargetAmount': '목표금액',
-                'TargetQuantity': '목표수량',
-                'Notes': '비고'
-            }
-
-            internal_columns = list(column_map.keys())
-            df = df[[col for col in internal_columns if col in df.columns]]
-            df = df.rename(columns=column_map)
-
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='행사목표_데이터')
-
-            worksheet = writer.sheets['행사목표_데이터']
-            for i in range(len(df.columns)):
-                worksheet.set_column(i, i, 15)
-
-        output.seek(0)
-
-        filename = f"target_promotion_data_{year_month or 'all'}.xlsx"
-        headers = {
-            'Content-Disposition': f'attachment; filename="{filename}"'
-        }
-
-        return StreamingResponse(
-            output,
-            headers=headers,
-            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"다운로드 실패: {str(e)}")
-
-
 @promotion_router.post("/upload")
 async def upload_target_promotion(
     file: UploadFile = File(...),
@@ -1000,6 +1164,7 @@ async def upload_target_promotion(
             'ID': 'TargetPromotionID',
             '행사ID': 'PromotionID',
             '행사명': 'PromotionName',
+            '행사유형': 'PromotionType',
             '시작일': 'StartDate',
             '시작시간': 'StartTime',
             '종료일': 'EndDate',
@@ -1013,8 +1178,8 @@ async def upload_target_promotion(
         }
         df = df.rename(columns=column_map)
 
-        # 필수 컬럼 확인
-        required_cols = ['PromotionID', 'StartDate', 'EndDate', 'BrandName', 'ChannelName', 'UniqueCode']
+        # 필수 컬럼 확인 (PromotionID 제거 - 자동 생성됨)
+        required_cols = ['PromotionType', 'StartDate', 'EndDate', 'BrandName', 'ChannelName', 'UniqueCode']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise HTTPException(400, f"필수 컬럼이 없습니다: {missing_cols}")
@@ -1027,6 +1192,21 @@ async def upload_target_promotion(
         invalid_end_dates = df['EndDate'].isna().sum()
         if invalid_start_dates > 0 or invalid_end_dates > 0:
             raise HTTPException(400, f"날짜 형식이 잘못된 행이 있습니다 (시작일: {invalid_start_dates}개, 종료일: {invalid_end_dates}개)")
+
+        # 신규 행(ID 없음)에서 행사유형이 비어있는지 확인
+        df['PromotionType'] = df['PromotionType'].astype(str).str.strip()
+        empty_type_rows = []
+        for idx, row in df.iterrows():
+            # ID가 없는 신규 행에서만 행사유형 필수 체크
+            has_id = 'TargetPromotionID' in row and pd.notna(row.get('TargetPromotionID'))
+            has_promo_id = 'PromotionID' in row and pd.notna(row.get('PromotionID')) and str(row.get('PromotionID')).strip() not in ['', 'nan']
+            promo_type = str(row.get('PromotionType', '')).strip()
+
+            if not has_id and not has_promo_id and (not promo_type or promo_type == 'nan'):
+                empty_type_rows.append(idx + 2)  # 엑셀 행 번호 (헤더 + 0-index)
+
+        if empty_type_rows:
+            raise HTTPException(400, f"신규 등록 행에 행사유형이 비어있습니다 (행 {', '.join(map(str, empty_type_rows[:10]))}{'...' if len(empty_type_rows) > 10 else ''})")
 
         # 시간 처리 (기본값 00:00)
         if 'StartTime' not in df.columns:
@@ -1045,24 +1225,34 @@ async def upload_target_promotion(
 
         # 에러 수집용 딕셔너리
         errors = {
-            'brand': {},      # {name: [행번호들]}
-            'channel': {},    # {name: [행번호들]}
-            'product': {}     # {code: [행번호들]}
+            'brand': {},          # {name: [행번호들]}
+            'channel': {},        # {name: [행번호들]}
+            'product': {},        # {code: [행번호들]}
+            'promotion_type': {}  # {display_name: [행번호들]}
         }
 
-        # 브랜드명 → BrandID 매핑 테이블 생성
+        # 브랜드명 → BrandID, BrandCode 매핑 테이블 생성
         brand_names = df['BrandName'].dropna().unique().tolist()
         brand_names = [n for n in brand_names if n and n != 'nan']
         brand_map = {}
+        missing_brand_codes = []
         for name in brand_names:
             with get_db_cursor() as cursor:
-                cursor.execute("SELECT BrandID, Name FROM Brand WHERE Name = ?", (name,))
+                cursor.execute("SELECT BrandID, Name, BrandCode FROM Brand WHERE Name = ?", (name,))
                 row = cursor.fetchone()
                 if row:
-                    brand_map[name] = {'BrandID': row[0], 'BrandName': row[1]}
+                    brand_code = row[2]
+                    # BrandCode가 없으면 경고 추가
+                    if not brand_code:
+                        missing_brand_codes.append(name)
+                    brand_map[name] = {'BrandID': row[0], 'BrandName': row[1], 'BrandCode': brand_code}
                 else:
                     row_nums = df[df['BrandName'] == name].index.tolist()
                     errors['brand'][name] = [r + 2 for r in row_nums]
+
+        # BrandCode가 없는 브랜드가 있으면 경고
+        if missing_brand_codes:
+            raise HTTPException(400, f"BrandCode가 설정되지 않은 브랜드가 있습니다: {', '.join(missing_brand_codes)}. 브랜드 설정에서 BrandCode를 입력해주세요.")
 
         # 채널명 → ChannelID 매핑 테이블 생성
         channel_names = df['ChannelName'].dropna().unique().tolist()
@@ -1092,8 +1282,38 @@ async def upload_target_promotion(
                     row_nums = df[df['UniqueCode'] == code].index.tolist()
                     errors['product'][code] = [r + 2 for r in row_nums]
 
+        # 행사유형 검증 및 TypeCode 매핑 (PromotionType 테이블에서 조회)
+        promotion_type_map = {}
+        missing_type_codes = []  # TypeCode가 없는 행사유형
+        if 'PromotionType' in df.columns:
+            promotion_types = df['PromotionType'].dropna().unique().tolist()
+            promotion_types = [t for t in promotion_types if t and str(t) != 'nan']
+            for display_name in promotion_types:
+                display_name_str = str(display_name).strip()
+                # PromotionType 테이블에서 DisplayName으로 TypeCode 조회
+                with get_db_cursor() as cursor:
+                    cursor.execute("SELECT DisplayName, TypeCode FROM PromotionType WHERE DisplayName = ?", (display_name_str,))
+                    row = cursor.fetchone()
+                    if row:
+                        type_code = row[1] if row[1] else ''
+                        promotion_type_map[display_name_str] = {
+                            'DisplayName': row[0],
+                            'TypeCode': type_code
+                        }
+                        # TypeCode가 없으면 경고
+                        if not type_code:
+                            missing_type_codes.append(display_name_str)
+                    else:
+                        # DB에 없는 행사유형 - 에러 수집
+                        row_nums = df[df['PromotionType'] == display_name].index.tolist()
+                        errors['promotion_type'][display_name_str] = [r + 2 for r in row_nums]
+
+        # TypeCode가 없는 행사유형이 있으면 에러
+        if missing_type_codes:
+            raise HTTPException(400, f"TypeCode가 설정되지 않은 행사유형이 있습니다: {', '.join(missing_type_codes)}. PromotionType 테이블에서 TypeCode를 설정해주세요.")
+
         # 에러가 있으면 모두 모아서 반환
-        if errors['brand'] or errors['channel'] or errors['product']:
+        if errors['brand'] or errors['channel'] or errors['product'] or errors['promotion_type']:
             error_messages = []
             for name, rows in errors['brand'].items():
                 error_messages.append(f"존재하지 않는 브랜드명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
@@ -1101,10 +1321,47 @@ async def upload_target_promotion(
                 error_messages.append(f"존재하지 않는 채널명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             for code, rows in errors['product'].items():
                 error_messages.append(f"존재하지 않는 상품코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
+            for display_name, rows in errors['promotion_type'].items():
+                error_messages.append(f"존재하지 않는 행사유형: {display_name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
-        records = []
+        # PromotionID 자동 생성을 위한 접두사별 순번 관리
+        # 형식: BrandCode(2) + TypeCode(2) + YYMM(4) + Sequence(2) = 10자리
+        prefix_sequences = {}  # {prefix: current_sequence}
+
+        # DB에서 기존 최대 순번 조회
+        all_prefixes = set()
         for _, row in df.iterrows():
+            # ID가 있는 행은 수정이므로 생성 불필요
+            if 'TargetPromotionID' in row and pd.notna(row.get('TargetPromotionID')):
+                continue
+
+            brand_name = str(row['BrandName']).strip() if pd.notna(row['BrandName']) else None
+            promo_type = str(row['PromotionType']).strip() if pd.notna(row.get('PromotionType')) else None
+
+            if brand_name and promo_type and pd.notna(row['StartDate']):
+                brand_info = brand_map.get(brand_name, {})
+                type_info = promotion_type_map.get(promo_type, {})
+                brand_code = brand_info.get('BrandCode', '')[:2] if brand_info.get('BrandCode') else ''
+                type_code = type_info.get('TypeCode', '')
+
+                if brand_code and type_code:
+                    start_date = row['StartDate']
+                    if hasattr(start_date, 'strftime'):
+                        yymm = start_date.strftime('%y%m')
+                    else:
+                        yymm = pd.to_datetime(start_date).strftime('%y%m')
+                    prefix = f"{brand_code}{type_code}{yymm}"
+                    all_prefixes.add(prefix)
+
+        # DB에서 각 접두사의 최대 순번 조회
+        if all_prefixes:
+            max_sequences = target_promotion_repo.get_max_sequences_by_prefixes(list(all_prefixes))
+            for prefix, max_seq in max_sequences.items():
+                prefix_sequences[prefix] = max_seq
+
+        records = []
+        for idx, row in df.iterrows():
             # 시간 포맷 처리 (HH:MM:SS)
             start_time_val = row.get('StartTime', '00:00:00')
             end_time_val = row.get('EndTime', '00:00:00')
@@ -1150,10 +1407,53 @@ async def upload_target_promotion(
             if 'TargetPromotionID' in row and pd.notna(row['TargetPromotionID']):
                 target_id = int(row['TargetPromotionID'])
 
+            # 행사유형 처리
+            promotion_type_val = None
+            type_info = {}
+            if 'PromotionType' in row and pd.notna(row.get('PromotionType')) and str(row['PromotionType']) != 'nan':
+                promo_type_str = str(row['PromotionType']).strip()
+                type_info = promotion_type_map.get(promo_type_str, {})
+                promotion_type_val = type_info.get('DisplayName')
+
+            # PromotionID 자동 생성 (신규 등록 시)
+            promotion_id = None
+            if 'PromotionID' in row and pd.notna(row.get('PromotionID')):
+                promo_id_val = str(row['PromotionID']).strip()
+                if promo_id_val and promo_id_val != 'nan':
+                    # 기존 PromotionID가 있으면 사용
+                    promotion_id = promo_id_val
+            elif not target_id:
+                # 신규 등록 시 PromotionID 자동 생성
+                brand_code = brand_info.get('BrandCode', '')[:2] if brand_info.get('BrandCode') else ''
+                type_code = type_info.get('TypeCode', '')
+
+                if brand_code and type_code and pd.notna(row['StartDate']):
+                    start_date = row['StartDate']
+                    if hasattr(start_date, 'strftime'):
+                        yymm = start_date.strftime('%y%m')
+                    else:
+                        yymm = pd.to_datetime(start_date).strftime('%y%m')
+
+                    prefix = f"{brand_code}{type_code}{yymm}"
+
+                    # 해당 접두사의 다음 순번 획득
+                    current_seq = prefix_sequences.get(prefix, 0) + 1
+                    prefix_sequences[prefix] = current_seq
+
+                    # PromotionID 생성 (순번은 2자리 0-padding)
+                    promotion_id = f"{prefix}{current_seq:02d}"
+                    print(f"   [PromotionID 자동 생성] {promotion_id}")
+
+            # 신규 등록인데 PromotionID가 없으면 에러 (안전장치)
+            if not target_id and not promotion_id:
+                row_num = int(idx) + 2  # 엑셀 행 번호 (헤더 + 0-index)
+                raise HTTPException(400, f"행사ID를 생성할 수 없습니다. BrandCode, 행사유형, 시작일을 확인해주세요. (행 {row_num})")
+
             records.append({
                 'TargetPromotionID': target_id,
-                'PromotionID': str(row['PromotionID']) if pd.notna(row['PromotionID']) else None,
+                'PromotionID': promotion_id,
                 'PromotionName': str(row['PromotionName']) if pd.notna(row.get('PromotionName')) else None,
+                'PromotionType': promotion_type_val,
                 'StartDate': row['StartDate'].strftime('%Y-%m-%d') if pd.notna(row['StartDate']) else None,
                 'StartTime': start_time_val,
                 'EndDate': row['EndDate'].strftime('%Y-%m-%d') if pd.notna(row['EndDate']) else None,

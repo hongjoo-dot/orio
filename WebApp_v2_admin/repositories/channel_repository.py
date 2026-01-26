@@ -84,6 +84,17 @@ class ChannelRepository(BaseRepository):
 
         return builder
 
+    def get_channel_list(self) -> list:
+        """채널 목록 조회 (드롭다운용) - ChannelID와 Name만 반환"""
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT ChannelID, Name
+                FROM [dbo].[Channel]
+                WHERE Name IS NOT NULL AND Name != ''
+                ORDER BY Name
+            """)
+            return [{"ChannelID": row[0], "Name": row[1]} for row in cursor.fetchall()]
+
     def get_metadata(self) -> Dict[str, list]:
         """Channel 메타데이터 조회 (필터용)"""
         with get_db_cursor(commit=False) as cursor:

@@ -44,6 +44,7 @@ const baseColumns = [
 const promotionColumns = [
     { key: 'PromotionID', header: '행사ID', render: (row) => row.PromotionID || '-' },
     { key: 'PromotionName', header: '행사명', render: (row) => row.PromotionName || '-' },
+    { key: 'PromotionType', header: '행사유형', render: (row) => row.PromotionType || '-' },
     {
         key: 'StartDate',
         header: '시작일',
@@ -168,7 +169,8 @@ function getActiveTableManager() {
  */
 async function loadBrands() {
     try {
-        const brands = await api.get('/api/brands/all');
+        const result = await api.get('/api/brands/all');
+        const brands = result.data || [];
 
         const select = document.getElementById('searchBrand');
         select.innerHTML = '<option value="">전체</option>';
@@ -189,7 +191,7 @@ async function loadBrands() {
  */
 async function loadChannels() {
     try {
-        const channels = await api.get('/api/channels/metadata');
+        const channels = await api.get('/api/channels/list');
 
         const select = document.getElementById('searchChannel');
         select.innerHTML = '<option value="">전체</option>';
@@ -431,23 +433,14 @@ async function bulkDelete() {
 }
 
 /**
- * 신규 양식 다운로드
+ * 엑셀 양식 다운로드 (신규/수정 통합)
+ * - 필터나 선택이 없으면: 빈 양식 (신규 등록용)
+ * - 필터가 있거나 선택된 항목이 있으면: 해당 데이터 포함 (수정용)
  */
-function downloadTemplate() {
+function downloadExcel() {
     const endpoint = currentTab === 'base'
-        ? '/api/targets/base/download/template'
-        : '/api/targets/promotion/download/template';
-
-    window.location.href = endpoint;
-}
-
-/**
- * 수정 양식 다운로드 (선택된 항목 또는 현재 필터 조건의 데이터)
- */
-function downloadData() {
-    const endpoint = currentTab === 'base'
-        ? '/api/targets/base/download/data'
-        : '/api/targets/promotion/download/data';
+        ? '/api/targets/base/download'
+        : '/api/targets/promotion/download';
 
     const tableManager = getActiveTableManager();
     const selectedIds = tableManager.getSelectedRows();

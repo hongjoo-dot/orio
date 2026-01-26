@@ -111,6 +111,15 @@ async def get_channel_metadata():
         raise HTTPException(500, f"메타데이터 조회 실패: {str(e)}")
 
 
+@router.get("/list")
+async def get_channel_list():
+    """채널 목록 조회 (드롭다운용) - ChannelID와 Name만 반환"""
+    try:
+        return channel_repo.get_channel_list()
+    except Exception as e:
+        raise HTTPException(500, f"채널 목록 조회 실패: {str(e)}")
+
+
 @router.get("/{channel_id}")
 async def get_channel(channel_id: int):
     """Channel 단일 조회"""
