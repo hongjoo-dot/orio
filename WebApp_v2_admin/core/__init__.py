@@ -10,6 +10,7 @@ from .decorators import (
     transactional, with_error_handling, retry_on_failure,
     log_execution_time, validate_input
 )
+from .activity_decorator import log_activity, log_delete, log_bulk_delete
 from .exceptions import (
     BaseRepositoryError, DatabaseConnectionError, RecordNotFoundError,
     DuplicateRecordError, ValidationError, ForeignKeyError,
@@ -41,6 +42,10 @@ __all__ = [
     'retry_on_failure',
     'log_execution_time',
     'validate_input',
+    # Activity Logging
+    'log_activity',
+    'log_delete',
+    'log_bulk_delete',
     # Exceptions
     'BaseRepositoryError',
     'DatabaseConnectionError',

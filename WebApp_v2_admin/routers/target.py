@@ -13,9 +13,10 @@ import io
 from datetime import datetime
 from repositories.target_base_repository import TargetBaseRepository
 from repositories.target_promotion_repository import TargetPromotionRepository
-from repositories import ActivityLogRepository, BrandRepository, ChannelRepository, ProductRepository
+from repositories import BrandRepository, ChannelRepository, ProductRepository
 from core import get_db_cursor
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete
 
 
 def _format_time_value(value, default: str = '00:00:00') -> str:
@@ -37,7 +38,6 @@ router = APIRouter(prefix="/api/targets/base", tags=["TargetBase"])
 
 # Repository 인스턴스
 target_base_repo = TargetBaseRepository()
-activity_log_repo = ActivityLogRepository()
 brand_repo = BrandRepository()
 channel_repo = ChannelRepository()
 product_repo = ProductRepository()
@@ -262,6 +262,7 @@ async def get_target_base_item(target_id: int):
 
 
 @router.post("")
+@log_activity("CREATE", "TargetBaseProduct", id_key="TargetBaseID")
 async def create_target_base(
     data: TargetBaseCreate,
     request: Request,
@@ -271,22 +272,13 @@ async def create_target_base(
     try:
         target_id = target_base_repo.create(data.dict(exclude_none=True))
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="TargetBaseProduct",
-                target_id=str(target_id),
-                details={"UniqueCode": data.UniqueCode, "Date": data.Date},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"TargetBaseID": target_id, **data.dict()}
+        return {"TargetBaseID": target_id, "UniqueCode": data.UniqueCode, "Date": data.Date}
     except Exception as e:
         raise HTTPException(500, f"목표 생성 실패: {str(e)}")
 
 
 @router.put("/{target_id}")
+@log_activity("UPDATE", "TargetBaseProduct", id_key="TargetBaseID")
 async def update_target_base(
     target_id: int,
     data: TargetBaseUpdate,
@@ -306,17 +298,7 @@ async def update_target_base(
         if not success:
             raise HTTPException(500, "목표 수정 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="TargetBaseProduct",
-                target_id=str(target_id),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "TargetBaseID": target_id}
+        return {"TargetBaseID": target_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -324,6 +306,7 @@ async def update_target_base(
 
 
 @router.delete("/{target_id}")
+@log_delete("TargetBaseProduct", id_param="target_id")
 async def delete_target_base(
     target_id: int,
     request: Request,
@@ -338,15 +321,6 @@ async def delete_target_base(
         if not success:
             raise HTTPException(500, "목표 삭제 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="TargetBaseProduct",
-                target_id=str(target_id),
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다"}
     except HTTPException:
         raise
@@ -355,6 +329,7 @@ async def delete_target_base(
 
 
 @router.post("/bulk-delete")
+@log_bulk_delete("TargetBaseProduct")
 async def bulk_delete_target_base(
     request_body: BulkDeleteRequest,
     request: Request,
@@ -367,15 +342,6 @@ async def bulk_delete_target_base(
 
         deleted_count = target_base_repo.bulk_delete(request_body.ids)
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="TargetBaseProduct",
-                details={"deleted_ids": request_body.ids, "count": deleted_count},
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:
         raise
@@ -384,6 +350,7 @@ async def bulk_delete_target_base(
 
 
 @router.post("/filter-delete")
+@log_activity("BULK_DELETE", "TargetBaseProduct")
 async def filter_delete_target_base(
     request_body: FilterDeleteRequest,
     request: Request,
@@ -397,19 +364,10 @@ async def filter_delete_target_base(
             channel_id=request_body.channel_id
         )
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="TargetBaseProduct",
-                details={
-                    "filter": request_body.dict(),
-                    "deleted_count": deleted_count
-                },
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "삭제되었습니다", "deleted_count": deleted_count}
+        return {
+            "deleted_count": deleted_count,
+            "filter": request_body.dict()
+        }
     except Exception as e:
         raise HTTPException(500, f"일괄 삭제 실패: {str(e)}")
 
@@ -987,6 +945,7 @@ async def get_target_promotion_item(target_id: int):
 
 
 @promotion_router.post("")
+@log_activity("CREATE", "TargetPromotionProduct", id_key="TargetPromotionID")
 async def create_target_promotion(
     data: TargetPromotionCreate,
     request: Request,
@@ -996,22 +955,13 @@ async def create_target_promotion(
     try:
         target_id = target_promotion_repo.create(data.dict(exclude_none=True))
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="TargetPromotionProduct",
-                target_id=str(target_id),
-                details={"PromotionID": data.PromotionID, "UniqueCode": data.UniqueCode},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"TargetPromotionID": target_id, **data.dict()}
+        return {"TargetPromotionID": target_id, "PromotionID": data.PromotionID, "UniqueCode": data.UniqueCode}
     except Exception as e:
         raise HTTPException(500, f"목표 생성 실패: {str(e)}")
 
 
 @promotion_router.put("/{target_id}")
+@log_activity("UPDATE", "TargetPromotionProduct", id_key="TargetPromotionID")
 async def update_target_promotion(
     target_id: int,
     data: TargetPromotionUpdate,
@@ -1031,17 +981,7 @@ async def update_target_promotion(
         if not success:
             raise HTTPException(500, "목표 수정 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="TargetPromotionProduct",
-                target_id=str(target_id),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "TargetPromotionID": target_id}
+        return {"TargetPromotionID": target_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -1049,6 +989,7 @@ async def update_target_promotion(
 
 
 @promotion_router.delete("/{target_id}")
+@log_delete("TargetPromotionProduct", id_param="target_id")
 async def delete_target_promotion(
     target_id: int,
     request: Request,
@@ -1063,15 +1004,6 @@ async def delete_target_promotion(
         if not success:
             raise HTTPException(500, "목표 삭제 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="TargetPromotionProduct",
-                target_id=str(target_id),
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다"}
     except HTTPException:
         raise
@@ -1080,6 +1012,7 @@ async def delete_target_promotion(
 
 
 @promotion_router.post("/bulk-delete")
+@log_bulk_delete("TargetPromotionProduct")
 async def bulk_delete_target_promotion(
     request_body: BulkDeleteRequest,
     request: Request,
@@ -1092,15 +1025,6 @@ async def bulk_delete_target_promotion(
 
         deleted_count = target_promotion_repo.bulk_delete(request_body.ids)
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="TargetPromotionProduct",
-                details={"deleted_ids": request_body.ids, "count": deleted_count},
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:
         raise
@@ -1109,6 +1033,7 @@ async def bulk_delete_target_promotion(
 
 
 @promotion_router.post("/filter-delete")
+@log_activity("BULK_DELETE", "TargetPromotionProduct")
 async def filter_delete_target_promotion(
     request_body: PromotionFilterDeleteRequest,
     request: Request,
@@ -1123,19 +1048,10 @@ async def filter_delete_target_promotion(
             promotion_type=request_body.promotion_type
         )
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="TargetPromotionProduct",
-                details={
-                    "filter": request_body.dict(),
-                    "deleted_count": deleted_count
-                },
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "삭제되었습니다", "deleted_count": deleted_count}
+        return {
+            "deleted_count": deleted_count,
+            "filter": request_body.dict()
+        }
     except Exception as e:
         raise HTTPException(500, f"일괄 삭제 실패: {str(e)}")
 

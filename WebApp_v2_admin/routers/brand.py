@@ -6,13 +6,11 @@ Brand Router
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional
-from repositories import BrandRepository, ActivityLogRepository
+from repositories import BrandRepository
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
+from core import log_activity, log_delete
 
 router = APIRouter(prefix="/api/brands", tags=["Brand"])
-
-# Repository 인스턴스
-activity_log_repo = ActivityLogRepository()
 
 # Repository 인스턴스
 brand_repo = BrandRepository()
@@ -72,6 +70,7 @@ async def get_brand(brand_id: int, user: CurrentUser = Depends(get_current_user)
 
 
 @router.post("")
+@log_activity("CREATE", "Brand", id_key="BrandID")
 async def create_brand(
     data: BrandCreate,
     request: Request,
@@ -80,22 +79,13 @@ async def create_brand(
     """Brand 생성"""
     try:
         brand_id = brand_repo.create(data.dict(exclude_none=True))
-
-        activity_log_repo.log_action(
-            user_id=user.user_id,
-            action_type="CREATE",
-            target_table="Brand",
-            target_id=str(brand_id),
-            details={"Name": data.Name, "Title": data.Title},
-            ip_address=get_client_ip(request)
-        )
-
-        return {"BrandID": brand_id, **data.dict()}
+        return {"BrandID": brand_id, "Name": data.Name, "Title": data.Title}
     except Exception as e:
         raise HTTPException(500, f"브랜드 생성 실패: {str(e)}")
 
 
 @router.put("/{brand_id}")
+@log_activity("UPDATE", "Brand", id_key="BrandID")
 async def update_brand(
     brand_id: int,
     data: BrandUpdate,
@@ -115,16 +105,7 @@ async def update_brand(
         if not success:
             raise HTTPException(500, "브랜드 수정 실패")
 
-        activity_log_repo.log_action(
-            user_id=user.user_id,
-            action_type="UPDATE",
-            target_table="Brand",
-            target_id=str(brand_id),
-            details=update_data,
-            ip_address=get_client_ip(request)
-        )
-
-        return {"message": "수정되었습니다", "BrandID": brand_id}
+        return {"BrandID": brand_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -132,6 +113,7 @@ async def update_brand(
 
 
 @router.delete("/{brand_id}")
+@log_delete("Brand", id_param="brand_id")
 async def delete_brand(
     brand_id: int,
     request: Request,
@@ -145,14 +127,6 @@ async def delete_brand(
         success = brand_repo.delete(brand_id)
         if not success:
             raise HTTPException(500, "브랜드 삭제 실패")
-
-        activity_log_repo.log_action(
-            user_id=user.user_id,
-            action_type="DELETE",
-            target_table="Brand",
-            target_id=str(brand_id),
-            ip_address=get_client_ip(request)
-        )
 
         return {"message": "삭제되었습니다"}
     except HTTPException:

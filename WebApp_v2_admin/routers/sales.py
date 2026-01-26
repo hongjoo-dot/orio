@@ -12,9 +12,10 @@ from typing import Optional, List
 import pandas as pd
 import io
 from datetime import datetime
-from repositories import SalesRepository, ActivityLogRepository
+from repositories import SalesRepository
 from core import get_db_cursor
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete
 from utils import send_sync_notification, send_erpsales_upload_notification
 from utils.excel import SalesExcelHandler
 
@@ -22,7 +23,6 @@ router = APIRouter(prefix="/api/erpsales", tags=["Sales"])
 
 # Repository 인스턴스
 sales_repo = SalesRepository()
-activity_log_repo = ActivityLogRepository()
 
 
 # Pydantic Models
@@ -136,6 +136,7 @@ async def get_sales_item(idx: int):
 
 
 @router.post("")
+@log_activity("CREATE", "ERPSales", id_key="IDX")
 async def create_sales(
     data: SalesCreate,
     request: Request,
@@ -145,22 +146,13 @@ async def create_sales(
     try:
         idx = sales_repo.create(data.dict(exclude_none=True))
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="ERPSales",
-                target_id=str(idx),
-                details={"PRODUCT_NAME": data.PRODUCT_NAME, "ERPCode": data.ERPCode},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"IDX": idx, **data.dict()}
+        return {"IDX": idx, "PRODUCT_NAME": data.PRODUCT_NAME, "ERPCode": data.ERPCode}
     except Exception as e:
         raise HTTPException(500, f"판매 데이터 생성 실패: {str(e)}")
 
 
 @router.put("/{idx}")
+@log_activity("UPDATE", "ERPSales", id_key="IDX")
 async def update_sales(
     idx: int,
     data: SalesUpdate,
@@ -180,17 +172,7 @@ async def update_sales(
         if not success:
             raise HTTPException(500, "판매 데이터 수정 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="ERPSales",
-                target_id=str(idx),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "IDX": idx}
+        return {"IDX": idx, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -198,6 +180,7 @@ async def update_sales(
 
 
 @router.delete("/{idx}")
+@log_delete("ERPSales", id_param="idx")
 async def delete_sales(
     idx: int,
     request: Request,
@@ -212,15 +195,6 @@ async def delete_sales(
         if not success:
             raise HTTPException(500, "판매 데이터 삭제 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="ERPSales",
-                target_id=str(idx),
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다"}
     except HTTPException:
         raise
@@ -229,6 +203,7 @@ async def delete_sales(
 
 
 @router.post("/bulk-delete")
+@log_bulk_delete("ERPSales")
 async def bulk_delete_sales(
     request_body: BulkDeleteRequest,
     request: Request,
@@ -241,15 +216,6 @@ async def bulk_delete_sales(
 
         deleted_count = sales_repo.bulk_delete(request_body.ids)
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="ERPSales",
-                details={"deleted_ids": request_body.ids, "count": deleted_count},
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:
         raise
@@ -258,6 +224,7 @@ async def bulk_delete_sales(
 
 
 @router.post("/bulk-update")
+@log_activity("BULK_UPDATE", "ERPSales")
 async def bulk_update_sales(
     request_body: BulkUpdateRequest,
     request: Request,
@@ -273,16 +240,11 @@ async def bulk_update_sales(
 
         updated_count = sales_repo.bulk_update(request_body.ids, request_body.updates)
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="ERPSales",
-                details={"updated_ids": request_body.ids, "count": updated_count, "updates": request_body.updates},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "updated_count": updated_count}
+        return {
+            "updated_count": updated_count,
+            "updated_ids": request_body.ids,
+            "updates": request_body.updates
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -550,6 +512,7 @@ async def upload_excel(
 
 
 @router.post("/sync-to-orders")
+@log_activity("SYNC", "OrdersRealtime")
 async def sync_erpsales_to_orders(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -590,25 +553,6 @@ async def sync_erpsales_to_orders(
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
 
-        # 활동 로그 기록 (동기화)
-        if user and request:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="OrdersRealtime",
-                details={
-                    "action": "SYNC_FROM_ERPSALES",
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "insert_count": insert_count,
-                    "update_count": update_count,
-                    "error_count": error_count,
-                    "duration_seconds": duration,
-                    "status": status
-                },
-                ip_address=get_client_ip(request)
-            )
-
         print(f"\n{'='*70}")
         print(f"동기화 완료")
         print(f"{'='*70}")
@@ -634,7 +578,7 @@ async def sync_erpsales_to_orders(
             print(f"[경고] Slack 알림 전송 실패: {str(slack_error)}")
 
         return {
-            "message": "Sync completed",
+            "action": "SYNC_FROM_ERPSALES",
             "status": status,
             "insert_count": insert_count,
             "update_count": update_count,

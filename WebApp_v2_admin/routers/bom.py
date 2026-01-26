@@ -9,14 +9,14 @@ BOM (ProductBOM) Router
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
-from repositories import BOMRepository, ActivityLogRepository
+from repositories import BOMRepository
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete
 
 router = APIRouter(prefix="/api/bom", tags=["BOM"])
 
 # Repository 인스턴스
 bom_repo = BOMRepository()
-activity_log_repo = ActivityLogRepository()
 
 
 # Pydantic Models
@@ -106,6 +106,7 @@ async def get_bom(bom_id: int):
 # ========== BOM 생성 엔드포인트 ==========
 
 @router.post("")
+@log_activity("CREATE", "ProductBOM", id_key="BOMID")
 async def create_bom(
     data: BOMCreateByERP,
     request: Request,
@@ -119,17 +120,7 @@ async def create_bom(
             quantity=data.QuantityRequired
         )
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="ProductBOM",
-                target_id=str(bom_id),
-                details={"ParentERPCode": data.ParentERPCode, "ChildERPCode": data.ChildERPCode},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"BOMID": bom_id, **data.dict()}
+        return {"BOMID": bom_id, "ParentERPCode": data.ParentERPCode, "ChildERPCode": data.ChildERPCode}
     except ValueError as e:
         raise HTTPException(404, str(e))
     except Exception as e:
@@ -137,6 +128,7 @@ async def create_bom(
 
 
 @router.post("/by-boxid")
+@log_activity("CREATE", "ProductBOM", id_key="BOMID")
 async def create_bom_by_boxid(
     data: BOMCreate,
     request: Request,
@@ -146,17 +138,7 @@ async def create_bom_by_boxid(
     try:
         bom_id = bom_repo.create(data.dict(exclude_none=True))
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="ProductBOM",
-                target_id=str(bom_id),
-                details={"ParentBoxID": data.ParentProductBoxID, "ChildBoxID": data.ChildProductBoxID},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"BOMID": bom_id, **data.dict()}
+        return {"BOMID": bom_id, "ParentBoxID": data.ParentProductBoxID, "ChildBoxID": data.ChildProductBoxID}
     except Exception as e:
         raise HTTPException(500, f"BOM 생성 실패: {str(e)}")
 
@@ -164,6 +146,7 @@ async def create_bom_by_boxid(
 # ========== BOM 수정/삭제 엔드포인트 ==========
 
 @router.put("/{bom_id}")
+@log_activity("UPDATE", "ProductBOM", id_key="BOMID")
 async def update_bom(
     bom_id: int,
     data: BOMUpdate,
@@ -183,17 +166,7 @@ async def update_bom(
         if not success:
             raise HTTPException(500, "BOM 수정 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="ProductBOM",
-                target_id=str(bom_id),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "BOMID": bom_id}
+        return {"BOMID": bom_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -201,6 +174,7 @@ async def update_bom(
 
 
 @router.delete("/{bom_id}")
+@log_delete("ProductBOM", id_param="bom_id")
 async def delete_bom(
     bom_id: int,
     request: Request,
@@ -215,15 +189,6 @@ async def delete_bom(
         if not success:
             raise HTTPException(500, "BOM 삭제 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="ProductBOM",
-                target_id=str(bom_id),
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다"}
     except HTTPException:
         raise
@@ -232,6 +197,7 @@ async def delete_bom(
 
 
 @router.post("/bulk-delete")
+@log_bulk_delete("ProductBOM")
 async def bulk_delete_bom(
     request_body: BulkDeleteRequest,
     request: Request,
@@ -243,15 +209,6 @@ async def bulk_delete_bom(
             raise HTTPException(400, "삭제할 ID가 없습니다")
 
         deleted_count = bom_repo.bulk_delete(request_body.ids)
-
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="ProductBOM",
-                details={"deleted_ids": request_body.ids, "count": deleted_count},
-                ip_address=get_client_ip(request)
-            )
 
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:

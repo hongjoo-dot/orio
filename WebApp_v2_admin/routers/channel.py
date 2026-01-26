@@ -8,15 +8,15 @@ Channel Router
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
-from repositories import ChannelRepository, ChannelDetailRepository, ActivityLogRepository
+from repositories import ChannelRepository, ChannelDetailRepository
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete
 
 router = APIRouter(prefix="/api/channels", tags=["Channel"])
 
 # Repository 인스턴스
 channel_repo = ChannelRepository()
 detail_repo = ChannelDetailRepository()
-activity_log_repo = ActivityLogRepository()
 
 
 # Pydantic Models
@@ -135,6 +135,7 @@ async def get_channel(channel_id: int):
 
 
 @router.post("")
+@log_activity("CREATE", "Channel", id_key="ChannelID")
 async def create_channel(
     data: ChannelCreate,
     request: Request,
@@ -147,17 +148,7 @@ async def create_channel(
 
         channel_id = channel_repo.create(data.dict(exclude_none=True))
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="Channel",
-                target_id=str(channel_id),
-                details={"Name": data.Name},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"ChannelID": channel_id, **data.dict()}
+        return {"ChannelID": channel_id, "Name": data.Name}
     except HTTPException:
         raise
     except Exception as e:
@@ -165,6 +156,7 @@ async def create_channel(
 
 
 @router.post("/integrated")
+@log_activity("CREATE", "Channel+ChannelDetail", id_key="ChannelID")
 async def create_channel_integrated(
     data: ChannelIntegratedCreate,
     request: Request,
@@ -177,15 +169,8 @@ async def create_channel_integrated(
             details=[d.dict(exclude_none=True) for d in data.details]
         )
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="Channel+ChannelDetail",
-                target_id=str(result.get("ChannelID")),
-                details={"Name": data.channel.Name, "details_count": len(data.details)},
-                ip_address=get_client_ip(request)
-            )
+        result["Name"] = data.channel.Name
+        result["details_count"] = len(data.details)
 
         return result
     except HTTPException:
@@ -195,6 +180,7 @@ async def create_channel_integrated(
 
 
 @router.put("/{channel_id}")
+@log_activity("UPDATE", "Channel", id_key="ChannelID")
 async def update_channel(
     channel_id: int,
     data: ChannelUpdate,
@@ -217,17 +203,7 @@ async def update_channel(
         if not success:
             raise HTTPException(500, "채널 수정 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="Channel",
-                target_id=str(channel_id),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "ChannelID": channel_id}
+        return {"ChannelID": channel_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -235,6 +211,7 @@ async def update_channel(
 
 
 @router.delete("/{channel_id}")
+@log_delete("Channel", id_param="channel_id")
 async def delete_channel(
     channel_id: int,
     request: Request,
@@ -251,15 +228,6 @@ async def delete_channel(
         if not success:
             raise HTTPException(500, "채널 삭제 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="Channel",
-                target_id=str(channel_id),
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다"}
     except HTTPException:
         raise
@@ -268,6 +236,7 @@ async def delete_channel(
 
 
 @router.post("/bulk-delete")
+@log_bulk_delete("Channel")
 async def bulk_delete_channels(
     request_body: BulkDeleteRequest,
     request: Request,
@@ -282,15 +251,6 @@ async def bulk_delete_channels(
             detail_repo.delete_by_channel_id(channel_id)
 
         deleted_count = channel_repo.bulk_delete(request_body.ids)
-
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="Channel",
-                details={"deleted_ids": request_body.ids, "count": deleted_count},
-                ip_address=get_client_ip(request)
-            )
 
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:
@@ -312,6 +272,7 @@ async def get_channel_details(channel_id: int):
 
 
 @router.post("/{channel_id}/details")
+@log_activity("CREATE", "ChannelDetail", id_key="ChannelDetailID")
 async def create_channel_detail(
     channel_id: int,
     data: ChannelDetailCreate,
@@ -327,17 +288,7 @@ async def create_channel_detail(
         detail_data['ChannelID'] = channel_id
         detail_id = detail_repo.create(detail_data)
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="ChannelDetail",
-                target_id=str(detail_id),
-                details={"DetailName": data.DetailName, "ChannelID": channel_id},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"ChannelDetailID": detail_id, **detail_data}
+        return {"ChannelDetailID": detail_id, "DetailName": data.DetailName, "ChannelID": channel_id}
     except HTTPException:
         raise
     except Exception as e:
@@ -345,6 +296,7 @@ async def create_channel_detail(
 
 
 @router.put("/details/{detail_id}")
+@log_activity("UPDATE", "ChannelDetail", id_key="ChannelDetailID")
 async def update_channel_detail(
     detail_id: int,
     data: ChannelDetailUpdate,
@@ -364,17 +316,7 @@ async def update_channel_detail(
         if not success:
             raise HTTPException(500, "채널 상세 수정 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="ChannelDetail",
-                target_id=str(detail_id),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "ChannelDetailID": detail_id}
+        return {"ChannelDetailID": detail_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -382,6 +324,7 @@ async def update_channel_detail(
 
 
 @router.delete("/details/{detail_id}")
+@log_delete("ChannelDetail", id_param="detail_id")
 async def delete_channel_detail(
     detail_id: int,
     request: Request,
@@ -392,15 +335,6 @@ async def delete_channel_detail(
         success = detail_repo.delete(detail_id)
         if not success:
             raise HTTPException(404, "채널 상세를 찾을 수 없습니다")
-
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="ChannelDetail",
-                target_id=str(detail_id),
-                ip_address=get_client_ip(request)
-            )
 
         return {"message": "삭제되었습니다"}
     except HTTPException:
@@ -463,6 +397,7 @@ class ChannelDetailFull(BaseModel):
 
 
 @channeldetail_router.post("")
+@log_activity("CREATE", "ChannelDetail", id_key="ChannelDetailID")
 async def create_channeldetail_direct(
     data: ChannelDetailFull,
     request: Request,
@@ -478,17 +413,7 @@ async def create_channeldetail_direct(
 
         detail_id = detail_repo.create(data.dict(exclude_none=True))
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="ChannelDetail",
-                target_id=str(detail_id),
-                details={"DetailName": data.DetailName, "ChannelID": data.ChannelID},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"ChannelDetailID": detail_id, **data.dict()}
+        return {"ChannelDetailID": detail_id, "DetailName": data.DetailName, "ChannelID": data.ChannelID}
     except HTTPException:
         raise
     except Exception as e:
@@ -496,6 +421,7 @@ async def create_channeldetail_direct(
 
 
 @channeldetail_router.put("/{detail_id}")
+@log_activity("UPDATE", "ChannelDetail", id_key="ChannelDetailID")
 async def update_channeldetail_direct(
     detail_id: int,
     data: ChannelDetailFull,
@@ -521,17 +447,7 @@ async def update_channeldetail_direct(
         if not success:
             raise HTTPException(500, "상세정보 수정 실패")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="ChannelDetail",
-                target_id=str(detail_id),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "ChannelDetailID": detail_id}
+        return {"ChannelDetailID": detail_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -539,6 +455,7 @@ async def update_channeldetail_direct(
 
 
 @channeldetail_router.delete("/{detail_id}")
+@log_delete("ChannelDetail", id_param="detail_id")
 async def delete_channeldetail_direct(
     detail_id: int,
     request: Request,
@@ -550,15 +467,6 @@ async def delete_channeldetail_direct(
         if not success:
             raise HTTPException(404, "상세정보를 찾을 수 없습니다")
 
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="ChannelDetail",
-                target_id=str(detail_id),
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다"}
     except HTTPException:
         raise
@@ -567,6 +475,7 @@ async def delete_channeldetail_direct(
 
 
 @channeldetail_router.post("/bulk-delete")
+@log_bulk_delete("ChannelDetail")
 async def bulk_delete_channeldetails(
     request_body: BulkDeleteRequest,
     request: Request,
@@ -581,15 +490,6 @@ async def bulk_delete_channeldetails(
         for detail_id in request_body.ids:
             if detail_repo.delete(detail_id):
                 deleted_count += 1
-
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="ChannelDetail",
-                details={"deleted_ids": request_body.ids, "count": deleted_count},
-                ip_address=get_client_ip(request)
-            )
 
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:

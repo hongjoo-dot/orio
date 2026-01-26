@@ -13,8 +13,9 @@ import pandas as pd
 import io
 from datetime import datetime
 from urllib.parse import quote
-from repositories import ProductRepository, ProductBoxRepository, ActivityLogRepository
+from repositories import ProductRepository, ProductBoxRepository
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete
 from utils.excel import ProductExcelHandler
 
 router = APIRouter(prefix="/api/products", tags=["Product"])
@@ -22,7 +23,6 @@ router = APIRouter(prefix="/api/products", tags=["Product"])
 # Repository 인스턴스
 product_repo = ProductRepository()
 box_repo = ProductBoxRepository()
-activity_log_repo = ActivityLogRepository()
 
 
 # Pydantic Models
@@ -286,6 +286,7 @@ async def get_product(product_id: int):
 
 
 @router.post("")
+@log_activity("CREATE", "Product", id_key="ProductID")
 async def create_product(
     data: ProductCreate,
     request: Request,
@@ -300,22 +301,7 @@ async def create_product(
         # 생성
         product_id = product_repo.create(data.dict(exclude_none=True))
 
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="Product",
-                target_id=str(product_id),
-                details={"Name": data.Name, "UniqueCode": data.UniqueCode},
-                ip_address=get_client_ip(request)
-            )
-
-        # 생성된 제품 반환
-        return {
-            "ProductID": product_id,
-            **data.dict()
-        }
+        return {"ProductID": product_id, "Name": data.Name, "UniqueCode": data.UniqueCode}
     except HTTPException:
         raise
     except Exception as e:
@@ -323,6 +309,7 @@ async def create_product(
 
 
 @router.post("/integrated")
+@log_activity("CREATE", "Product+ProductBox", id_key="ProductID")
 async def create_product_integrated(
     data: ProductIntegratedCreate,
     request: Request,
@@ -351,16 +338,9 @@ async def create_product_integrated(
             box_data=data.box.dict(exclude_none=True)
         )
 
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="Product+ProductBox",
-                target_id=str(result.get("ProductID")),
-                details={"Name": data.product.Name, "ERPCode": data.box.ERPCode},
-                ip_address=get_client_ip(request)
-            )
+        # 로깅용 정보 추가
+        result["Name"] = data.product.Name
+        result["ERPCode"] = data.box.ERPCode
 
         return result
     except HTTPException:
@@ -370,6 +350,7 @@ async def create_product_integrated(
 
 
 @router.put("/{product_id}")
+@log_activity("UPDATE", "Product", id_key="ProductID")
 async def update_product(
     product_id: int,
     data: ProductUpdate,
@@ -396,18 +377,7 @@ async def update_product(
         if not success:
             raise HTTPException(500, "제품 수정 실패")
 
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="Product",
-                target_id=str(product_id),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "ProductID": product_id}
+        return {"ProductID": product_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -415,6 +385,7 @@ async def update_product(
 
 
 @router.delete("/{product_id}")
+@log_delete("Product", id_param="product_id")
 async def delete_product(
     product_id: int,
     request: Request,
@@ -435,16 +406,6 @@ async def delete_product(
         if not success:
             raise HTTPException(500, "제품 삭제 실패")
 
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="Product",
-                target_id=str(product_id),
-                ip_address=get_client_ip(request)
-            )
-
         return {"message": "삭제되었습니다"}
     except HTTPException:
         raise
@@ -453,6 +414,7 @@ async def delete_product(
 
 
 @router.post("/bulk-delete")
+@log_bulk_delete("Product")
 async def bulk_delete_products(
     request_body: BulkDeleteRequest,
     request: Request,
@@ -470,20 +432,7 @@ async def bulk_delete_products(
         # Product 일괄 삭제
         deleted_count = product_repo.bulk_delete(request_body.ids)
 
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="BULK_DELETE",
-                target_table="Product",
-                details={"deleted_ids": request_body.ids, "count": deleted_count},
-                ip_address=get_client_ip(request)
-            )
-
-        return {
-            "message": "삭제되었습니다",
-            "deleted_count": deleted_count
-        }
+        return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:
         raise
     except Exception as e:
@@ -538,6 +487,7 @@ async def download_excel(
 
 
 @router.post("/upload")
+@log_activity("EXCEL_UPLOAD", "Product")
 async def upload_excel(
     file: UploadFile = File(...),
     request: Request = None,
@@ -548,17 +498,6 @@ async def upload_excel(
         content = await file.read()
         handler = ProductExcelHandler()
         result = handler.process_upload(content)
-        
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="EXCEL_UPLOAD",
-                target_table="Product",
-                details=result,
-                ip_address=get_client_ip(request)
-            )
-            
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -579,6 +518,7 @@ async def get_product_boxes(product_id: int):
 
 
 @router.post("/{product_id}/boxes")
+@log_activity("CREATE", "ProductBox", id_key="BoxID")
 async def create_product_box(
     product_id: int,
     data: ProductBoxCreate,
@@ -601,21 +541,7 @@ async def create_product_box(
 
         box_id = box_repo.create(box_data)
 
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="ProductBox",
-                target_id=str(box_id),
-                details={"ERPCode": data.ERPCode, "ProductID": product_id},
-                ip_address=get_client_ip(request)
-            )
-
-        return {
-            "BoxID": box_id,
-            **box_data
-        }
+        return {"BoxID": box_id, "ERPCode": data.ERPCode, "ProductID": product_id}
     except HTTPException:
         raise
     except Exception as e:
@@ -623,6 +549,7 @@ async def create_product_box(
 
 
 @router.delete("/boxes/{box_id}")
+@log_delete("ProductBox", id_param="box_id")
 async def delete_product_box(
     box_id: int,
     request: Request,
@@ -634,16 +561,6 @@ async def delete_product_box(
 
         if not success:
             raise HTTPException(404, "Box를 찾을 수 없습니다")
-
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="ProductBox",
-                target_id=str(box_id),
-                ip_address=get_client_ip(request)
-            )
 
         return {"message": "삭제되었습니다"}
     except HTTPException:
@@ -696,6 +613,7 @@ async def get_productbox_by_id(box_id: int):
 
 
 @productbox_router.post("")
+@log_activity("CREATE", "ProductBox", id_key="BoxID")
 async def create_productbox_direct(
     data: ProductBoxFull,
     request: Request,
@@ -713,18 +631,7 @@ async def create_productbox_direct(
 
         box_id = box_repo.create(data.dict(exclude_none=True))
 
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="CREATE",
-                target_table="ProductBox",
-                target_id=str(box_id),
-                details={"ERPCode": data.ERPCode, "ProductID": data.ProductID},
-                ip_address=get_client_ip(request)
-            )
-
-        return {"BoxID": box_id, **data.dict()}
+        return {"BoxID": box_id, "ERPCode": data.ERPCode, "ProductID": data.ProductID}
     except HTTPException:
         raise
     except Exception as e:
@@ -732,6 +639,7 @@ async def create_productbox_direct(
 
 
 @productbox_router.put("/{box_id}")
+@log_activity("UPDATE", "ProductBox", id_key="BoxID")
 async def update_productbox_direct(
     box_id: int,
     data: ProductBoxFull,
@@ -755,18 +663,7 @@ async def update_productbox_direct(
         if not success:
             raise HTTPException(500, "Box 수정 실패")
 
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="UPDATE",
-                target_table="ProductBox",
-                target_id=str(box_id),
-                details=update_data,
-                ip_address=get_client_ip(request)
-            )
-
-        return {"message": "수정되었습니다", "BoxID": box_id}
+        return {"BoxID": box_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -774,6 +671,7 @@ async def update_productbox_direct(
 
 
 @productbox_router.delete("/{box_id}")
+@log_delete("ProductBox", id_param="box_id")
 async def delete_productbox_direct(
     box_id: int,
     request: Request,
@@ -784,16 +682,6 @@ async def delete_productbox_direct(
         success = box_repo.delete(box_id)
         if not success:
             raise HTTPException(404, "Box를 찾을 수 없습니다")
-
-        # 활동 로그 기록
-        if user:
-            activity_log_repo.log_action(
-                user_id=user.user_id,
-                action_type="DELETE",
-                target_table="ProductBox",
-                target_id=str(box_id),
-                ip_address=get_client_ip(request)
-            )
 
         return {"message": "삭제되었습니다"}
     except HTTPException:
