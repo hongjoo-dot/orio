@@ -156,58 +156,34 @@ class TargetPromotionRepository(BaseRepository):
                         if cursor.rowcount > 0:
                             total_updated += 1
                     else:
-                        # ID가 없으면 복합키 기반 MERGE
-                        merge_query = """
-                            MERGE [dbo].[TargetPromotionProduct] AS target
-                            USING (SELECT ? AS PromotionID, ? AS StartDate, ? AS StartTime,
-                                          ? AS EndDate, ? AS EndTime, ? AS UniqueCode) AS source
-                            ON target.PromotionID = source.PromotionID
-                               AND target.StartDate = source.StartDate
-                               AND target.StartTime = source.StartTime
-                               AND target.EndDate = source.EndDate
-                               AND target.EndTime = source.EndTime
-                               AND target.UniqueCode = source.UniqueCode
-                            WHEN MATCHED THEN
-                                UPDATE SET
-                                    PromotionName = ?,
-                                    BrandID = ?,
-                                    BrandName = ?,
-                                    ChannelID = ?,
-                                    ChannelName = ?,
-                                    ProductName = ?,
-                                    TargetAmount = ?,
-                                    TargetQuantity = ?,
-                                    Notes = ?,
-                                    PromotionType = ?,
-                                    UpdatedDate = GETDATE()
-                            WHEN NOT MATCHED THEN
-                                INSERT (PromotionID, PromotionName, StartDate, StartTime, EndDate, EndTime,
-                                        BrandID, BrandName, ChannelID, ChannelName,
-                                        UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes, PromotionType)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            OUTPUT $action;
+                        # ID가 없으면 복합키로 중복 체크 후 INSERT
+                        # 복합키: BrandID + ChannelID + PromotionType + StartDate + UniqueCode
+                        check_query = """
+                            SELECT 1 FROM [dbo].[TargetPromotionProduct]
+                            WHERE BrandID = ? AND ChannelID = ? AND PromotionType = ?
+                              AND StartDate = ? AND UniqueCode = ?
                         """
-
-                        params = [
-                            # source 파라미터 (6개)
-                            record.get('PromotionID'),
-                            record.get('StartDate'),
-                            record.get('StartTime', '00:00:00'),
-                            record.get('EndDate'),
-                            record.get('EndTime', '00:00:00'),
-                            record.get('UniqueCode'),
-                            # UPDATE 파라미터 (10개)
-                            record.get('PromotionName'),
+                        cursor.execute(check_query,
                             record.get('BrandID'),
-                            record.get('BrandName'),
                             record.get('ChannelID'),
-                            record.get('ChannelName'),
-                            record.get('ProductName'),
-                            record.get('TargetAmount'),
-                            record.get('TargetQuantity'),
-                            record.get('Notes'),
                             record.get('PromotionType'),
-                            # INSERT 파라미터 (16개)
+                            record.get('StartDate'),
+                            record.get('UniqueCode')
+                        )
+
+                        if cursor.fetchone():
+                            # 중복 존재 - 스킵
+                            continue
+
+                        # 중복 없음 - INSERT
+                        insert_query = """
+                            INSERT INTO [dbo].[TargetPromotionProduct]
+                                (PromotionID, PromotionName, StartDate, StartTime, EndDate, EndTime,
+                                 BrandID, BrandName, ChannelID, ChannelName,
+                                 UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes, PromotionType)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """
+                        params = [
                             record.get('PromotionID'),
                             record.get('PromotionName'),
                             record.get('StartDate'),
@@ -225,16 +201,9 @@ class TargetPromotionRepository(BaseRepository):
                             record.get('Notes'),
                             record.get('PromotionType'),
                         ]
-
-                        cursor.execute(merge_query, *params)
-                        result = cursor.fetchone()
-
-                        if result:
-                            action = result[0]
-                            if action == 'INSERT':
-                                total_inserted += 1
-                            elif action == 'UPDATE':
-                                total_updated += 1
+                        cursor.execute(insert_query, *params)
+                        if cursor.rowcount > 0:
+                            total_inserted += 1
 
         return {"inserted": total_inserted, "updated": total_updated}
 

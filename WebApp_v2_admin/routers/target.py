@@ -1325,6 +1325,41 @@ async def upload_target_promotion(
                 error_messages.append(f"존재하지 않는 행사유형: {display_name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
+        # 신규 행 중복 체크 (복합키: BrandID + ChannelID + PromotionType + StartDate + UniqueCode)
+        duplicate_rows = []
+        for idx, row in df.iterrows():
+            # ID가 있는 행은 수정이므로 중복 체크 불필요
+            if 'TargetPromotionID' in df.columns and pd.notna(row.get('TargetPromotionID')):
+                continue
+
+            brand_name = str(row['BrandName']).strip() if pd.notna(row['BrandName']) else None
+            channel_name = str(row['ChannelName']).strip() if pd.notna(row['ChannelName']) else None
+            promo_type = str(row['PromotionType']).strip() if pd.notna(row.get('PromotionType')) else None
+            unique_code = str(row['UniqueCode']).strip() if pd.notna(row['UniqueCode']) else None
+
+            if brand_name and channel_name and promo_type and unique_code and pd.notna(row['StartDate']):
+                brand_info = brand_map.get(brand_name, {})
+                channel_info = channel_map.get(channel_name, {})
+                type_info = promotion_type_map.get(promo_type, {})
+
+                brand_id = brand_info.get('BrandID')
+                channel_id_val = channel_info.get('ChannelID')
+                promo_type_val = type_info.get('DisplayName')
+                start_date = row['StartDate'].strftime('%Y-%m-%d') if hasattr(row['StartDate'], 'strftime') else str(row['StartDate'])[:10]
+
+                if brand_id and channel_id_val and promo_type_val:
+                    with get_db_cursor(commit=False) as cursor:
+                        cursor.execute("""
+                            SELECT 1 FROM [dbo].[TargetPromotionProduct]
+                            WHERE BrandID = ? AND ChannelID = ? AND PromotionType = ?
+                              AND StartDate = ? AND UniqueCode = ?
+                        """, brand_id, channel_id_val, promo_type_val, start_date, unique_code)
+                        if cursor.fetchone():
+                            duplicate_rows.append(idx + 2)  # 엑셀 행 번호
+
+        if duplicate_rows:
+            raise HTTPException(400, f"이미 등록된 데이터가 있습니다. 동일 조건(브랜드+채널+행사유형+시작일+상품코드)의 데이터가 존재합니다. (행 {', '.join(map(str, duplicate_rows[:10]))}{'...' if len(duplicate_rows) > 10 else ''})")
+
         # PromotionID 자동 생성을 위한 접두사별 순번 관리
         # 형식: BrandCode(2) + TypeCode(2) + YYMM(4) + Sequence(2) = 10자리
         prefix_sequences = {}  # {prefix: current_sequence}
