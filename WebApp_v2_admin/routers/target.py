@@ -17,6 +17,21 @@ from repositories import ActivityLogRepository, BrandRepository, ChannelReposito
 from core import get_db_cursor
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
 
+
+def _format_time_value(value, default: str = '00:00:00') -> str:
+    """시간 값을 HH:MM:SS 형식으로 변환"""
+    if pd.isna(value):
+        return default
+    if hasattr(value, 'strftime'):
+        return value.strftime('%H:%M:%S')
+    time_str = str(value).strip()
+    if len(time_str) == 5:  # HH:MM
+        return time_str + ':00'
+    elif len(time_str) >= 8:  # HH:MM:SS
+        return time_str[:8]
+    return default
+
+
 # ========== 기본 목표 Router ==========
 router = APIRouter(prefix="/api/targets/base", tags=["TargetBase"])
 
@@ -73,9 +88,7 @@ async def get_target_base_list(
     limit: int = 20,
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
-    unique_code: Optional[str] = None,
-    product_name: Optional[str] = None
+    channel_id: Optional[int] = None
 ):
     """기본 목표 목록 조회"""
     try:
@@ -86,10 +99,6 @@ async def get_target_base_list(
             filters['brand_id'] = brand_id
         if channel_id:
             filters['channel_id'] = channel_id
-        if unique_code:
-            filters['unique_code'] = unique_code
-        if product_name:
-            filters['product_name'] = product_name
 
         result = target_base_repo.get_list(
             page=page,
@@ -641,7 +650,7 @@ class PromotionFilterDeleteRequest(BaseModel):
     year_month: str
     brand_id: Optional[int] = None
     channel_id: Optional[int] = None
-    promotion_id: Optional[str] = None
+    promotion_type: Optional[str] = None
 
 
 # ========== 행사 목표 CRUD ==========
@@ -653,9 +662,7 @@ async def get_target_promotion_list(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_id: Optional[str] = None,
-    unique_code: Optional[str] = None,
-    product_name: Optional[str] = None
+    promotion_type: Optional[str] = None
 ):
     """행사 목표 목록 조회"""
     try:
@@ -666,12 +673,8 @@ async def get_target_promotion_list(
             filters['brand_id'] = brand_id
         if channel_id:
             filters['channel_id'] = channel_id
-        if promotion_id:
-            filters['promotion_id'] = promotion_id
-        if unique_code:
-            filters['unique_code'] = unique_code
-        if product_name:
-            filters['product_name'] = product_name
+        if promotion_type:
+            filters['promotion_type'] = promotion_type
 
         result = target_promotion_repo.get_list(
             page=page,
@@ -695,14 +698,14 @@ async def get_target_promotion_year_months():
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
 
 
-@promotion_router.get("/promotions")
-async def get_promotions_list(year_month: Optional[str] = None):
-    """행사 목록 조회 (드롭다운용)"""
+@promotion_router.get("/promotion-types")
+async def get_promotion_types():
+    """행사유형 목록 조회 (드롭다운용)"""
     try:
-        promotions = target_promotion_repo.get_promotions(year_month)
-        return {"promotions": promotions}
+        promotion_types = target_promotion_repo.get_promotion_types()
+        return {"promotion_types": promotion_types}
     except Exception as e:
-        raise HTTPException(500, f"행사 목록 조회 실패: {str(e)}")
+        raise HTTPException(500, f"행사유형 목록 조회 실패: {str(e)}")
 
 
 @promotion_router.get("/download")
@@ -710,7 +713,7 @@ async def download_target_promotion(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_id: Optional[str] = None,
+    promotion_type: Optional[str] = None,
     ids: Optional[str] = None
 ):
     """행사 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
@@ -721,7 +724,7 @@ async def download_target_promotion(
         if ids:
             id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
             data = target_promotion_repo.get_by_ids(id_list)
-        elif year_month or brand_id or channel_id or promotion_id:
+        elif year_month or brand_id or channel_id or promotion_type:
             # 필터 조건이 있으면 해당 조건으로 조회
             filters = {}
             if year_month:
@@ -730,8 +733,8 @@ async def download_target_promotion(
                 filters['brand_id'] = brand_id
             if channel_id:
                 filters['channel_id'] = channel_id
-            if promotion_id:
-                filters['promotion_id'] = promotion_id
+            if promotion_type:
+                filters['promotion_type'] = promotion_type
 
             result = target_promotion_repo.get_list(page=1, limit=100000, filters=filters)
             data = result['data']
@@ -1117,7 +1120,7 @@ async def filter_delete_target_promotion(
             year_month=request_body.year_month,
             brand_id=request_body.brand_id,
             channel_id=request_body.channel_id,
-            promotion_id=request_body.promotion_id
+            promotion_type=request_body.promotion_type
         )
 
         if user:
@@ -1398,36 +1401,8 @@ async def upload_target_promotion(
         records = []
         for idx, row in df.iterrows():
             # 시간 포맷 처리 (HH:MM:SS)
-            start_time_val = row.get('StartTime', '00:00:00')
-            end_time_val = row.get('EndTime', '00:00:00')
-
-            if pd.isna(start_time_val):
-                start_time_val = '00:00:00'
-            elif hasattr(start_time_val, 'strftime'):
-                start_time_val = start_time_val.strftime('%H:%M:%S')
-            else:
-                # HH:MM 형식이면 :00 추가
-                start_time_str = str(start_time_val).strip()
-                if len(start_time_str) == 5:  # HH:MM
-                    start_time_val = start_time_str + ':00'
-                elif len(start_time_str) >= 8:  # HH:MM:SS
-                    start_time_val = start_time_str[:8]
-                else:
-                    start_time_val = '00:00:00'
-
-            if pd.isna(end_time_val):
-                end_time_val = '00:00:00'
-            elif hasattr(end_time_val, 'strftime'):
-                end_time_val = end_time_val.strftime('%H:%M:%S')
-            else:
-                # HH:MM 형식이면 :00 추가
-                end_time_str = str(end_time_val).strip()
-                if len(end_time_str) == 5:  # HH:MM
-                    end_time_val = end_time_str + ':00'
-                elif len(end_time_str) >= 8:  # HH:MM:SS
-                    end_time_val = end_time_str[:8]
-                else:
-                    end_time_val = '00:00:00'
+            start_time_val = _format_time_value(row.get('StartTime', '00:00:00'))
+            end_time_val = _format_time_value(row.get('EndTime', '00:00:00'))
 
             brand_name = row['BrandName'] if pd.notna(row['BrandName']) and row['BrandName'] != 'nan' else None
             channel_name = row['ChannelName'] if pd.notna(row['ChannelName']) and row['ChannelName'] != 'nan' else None

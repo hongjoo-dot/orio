@@ -146,9 +146,9 @@ function switchTab(tab) {
     document.getElementById('uploadModalTitle').textContent =
         tab === 'base' ? '기본 목표 데이터 업로드' : '행사 목표 데이터 업로드';
 
-    // 행사 목표 탭이면 행사 목록 로드
+    // 행사 목표 탭이면 행사유형 목록 로드
     if (tab === 'promotion') {
-        loadPromotions();
+        loadPromotionTypes();
     }
 
     // 선택 해제 및 데이터 새로고침
@@ -229,30 +229,24 @@ async function loadYearMonths() {
 }
 
 /**
- * 행사 목록 로드 (행사 목표 탭용)
+ * 행사유형 목록 로드 (행사 목표 탭용)
  */
-async function loadPromotions() {
+async function loadPromotionTypes() {
     try {
-        const yearMonth = document.getElementById('searchYearMonth').value;
-        let endpoint = '/api/targets/promotion/promotions';
-        if (yearMonth) {
-            endpoint += `?year_month=${yearMonth}`;
-        }
+        const result = await api.get('/api/targets/promotion/promotion-types');
+        const promotionTypes = result.promotion_types || [];
 
-        const result = await api.get(endpoint);
-        const promotions = result.promotions || [];
-
-        const select = document.getElementById('searchPromotion');
+        const select = document.getElementById('searchPromotionType');
         select.innerHTML = '<option value="">전체</option>';
 
-        promotions.forEach(promo => {
+        promotionTypes.forEach(type => {
             const option = document.createElement('option');
-            option.value = promo.PromotionID;
-            option.textContent = `${promo.PromotionID} - ${promo.PromotionName || ''}`;
+            option.value = type;
+            option.textContent = type;
             select.appendChild(option);
         });
     } catch (e) {
-        console.error('행사 목록 로드 실패:', e);
+        console.error('행사유형 로드 실패:', e);
     }
 }
 
@@ -314,10 +308,10 @@ function applyFilters() {
     if (brandId) currentFilters.brand_id = brandId;
     if (channelId) currentFilters.channel_id = channelId;
 
-    // 행사 목표 탭인 경우 행사 필터 추가
+    // 행사 목표 탭인 경우 행사유형 필터 추가
     if (currentTab === 'promotion') {
-        const promotionId = document.getElementById('searchPromotion').value;
-        if (promotionId) currentFilters.promotion_id = promotionId;
+        const promotionType = document.getElementById('searchPromotionType').value;
+        if (promotionType) currentFilters.promotion_type = promotionType;
     }
 
     loadData(1, currentLimit);
@@ -330,7 +324,7 @@ function resetFilters() {
     document.getElementById('searchYearMonth').value = '';
     document.getElementById('searchBrand').value = '';
     document.getElementById('searchChannel').value = '';
-    document.getElementById('searchPromotion').value = '';
+    document.getElementById('searchPromotionType').value = '';
 
     currentFilters = {};
     loadData(1, currentLimit);

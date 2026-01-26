@@ -10,24 +10,26 @@ from core import BaseRepository, QueryBuilder, get_db_cursor
 class TargetPromotionRepository(BaseRepository):
     """TargetPromotionProduct 테이블 Repository"""
 
+    # SELECT 컬럼 상수 (순서 변경 금지 - _row_to_dict 인덱스와 일치해야 함)
+    SELECT_COLUMNS = (
+        "t.TargetPromotionID",
+        "t.PromotionID", "t.PromotionName",
+        "t.StartDate", "t.StartTime", "t.EndDate", "t.EndTime",
+        "t.BrandID", "t.BrandName",
+        "t.ChannelID", "t.ChannelName",
+        "t.UniqueCode", "t.ProductName",
+        "t.TargetAmount", "t.TargetQuantity",
+        "t.Notes", "t.PromotionType",
+        "t.CreatedDate", "t.UpdatedDate"
+    )
+
     def __init__(self):
         super().__init__(table_name="[dbo].[TargetPromotionProduct]", id_column="TargetPromotionID")
 
     def get_select_query(self) -> str:
         """TargetPromotionProduct 조회 쿼리"""
-        return """
-            SELECT
-                t.TargetPromotionID,
-                t.PromotionID, t.PromotionName,
-                t.StartDate, t.StartTime, t.EndDate, t.EndTime,
-                t.BrandID, t.BrandName,
-                t.ChannelID, t.ChannelName,
-                t.UniqueCode, t.ProductName,
-                t.TargetAmount, t.TargetQuantity,
-                t.Notes, t.PromotionType,
-                t.CreatedDate, t.UpdatedDate
-            FROM [dbo].[TargetPromotionProduct] t
-        """
+        columns = ", ".join(self.SELECT_COLUMNS)
+        return f"SELECT {columns} FROM [dbo].[TargetPromotionProduct] t"
 
     def _row_to_dict(self, row) -> Dict[str, Any]:
         """Row를 Dictionary로 변환"""
@@ -61,9 +63,7 @@ class TargetPromotionRepository(BaseRepository):
         - year_month: 시작일 기준 년월 (YYYY-MM 형식)
         - brand_id: BrandID 정확히 매칭
         - channel_id: ChannelID 정확히 매칭
-        - promotion_id: PromotionID 정확히 매칭
-        - unique_code: UniqueCode LIKE 검색
-        - product_name: ProductName LIKE 검색
+        - promotion_type: PromotionType 정확히 매칭
         """
         if filters.get('year_month'):
             year_month = filters['year_month']
@@ -75,33 +75,14 @@ class TargetPromotionRepository(BaseRepository):
         if filters.get('channel_id'):
             builder.where_equals("t.ChannelID", filters['channel_id'])
 
-        if filters.get('promotion_id'):
-            builder.where_equals("t.PromotionID", filters['promotion_id'])
-
-        if filters.get('unique_code'):
-            builder.where_like("t.UniqueCode", filters['unique_code'])
-
-        if filters.get('product_name'):
-            builder.where_like("t.ProductName", filters['product_name'])
+        if filters.get('promotion_type'):
+            builder.where_equals("t.PromotionType", filters['promotion_type'])
 
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
         """TargetPromotion 전용 QueryBuilder 생성"""
         builder = QueryBuilder("[dbo].[TargetPromotionProduct] t")
+        builder.select(*self.SELECT_COLUMNS)
 
-        # SELECT 컬럼 설정
-        builder.select(
-            "t.TargetPromotionID",
-            "t.PromotionID", "t.PromotionName",
-            "t.StartDate", "t.StartTime", "t.EndDate", "t.EndTime",
-            "t.BrandID", "t.BrandName",
-            "t.ChannelID", "t.ChannelName",
-            "t.UniqueCode", "t.ProductName",
-            "t.TargetAmount", "t.TargetQuantity",
-            "t.Notes", "t.PromotionType",
-            "t.CreatedDate", "t.UpdatedDate"
-        )
-
-        # 필터 적용
         if filters:
             self._apply_filters(builder, filters)
 
@@ -111,7 +92,9 @@ class TargetPromotionRepository(BaseRepository):
         """
         일괄 INSERT/UPDATE
         - ID가 있으면: ID 기반 UPDATE
-        - ID가 없으면: 복합키 기반 MERGE (INSERT/UPDATE)
+        - ID가 없으면: 복합키 중복 체크 후 INSERT (중복 시 스킵)
+          * 복합키: BrandID + ChannelID + PromotionType + StartDate + UniqueCode
+          * 참고: Router에서 사전 중복 체크 수행, 여기는 방어용
 
         Args:
             records: 삽입/수정할 레코드 리스트
@@ -222,17 +205,9 @@ class TargetPromotionRepository(BaseRepository):
 
         with get_db_cursor(commit=False) as cursor:
             placeholders = ','.join(['?' for _ in ids])
+            columns = ", ".join(self.SELECT_COLUMNS)
             query = f"""
-                SELECT
-                    t.TargetPromotionID,
-                    t.PromotionID, t.PromotionName,
-                    t.StartDate, t.StartTime, t.EndDate, t.EndTime,
-                    t.BrandID, t.BrandName,
-                    t.ChannelID, t.ChannelName,
-                    t.UniqueCode, t.ProductName,
-                    t.TargetAmount, t.TargetQuantity,
-                    t.Notes, t.PromotionType,
-                    t.CreatedDate, t.UpdatedDate
+                SELECT {columns}
                 FROM [dbo].[TargetPromotionProduct] t
                 WHERE t.TargetPromotionID IN ({placeholders})
                 ORDER BY t.StartDate DESC
@@ -251,9 +226,21 @@ class TargetPromotionRepository(BaseRepository):
             cursor.execute(query)
             return [row[0] for row in cursor.fetchall()]
 
+    def get_promotion_types(self) -> List[str]:
+        """저장된 데이터의 행사유형 목록 조회"""
+        with get_db_cursor(commit=False) as cursor:
+            query = """
+                SELECT DISTINCT PromotionType
+                FROM [dbo].[TargetPromotionProduct]
+                WHERE PromotionType IS NOT NULL AND PromotionType != ''
+                ORDER BY PromotionType
+            """
+            cursor.execute(query)
+            return [row[0] for row in cursor.fetchall()]
+
     def delete_by_filter(self, year_month: str, brand_id: Optional[int] = None,
                          channel_id: Optional[int] = None,
-                         promotion_id: Optional[str] = None) -> int:
+                         promotion_type: Optional[str] = None) -> int:
         """
         필터 조건으로 일괄 삭제
 
@@ -261,7 +248,7 @@ class TargetPromotionRepository(BaseRepository):
             year_month: 년월 (YYYY-MM, StartDate 기준)
             brand_id: 브랜드 ID (선택)
             channel_id: 채널 ID (선택)
-            promotion_id: 행사 ID (선택)
+            promotion_type: 행사 유형 (선택)
 
         Returns:
             int: 삭제된 레코드 수
@@ -278,69 +265,15 @@ class TargetPromotionRepository(BaseRepository):
                 conditions.append("ChannelID = ?")
                 params.append(channel_id)
 
-            if promotion_id:
-                conditions.append("PromotionID = ?")
-                params.append(promotion_id)
+            if promotion_type:
+                conditions.append("PromotionType = ?")
+                params.append(promotion_type)
 
             where_clause = " AND ".join(conditions)
             query = f"DELETE FROM [dbo].[TargetPromotionProduct] WHERE {where_clause}"
 
             cursor.execute(query, *params)
             return cursor.rowcount
-
-    def get_promotions(self, year_month: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        행사 목록 조회 (드롭다운용)
-
-        Args:
-            year_month: 년월 필터 (선택)
-
-        Returns:
-            List: 행사 ID와 이름 목록
-        """
-        with get_db_cursor(commit=False) as cursor:
-            if year_month:
-                query = """
-                    SELECT DISTINCT PromotionID, PromotionName
-                    FROM [dbo].[TargetPromotionProduct]
-                    WHERE FORMAT(StartDate, 'yyyy-MM') = ?
-                    ORDER BY PromotionID
-                """
-                cursor.execute(query, year_month)
-            else:
-                query = """
-                    SELECT DISTINCT PromotionID, PromotionName
-                    FROM [dbo].[TargetPromotionProduct]
-                    ORDER BY PromotionID
-                """
-                cursor.execute(query)
-
-            return [{"PromotionID": row[0], "PromotionName": row[1]} for row in cursor.fetchall()]
-
-    def get_next_sequence(self, prefix: str) -> int:
-        """
-        PromotionID 접두사 기반 다음 순번 조회
-
-        Args:
-            prefix: PromotionID 접두사 (BrandCode + TypeCode + YYMM)
-
-        Returns:
-            int: 다음 순번 (1부터 시작, 최대 99)
-        """
-        with get_db_cursor(commit=False) as cursor:
-            # 해당 접두사로 시작하는 PromotionID 중 가장 큰 순번 조회
-            query = """
-                SELECT MAX(CAST(RIGHT(PromotionID, 2) AS INT))
-                FROM [dbo].[TargetPromotionProduct]
-                WHERE PromotionID LIKE ? + '%'
-                  AND LEN(PromotionID) > 2
-            """
-            cursor.execute(query, prefix)
-            row = cursor.fetchone()
-
-            if row and row[0] is not None:
-                return min(row[0] + 1, 99)  # 최대 99까지
-            return 1
 
     def get_max_sequences_by_prefixes(self, prefixes: List[str]) -> Dict[str, int]:
         """

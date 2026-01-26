@@ -10,21 +10,23 @@ from core import BaseRepository, QueryBuilder, get_db_cursor
 class TargetBaseRepository(BaseRepository):
     """TargetBaseProduct 테이블 Repository"""
 
+    # SELECT 컬럼 상수 (순서 변경 금지 - _row_to_dict 인덱스와 일치해야 함)
+    SELECT_COLUMNS = (
+        "t.TargetBaseID", "t.[Date]",
+        "t.BrandID", "t.BrandName",
+        "t.ChannelID", "t.ChannelName",
+        "t.UniqueCode", "t.ProductName",
+        "t.TargetAmount", "t.TargetQuantity",
+        "t.Notes", "t.CreatedDate", "t.UpdatedDate"
+    )
+
     def __init__(self):
         super().__init__(table_name="[dbo].[TargetBaseProduct]", id_column="TargetBaseID")
 
     def get_select_query(self) -> str:
         """TargetBaseProduct 조회 쿼리"""
-        return """
-            SELECT
-                t.TargetBaseID, t.[Date],
-                t.BrandID, t.BrandName,
-                t.ChannelID, t.ChannelName,
-                t.UniqueCode, t.ProductName,
-                t.TargetAmount, t.TargetQuantity,
-                t.Notes, t.CreatedDate, t.UpdatedDate
-            FROM [dbo].[TargetBaseProduct] t
-        """
+        columns = ", ".join(self.SELECT_COLUMNS)
+        return f"SELECT {columns} FROM [dbo].[TargetBaseProduct] t"
 
     def _row_to_dict(self, row) -> Dict[str, Any]:
         """Row를 Dictionary로 변환"""
@@ -52,11 +54,8 @@ class TargetBaseRepository(BaseRepository):
         - year_month: 년월 (YYYY-MM 형식)
         - brand_id: BrandID 정확히 매칭
         - channel_id: ChannelID 정확히 매칭
-        - unique_code: UniqueCode LIKE 검색
-        - product_name: ProductName LIKE 검색
         """
         if filters.get('year_month'):
-            # YYYY-MM 형식으로 필터링
             year_month = filters['year_month']
             builder.where("FORMAT(t.[Date], 'yyyy-MM') = ?", year_month)
 
@@ -66,27 +65,11 @@ class TargetBaseRepository(BaseRepository):
         if filters.get('channel_id'):
             builder.where_equals("t.ChannelID", filters['channel_id'])
 
-        if filters.get('unique_code'):
-            builder.where_like("t.UniqueCode", filters['unique_code'])
-
-        if filters.get('product_name'):
-            builder.where_like("t.ProductName", filters['product_name'])
-
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
         """TargetBase 전용 QueryBuilder 생성"""
         builder = QueryBuilder("[dbo].[TargetBaseProduct] t")
+        builder.select(*self.SELECT_COLUMNS)
 
-        # SELECT 컬럼 설정
-        builder.select(
-            "t.TargetBaseID", "t.[Date]",
-            "t.BrandID", "t.BrandName",
-            "t.ChannelID", "t.ChannelName",
-            "t.UniqueCode", "t.ProductName",
-            "t.TargetAmount", "t.TargetQuantity",
-            "t.Notes", "t.CreatedDate", "t.UpdatedDate"
-        )
-
-        # 필터 적용
         if filters:
             self._apply_filters(builder, filters)
 
@@ -226,14 +209,9 @@ class TargetBaseRepository(BaseRepository):
 
         with get_db_cursor(commit=False) as cursor:
             placeholders = ','.join(['?' for _ in ids])
+            columns = ", ".join(self.SELECT_COLUMNS)
             query = f"""
-                SELECT
-                    t.TargetBaseID, t.[Date],
-                    t.BrandID, t.BrandName,
-                    t.ChannelID, t.ChannelName,
-                    t.UniqueCode, t.ProductName,
-                    t.TargetAmount, t.TargetQuantity,
-                    t.Notes, t.CreatedDate, t.UpdatedDate
+                SELECT {columns}
                 FROM [dbo].[TargetBaseProduct] t
                 WHERE t.TargetBaseID IN ({placeholders})
                 ORDER BY t.[Date] DESC
