@@ -12,7 +12,7 @@ from typing import Optional, List
 import pandas as pd
 import io
 from datetime import datetime
-from repositories import SalesRepository
+from repositories import SalesRepository, ActivityLogRepository
 from core import get_db_cursor
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete
@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api/erpsales", tags=["Sales"])
 
 # Repository 인스턴스
 sales_repo = SalesRepository()
+activity_log_repo = ActivityLogRepository()
 
 
 # Pydantic Models

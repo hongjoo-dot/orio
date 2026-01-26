@@ -13,7 +13,7 @@ import io
 from datetime import datetime
 from repositories.target_base_repository import TargetBaseRepository
 from repositories.target_promotion_repository import TargetPromotionRepository
-from repositories import BrandRepository, ChannelRepository, ProductRepository
+from repositories import BrandRepository, ChannelRepository, ProductRepository, ActivityLogRepository
 from core import get_db_cursor
 from core.dependencies import get_current_user, get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete
@@ -41,6 +41,7 @@ target_base_repo = TargetBaseRepository()
 brand_repo = BrandRepository()
 channel_repo = ChannelRepository()
 product_repo = ProductRepository()
+activity_log_repo = ActivityLogRepository()
 
 
 # Pydantic Models - 기본 목표
@@ -152,6 +153,9 @@ async def download_target_base(
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
         export_columns = ['ID', '날짜', '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고']
+        # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
+        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 상품코드
+        id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
             # 데이터가 없으면 헤더만 있는 빈 양식 반환
@@ -185,24 +189,34 @@ async def download_target_base(
             ['ID가 있는 행', 'ID 기준으로 해당 데이터를 수정합니다.'],
             ['ID가 없는 행', '날짜+채널+상품코드 기준으로 신규 등록 또는 수정합니다.'],
             ['', ''],
-            ['■ 필수 항목', ''],
+            ['■ 컬럼 설명', ''],
+            ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
             ['날짜', '목표 날짜 (YYYY-MM-DD 형식)'],
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
             ['상품코드', 'Product 테이블에 등록된 상품코드 (UniqueCode)'],
-            ['', ''],
-            ['■ 선택 항목', ''],
-            ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
             ['목표금액', '숫자 (예: 1000000)'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
+            ['', ''],
+            ['■ 수정 가능/불가 컬럼', ''],
+            ['수정 가능', '목표금액, 목표수량, 비고'],
+            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 상품코드'],
+            ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 주의사항', ''],
             ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
             ['2. 동일한 날짜+채널+상품코드 조합이 있으면 기존 데이터가 수정됩니다.', ''],
             ['3. 브랜드명, 채널명, 상품코드는 반드시 DB에 등록된 값이어야 합니다.', ''],
+            ['4. 검정색/빨간색 배경 컬럼은 수정해도 반영되지 않습니다.', ''],
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
+
+        # 드롭다운용 목록 조회
+        channels = channel_repo.get_channel_list()
+        brands = brand_repo.get_all_brands()
+        channel_names = [ch['Name'] for ch in channels]
+        brand_names = [br['Name'] for br in brands]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -212,14 +226,100 @@ async def download_target_base(
             workbook = writer.book
             worksheet = writer.sheets['기본목표']
 
-            # ID 컬럼 헤더 빨간색 강조
-            red_header_format = workbook.add_format({
+            # 목록 시트 생성 (드롭다운 소스용)
+            list_sheet = workbook.add_worksheet('목록')
+            list_sheet.hide()  # 숨김 처리
+
+            # 채널 목록 작성 (A열)
+            for i, name in enumerate(channel_names):
+                list_sheet.write(i, 0, name)
+
+            # 브랜드 목록 작성 (B열)
+            for i, name in enumerate(brand_names):
+                list_sheet.write(i, 1, name)
+
+            # 드롭다운 적용 범위 (2행~1000행)
+            max_row = max(len(df) + 100, 1000)  # 데이터 + 여유분
+
+            # 채널명 드롭다운 (D열, 인덱스 3)
+            if channel_names:
+                worksheet.data_validation(1, 3, max_row, 3, {
+                    'validate': 'list',
+                    'source': f'=목록!$A$1:$A${len(channel_names)}',
+                    'input_message': '채널을 선택하세요',
+                    'error_message': '목록에서 선택해주세요'
+                })
+
+            # 브랜드명 드롭다운 (C열, 인덱스 2)
+            if brand_names:
+                worksheet.data_validation(1, 2, max_row, 2, {
+                    'validate': 'list',
+                    'source': f'=목록!$B$1:$B${len(brand_names)}',
+                    'input_message': '브랜드를 선택하세요',
+                    'error_message': '목록에서 선택해주세요'
+                })
+
+            # ID 컬럼 헤더 서식 (빨간색 배경 + 흰 글자)
+            id_header_format = workbook.add_format({
                 'bold': True,
-                'font_color': 'red',
-                'bg_color': '#FFC7CE',
+                'font_color': 'white',
+                'bg_color': '#dc2626',
                 'border': 1
             })
-            worksheet.write(0, 0, 'ID', red_header_format)
+
+            # 수정 불가 컬럼 헤더 서식 (검정 배경 + 흰 글자)
+            readonly_header_format = workbook.add_format({
+                'bold': True,
+                'font_color': 'white',
+                'bg_color': '#000000',
+                'border': 1
+            })
+
+            # 수정 가능 컬럼 헤더 서식 (기본)
+            editable_header_format = workbook.add_format({
+                'bold': True,
+                'border': 1
+            })
+
+            # 헤더 서식 적용
+            for col_idx, col_name in enumerate(export_columns):
+                if col_idx == id_column_idx:
+                    worksheet.write(0, col_idx, col_name, id_header_format)
+                elif col_idx in readonly_columns:
+                    worksheet.write(0, col_idx, col_name, readonly_header_format)
+                else:
+                    worksheet.write(0, col_idx, col_name, editable_header_format)
+
+            # ID 컬럼 데이터 서식 (빨간색 배경 + 흰 글자)
+            id_data_format = workbook.add_format({
+                'font_color': 'white',
+                'bg_color': '#ef4444',
+                'border': 1
+            })
+
+            # 데이터 행 서식 (수정 불가 컬럼)
+            readonly_data_format = workbook.add_format({
+                'font_color': 'white',
+                'bg_color': '#333333',
+                'border': 1
+            })
+
+            # 데이터 행에 서식 적용
+            if len(df) > 0:
+                for row_idx in range(len(df)):
+                    # ID 컬럼 빨간색 적용
+                    col_name = export_columns[id_column_idx]
+                    if col_name in df.columns:
+                        value = df.iloc[row_idx][col_name]
+                        worksheet.write(row_idx + 1, id_column_idx, value, id_data_format)
+
+                    # 수정 불가 컬럼 검정색 적용
+                    for col_idx in readonly_columns:
+                        if col_idx < len(export_columns):
+                            col_name = export_columns[col_idx]
+                            if col_name in df.columns:
+                                value = df.iloc[row_idx][col_name]
+                                worksheet.write(row_idx + 1, col_idx, value, readonly_data_format)
 
             # 컬럼 너비 설정
             for i in range(len(export_columns)):
