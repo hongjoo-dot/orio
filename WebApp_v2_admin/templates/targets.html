@@ -173,36 +173,57 @@
 <div id="uploadResultModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 class="modal-title">업로드 결과</h2>
+            <h2 class="modal-title" id="uploadResultTitle">업로드 결과</h2>
             <button class="modal-close" data-modal-close>&times;</button>
         </div>
         <div class="modal-body">
-            <div style="margin-bottom:24px;">
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                    <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--success);"></i>
-                    <div>
-                        <h3 style="font-size:20px;margin-bottom:4px;">업로드 완료</h3>
-                        <p style="color:var(--text-muted);font-size:14px;">데이터가 성공적으로 업로드되었습니다.</p>
+            <!-- 성공 시 표시 -->
+            <div id="uploadSuccessSection">
+                <div style="margin-bottom:24px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                        <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--success);"></i>
+                        <div>
+                            <h3 style="font-size:20px;margin-bottom:4px;">업로드 완료</h3>
+                            <p style="color:var(--text-muted);font-size:14px;">데이터가 성공적으로 업로드되었습니다.</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                    <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
+                        <i class="fa-solid fa-chart-bar"></i> 업로드 통계
+                    </h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">총 행 수</div>
+                            <div style="font-size:20px;font-weight:600;" id="uploadTotalRows">0</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">신규 삽입</div>
+                            <div style="font-size:20px;font-weight:600;color:var(--success);" id="uploadInserted">0</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">기존 수정</div>
+                            <div style="font-size:20px;font-weight:600;color:#3b82f6;" id="uploadUpdated">0</div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
-                <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
-                    <i class="fa-solid fa-chart-bar"></i> 업로드 통계
-                </h4>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-                    <div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">총 행 수</div>
-                        <div style="font-size:20px;font-weight:600;" id="uploadTotalRows">0</div>
+            <!-- 실패 시 표시 -->
+            <div id="uploadErrorSection" style="display:none;">
+                <div style="margin-bottom:24px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                        <i class="fa-solid fa-circle-xmark" style="font-size:48px;color:var(--danger);"></i>
+                        <div>
+                            <h3 style="font-size:20px;margin-bottom:4px;">업로드 실패</h3>
+                            <p style="color:var(--text-muted);font-size:14px;">데이터 업로드 중 오류가 발생했습니다.</p>
+                        </div>
                     </div>
-                    <div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">신규 삽입</div>
-                        <div style="font-size:20px;font-weight:600;color:var(--success);" id="uploadInserted">0</div>
-                    </div>
-                    <div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">기존 수정</div>
-                        <div style="font-size:20px;font-weight:600;color:#3b82f6;" id="uploadUpdated">0</div>
-                    </div>
+                </div>
+                <div style="background:rgba(239,68,68,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                    <h4 style="font-size:15px;margin-bottom:12px;color:var(--danger);">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 오류 내용
+                    </h4>
+                    <p id="uploadErrorMessage" style="font-size:14px;color:var(--text-primary);word-break:break-all;"></p>
                 </div>
             </div>
         </div>

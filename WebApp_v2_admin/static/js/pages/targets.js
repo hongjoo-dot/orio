@@ -50,7 +50,7 @@ const promotionColumns = [
         render: (row) => {
             const date = row.StartDate || '';
             const time = row.StartTime || '';
-            return time && time !== '00:00' ? `${date} ${time}` : date;
+            return time && time !== '00:00:00' ? `${date} ${time}` : date;
         }
     },
     {
@@ -59,7 +59,7 @@ const promotionColumns = [
         render: (row) => {
             const date = row.EndDate || '';
             const time = row.EndTime || '';
-            return time && time !== '00:00' ? `${date} ${time}` : date;
+            return time && time !== '00:00:00' ? `${date} ${time}` : date;
         }
     },
     { key: 'BrandName', header: '브랜드', render: (row) => row.BrandName || '-' },
@@ -442,16 +442,24 @@ function downloadTemplate() {
 }
 
 /**
- * 수정 양식 다운로드 (현재 필터 조건의 데이터)
+ * 수정 양식 다운로드 (선택된 항목 또는 현재 필터 조건의 데이터)
  */
 function downloadData() {
     const endpoint = currentTab === 'base'
         ? '/api/targets/base/download/data'
         : '/api/targets/promotion/download/data';
 
-    const params = { ...currentFilters };
-    const queryString = api.buildQueryString(params);
+    const tableManager = getActiveTableManager();
+    const selectedIds = tableManager.getSelectedRows();
 
+    const params = { ...currentFilters };
+
+    // 선택된 항목이 있으면 해당 ID들만 다운로드
+    if (selectedIds.length > 0) {
+        params.ids = selectedIds.join(',');
+    }
+
+    const queryString = api.buildQueryString(params);
     window.location.href = `${endpoint}${queryString}`;
 }
 
@@ -529,17 +537,26 @@ async function uploadFile() {
         document.getElementById('progressBar').style.width = '100%';
         document.getElementById('progressText').textContent = '100%';
 
+        // 업로드 모달 닫기
+        uploadModal.hide();
+
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || '업로드 실패');
+            // 에러 모달 표시
+            document.getElementById('uploadSuccessSection').style.display = 'none';
+            document.getElementById('uploadErrorSection').style.display = 'block';
+            document.getElementById('uploadResultTitle').textContent = '업로드 실패';
+            document.getElementById('uploadErrorMessage').textContent = error.detail || '업로드 중 오류가 발생했습니다.';
+            uploadResultModal.show();
+            return;
         }
 
         const result = await response.json();
 
-        // 업로드 모달 닫기
-        uploadModal.hide();
-
-        // 결과 모달 표시
+        // 성공 모달 표시
+        document.getElementById('uploadSuccessSection').style.display = 'block';
+        document.getElementById('uploadErrorSection').style.display = 'none';
+        document.getElementById('uploadResultTitle').textContent = '업로드 결과';
         document.getElementById('uploadTotalRows').textContent = result.total_rows?.toLocaleString() || 0;
         document.getElementById('uploadInserted').textContent = result.inserted?.toLocaleString() || 0;
         document.getElementById('uploadUpdated').textContent = result.updated?.toLocaleString() || 0;
@@ -551,9 +568,15 @@ async function uploadFile() {
 
     } catch (e) {
         console.error('업로드 실패:', e);
-        showAlert('업로드 실패: ' + e.message, 'error');
 
-        document.getElementById('uploadProgress').style.display = 'none';
-        document.getElementById('uploadButton').disabled = false;
+        // 업로드 모달 닫기
+        uploadModal.hide();
+
+        // 에러 모달 표시
+        document.getElementById('uploadSuccessSection').style.display = 'none';
+        document.getElementById('uploadErrorSection').style.display = 'block';
+        document.getElementById('uploadResultTitle').textContent = '업로드 실패';
+        document.getElementById('uploadErrorMessage').textContent = e.message || '업로드 중 오류가 발생했습니다.';
+        uploadResultModal.show();
     }
 }

@@ -94,8 +94,9 @@ class TargetBaseRepository(BaseRepository):
 
     def bulk_upsert(self, records: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, int]:
         """
-        MERGE를 사용한 일괄 INSERT/UPDATE
-        UNIQUE 제약조건: (Date, UniqueCode, ChannelID)
+        일괄 INSERT/UPDATE
+        - ID가 있으면: ID 기반 UPDATE
+        - ID가 없으면: 복합키 기반 MERGE (INSERT/UPDATE)
 
         Args:
             records: 삽입/수정할 레코드 리스트
@@ -112,67 +113,133 @@ class TargetBaseRepository(BaseRepository):
                 batch = records[i:i + batch_size]
 
                 for record in batch:
-                    # MERGE 쿼리 실행
-                    query = """
-                        MERGE [dbo].[TargetBaseProduct] AS target
-                        USING (SELECT ? AS [Date], ? AS UniqueCode, ? AS ChannelID) AS source
-                        ON target.[Date] = source.[Date]
-                           AND target.UniqueCode = source.UniqueCode
-                           AND target.ChannelID = source.ChannelID
-                        WHEN MATCHED THEN
-                            UPDATE SET
+                    target_id = record.get('TargetBaseID')
+
+                    # ID가 있으면 ID 기반 UPDATE
+                    if target_id:
+                        update_query = """
+                            UPDATE [dbo].[TargetBaseProduct]
+                            SET [Date] = ?,
                                 BrandID = ?,
                                 BrandName = ?,
+                                ChannelID = ?,
                                 ChannelName = ?,
+                                UniqueCode = ?,
                                 ProductName = ?,
                                 TargetAmount = ?,
                                 TargetQuantity = ?,
                                 Notes = ?,
                                 UpdatedDate = GETDATE()
-                        WHEN NOT MATCHED THEN
-                            INSERT ([Date], BrandID, BrandName, ChannelID, ChannelName,
-                                    UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        OUTPUT $action;
-                    """
-
-                    params = [
-                        # source 파라미터
-                        record.get('Date'),
-                        record.get('UniqueCode'),
-                        record.get('ChannelID'),
-                        # UPDATE 파라미터
-                        record.get('BrandID'),
-                        record.get('BrandName'),
-                        record.get('ChannelName'),
-                        record.get('ProductName'),
-                        record.get('TargetAmount'),
-                        record.get('TargetQuantity'),
-                        record.get('Notes'),
-                        # INSERT 파라미터
-                        record.get('Date'),
-                        record.get('BrandID'),
-                        record.get('BrandName'),
-                        record.get('ChannelID'),
-                        record.get('ChannelName'),
-                        record.get('UniqueCode'),
-                        record.get('ProductName'),
-                        record.get('TargetAmount'),
-                        record.get('TargetQuantity'),
-                        record.get('Notes'),
-                    ]
-
-                    cursor.execute(query, *params)
-                    result = cursor.fetchone()
-
-                    if result:
-                        action = result[0]
-                        if action == 'INSERT':
-                            total_inserted += 1
-                        elif action == 'UPDATE':
+                            WHERE TargetBaseID = ?
+                        """
+                        params = [
+                            record.get('Date'),
+                            record.get('BrandID'),
+                            record.get('BrandName'),
+                            record.get('ChannelID'),
+                            record.get('ChannelName'),
+                            record.get('UniqueCode'),
+                            record.get('ProductName'),
+                            record.get('TargetAmount'),
+                            record.get('TargetQuantity'),
+                            record.get('Notes'),
+                            target_id
+                        ]
+                        cursor.execute(update_query, *params)
+                        if cursor.rowcount > 0:
                             total_updated += 1
+                    else:
+                        # ID가 없으면 복합키 기반 MERGE
+                        merge_query = """
+                            MERGE [dbo].[TargetBaseProduct] AS target
+                            USING (SELECT ? AS [Date], ? AS UniqueCode, ? AS ChannelID) AS source
+                            ON target.[Date] = source.[Date]
+                               AND target.UniqueCode = source.UniqueCode
+                               AND target.ChannelID = source.ChannelID
+                            WHEN MATCHED THEN
+                                UPDATE SET
+                                    BrandID = ?,
+                                    BrandName = ?,
+                                    ChannelName = ?,
+                                    ProductName = ?,
+                                    TargetAmount = ?,
+                                    TargetQuantity = ?,
+                                    Notes = ?,
+                                    UpdatedDate = GETDATE()
+                            WHEN NOT MATCHED THEN
+                                INSERT ([Date], BrandID, BrandName, ChannelID, ChannelName,
+                                        UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            OUTPUT $action;
+                        """
+
+                        params = [
+                            # source 파라미터
+                            record.get('Date'),
+                            record.get('UniqueCode'),
+                            record.get('ChannelID'),
+                            # UPDATE 파라미터
+                            record.get('BrandID'),
+                            record.get('BrandName'),
+                            record.get('ChannelName'),
+                            record.get('ProductName'),
+                            record.get('TargetAmount'),
+                            record.get('TargetQuantity'),
+                            record.get('Notes'),
+                            # INSERT 파라미터
+                            record.get('Date'),
+                            record.get('BrandID'),
+                            record.get('BrandName'),
+                            record.get('ChannelID'),
+                            record.get('ChannelName'),
+                            record.get('UniqueCode'),
+                            record.get('ProductName'),
+                            record.get('TargetAmount'),
+                            record.get('TargetQuantity'),
+                            record.get('Notes'),
+                        ]
+
+                        cursor.execute(merge_query, *params)
+                        result = cursor.fetchone()
+
+                        if result:
+                            action = result[0]
+                            if action == 'INSERT':
+                                total_inserted += 1
+                            elif action == 'UPDATE':
+                                total_updated += 1
 
         return {"inserted": total_inserted, "updated": total_updated}
+
+    def get_by_ids(self, ids: List[int]) -> List[Dict[str, Any]]:
+        """
+        ID 리스트로 데이터 조회
+
+        Args:
+            ids: 조회할 ID 리스트
+
+        Returns:
+            List[Dict]: 조회된 데이터 리스트
+        """
+        if not ids:
+            return []
+
+        with get_db_cursor(commit=False) as cursor:
+            placeholders = ','.join(['?' for _ in ids])
+            query = f"""
+                SELECT
+                    t.TargetBaseID, t.[Date],
+                    t.BrandID, t.BrandName,
+                    t.ChannelID, t.ChannelName,
+                    t.UniqueCode, t.ProductName,
+                    t.TargetAmount, t.TargetQuantity,
+                    t.Notes, t.CreatedDate, t.UpdatedDate
+                FROM [dbo].[TargetBaseProduct] t
+                WHERE t.TargetBaseID IN ({placeholders})
+                ORDER BY t.[Date] DESC
+            """
+            cursor.execute(query, *ids)
+            return [self._row_to_dict(row) for row in cursor.fetchall()]
 
     def get_year_months(self) -> List[str]:
         """저장된 데이터의 년월 목록 조회"""
