@@ -627,6 +627,18 @@ async def upload_target_base(
         upload_end_time = datetime.now()
         duration = (upload_end_time - upload_start_time).total_seconds()
 
+        # 중복 데이터 체크 - 에러 반환
+        duplicates = result.get('duplicates', [])
+        if duplicates:
+            error_messages = []
+            for dup in duplicates[:10]:  # 최대 10개까지 표시
+                error_messages.append(
+                    f"행 {dup['row']}: 중복 데이터 (날짜: {dup['date']}, 상품코드: {dup['unique_code']}, 채널: {dup['channel_name']})"
+                )
+            if len(duplicates) > 10:
+                error_messages.append(f"... 외 {len(duplicates) - 10}건 더 있음")
+            raise HTTPException(400, "중복 데이터가 있습니다. ID 없이 신규 입력 시 기존 데이터와 중복될 수 없습니다.\n" + "\n".join(error_messages))
+
         # 활동 로그
         if user and request:
             activity_log_repo.log_action(
@@ -1499,6 +1511,18 @@ async def upload_target_promotion(
 
         upload_end_time = datetime.now()
         duration = (upload_end_time - upload_start_time).total_seconds()
+
+        # 중복 데이터 체크 - 에러 반환 (Repository 방어용)
+        duplicates = result.get('duplicates', [])
+        if duplicates:
+            error_messages = []
+            for dup in duplicates[:10]:
+                error_messages.append(
+                    f"행 {dup['row']}: 중복 데이터 (시작일: {dup['start_date']}, 상품코드: {dup['unique_code']}, 채널: {dup['channel_name']}, 행사유형: {dup['promotion_type']})"
+                )
+            if len(duplicates) > 10:
+                error_messages.append(f"... 외 {len(duplicates) - 10}건 더 있음")
+            raise HTTPException(400, "중복 데이터가 있습니다.\n" + "\n".join(error_messages))
 
         if user and request:
             activity_log_repo.log_action(

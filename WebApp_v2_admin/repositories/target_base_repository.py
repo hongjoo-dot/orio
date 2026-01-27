@@ -75,22 +75,56 @@ class TargetBaseRepository(BaseRepository):
 
         return builder
 
-    def bulk_upsert(self, records: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, int]:
+    def bulk_upsert(self, records: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, Any]:
         """
         일괄 INSERT/UPDATE
         - ID가 있으면: ID 기반 UPDATE
-        - ID가 없으면: 복합키 기반 MERGE (INSERT/UPDATE)
+        - ID가 없으면: 복합키 중복 체크 후 INSERT (중복 시 에러)
 
         Args:
             records: 삽입/수정할 레코드 리스트
             batch_size: 배치 크기
 
         Returns:
-            Dict: {"inserted": N, "updated": M}
+            Dict: {"inserted": N, "updated": M, "duplicates": [...]}
         """
         total_inserted = 0
         total_updated = 0
+        duplicates = []  # 중복된 레코드 정보
 
+        # 1단계: 신규 레코드(ID 없음)에 대해 중복 체크 먼저 수행
+        with get_db_cursor() as cursor:
+            for idx, record in enumerate(records):
+                target_id = record.get('TargetBaseID')
+                row_num = idx + 2  # 엑셀 행 번호 (헤더 제외)
+
+                # ID가 없는 경우만 중복 체크
+                if not target_id:
+                    check_query = """
+                        SELECT TargetBaseID FROM [dbo].[TargetBaseProduct]
+                        WHERE [Date] = ? AND UniqueCode = ? AND ChannelID = ?
+                    """
+                    cursor.execute(check_query,
+                        record.get('Date'),
+                        record.get('UniqueCode'),
+                        record.get('ChannelID')
+                    )
+                    existing = cursor.fetchone()
+
+                    if existing:
+                        duplicates.append({
+                            'row': row_num,
+                            'date': record.get('Date'),
+                            'unique_code': record.get('UniqueCode'),
+                            'channel_name': record.get('ChannelName'),
+                            'existing_id': existing[0]
+                        })
+
+        # 중복이 있으면 INSERT/UPDATE 하지 않고 바로 반환
+        if duplicates:
+            return {"inserted": 0, "updated": 0, "duplicates": duplicates}
+
+        # 2단계: 중복이 없으면 INSERT/UPDATE 실행
         with get_db_cursor() as cursor:
             for i in range(0, len(records), batch_size):
                 batch = records[i:i + batch_size]
@@ -98,8 +132,8 @@ class TargetBaseRepository(BaseRepository):
                 for record in batch:
                     target_id = record.get('TargetBaseID')
 
-                    # ID가 있으면 ID 기반 UPDATE
                     if target_id:
+                        # ID 기반 UPDATE
                         update_query = """
                             UPDATE [dbo].[TargetBaseProduct]
                             SET [Date] = ?,
@@ -132,44 +166,14 @@ class TargetBaseRepository(BaseRepository):
                         if cursor.rowcount > 0:
                             total_updated += 1
                     else:
-                        # ID가 없으면 복합키 기반 MERGE
-                        merge_query = """
-                            MERGE [dbo].[TargetBaseProduct] AS target
-                            USING (SELECT ? AS [Date], ? AS UniqueCode, ? AS ChannelID) AS source
-                            ON target.[Date] = source.[Date]
-                               AND target.UniqueCode = source.UniqueCode
-                               AND target.ChannelID = source.ChannelID
-                            WHEN MATCHED THEN
-                                UPDATE SET
-                                    BrandID = ?,
-                                    BrandName = ?,
-                                    ChannelName = ?,
-                                    ProductName = ?,
-                                    TargetAmount = ?,
-                                    TargetQuantity = ?,
-                                    Notes = ?,
-                                    UpdatedDate = GETDATE()
-                            WHEN NOT MATCHED THEN
-                                INSERT ([Date], BrandID, BrandName, ChannelID, ChannelName,
-                                        UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            OUTPUT $action;
+                        # 신규 INSERT
+                        insert_query = """
+                            INSERT INTO [dbo].[TargetBaseProduct]
+                            ([Date], BrandID, BrandName, ChannelID, ChannelName,
+                             UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
-
                         params = [
-                            # source 파라미터
-                            record.get('Date'),
-                            record.get('UniqueCode'),
-                            record.get('ChannelID'),
-                            # UPDATE 파라미터
-                            record.get('BrandID'),
-                            record.get('BrandName'),
-                            record.get('ChannelName'),
-                            record.get('ProductName'),
-                            record.get('TargetAmount'),
-                            record.get('TargetQuantity'),
-                            record.get('Notes'),
-                            # INSERT 파라미터
                             record.get('Date'),
                             record.get('BrandID'),
                             record.get('BrandName'),
@@ -181,18 +185,10 @@ class TargetBaseRepository(BaseRepository):
                             record.get('TargetQuantity'),
                             record.get('Notes'),
                         ]
+                        cursor.execute(insert_query, *params)
+                        total_inserted += 1
 
-                        cursor.execute(merge_query, *params)
-                        result = cursor.fetchone()
-
-                        if result:
-                            action = result[0]
-                            if action == 'INSERT':
-                                total_inserted += 1
-                            elif action == 'UPDATE':
-                                total_updated += 1
-
-        return {"inserted": total_inserted, "updated": total_updated}
+        return {"inserted": total_inserted, "updated": total_updated, "duplicates": []}
 
     def get_by_ids(self, ids: List[int]) -> List[Dict[str, Any]]:
         """

@@ -88,24 +88,61 @@ class TargetPromotionRepository(BaseRepository):
 
         return builder
 
-    def bulk_upsert(self, records: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, int]:
+    def bulk_upsert(self, records: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, Any]:
         """
         일괄 INSERT/UPDATE
         - ID가 있으면: ID 기반 UPDATE
-        - ID가 없으면: 복합키 중복 체크 후 INSERT (중복 시 스킵)
+        - ID가 없으면: 복합키 중복 체크 후 INSERT (중복 시 에러)
           * 복합키: BrandID + ChannelID + PromotionType + StartDate + UniqueCode
-          * 참고: Router에서 사전 중복 체크 수행, 여기는 방어용
 
         Args:
             records: 삽입/수정할 레코드 리스트
             batch_size: 배치 크기
 
         Returns:
-            Dict: {"inserted": N, "updated": M}
+            Dict: {"inserted": N, "updated": M, "duplicates": [...]}
         """
         total_inserted = 0
         total_updated = 0
+        duplicates = []  # 중복된 레코드 정보
 
+        # 1단계: 신규 레코드(ID 없음)에 대해 중복 체크 먼저 수행
+        with get_db_cursor() as cursor:
+            for idx, record in enumerate(records):
+                target_id = record.get('TargetPromotionID')
+                row_num = idx + 2  # 엑셀 행 번호 (헤더 제외)
+
+                # ID가 없는 경우만 중복 체크
+                if not target_id:
+                    check_query = """
+                        SELECT TargetPromotionID FROM [dbo].[TargetPromotionProduct]
+                        WHERE BrandID = ? AND ChannelID = ? AND PromotionType = ?
+                          AND StartDate = ? AND UniqueCode = ?
+                    """
+                    cursor.execute(check_query,
+                        record.get('BrandID'),
+                        record.get('ChannelID'),
+                        record.get('PromotionType'),
+                        record.get('StartDate'),
+                        record.get('UniqueCode')
+                    )
+                    existing = cursor.fetchone()
+
+                    if existing:
+                        duplicates.append({
+                            'row': row_num,
+                            'start_date': record.get('StartDate'),
+                            'unique_code': record.get('UniqueCode'),
+                            'channel_name': record.get('ChannelName'),
+                            'promotion_type': record.get('PromotionType'),
+                            'existing_id': existing[0]
+                        })
+
+        # 중복이 있으면 INSERT/UPDATE 하지 않고 바로 반환
+        if duplicates:
+            return {"inserted": 0, "updated": 0, "duplicates": duplicates}
+
+        # 2단계: 중복이 없으면 INSERT/UPDATE 실행
         with get_db_cursor() as cursor:
             for i in range(0, len(records), batch_size):
                 batch = records[i:i + batch_size]
@@ -113,8 +150,8 @@ class TargetPromotionRepository(BaseRepository):
                 for record in batch:
                     target_id = record.get('TargetPromotionID')
 
-                    # ID가 있으면 ID 기반 UPDATE (PromotionID는 변경 불가)
                     if target_id:
+                        # ID 기반 UPDATE (PromotionID는 변경 불가)
                         update_query = """
                             UPDATE [dbo].[TargetPromotionProduct]
                             SET PromotionName = ?,
@@ -139,26 +176,7 @@ class TargetPromotionRepository(BaseRepository):
                         if cursor.rowcount > 0:
                             total_updated += 1
                     else:
-                        # ID가 없으면 복합키로 중복 체크 후 INSERT
-                        # 복합키: BrandID + ChannelID + PromotionType + StartDate + UniqueCode
-                        check_query = """
-                            SELECT 1 FROM [dbo].[TargetPromotionProduct]
-                            WHERE BrandID = ? AND ChannelID = ? AND PromotionType = ?
-                              AND StartDate = ? AND UniqueCode = ?
-                        """
-                        cursor.execute(check_query,
-                            record.get('BrandID'),
-                            record.get('ChannelID'),
-                            record.get('PromotionType'),
-                            record.get('StartDate'),
-                            record.get('UniqueCode')
-                        )
-
-                        if cursor.fetchone():
-                            # 중복 존재 - 스킵
-                            continue
-
-                        # 중복 없음 - INSERT
+                        # 신규 INSERT
                         insert_query = """
                             INSERT INTO [dbo].[TargetPromotionProduct]
                                 (PromotionID, PromotionName, StartDate, StartTime, EndDate, EndTime,
@@ -188,7 +206,7 @@ class TargetPromotionRepository(BaseRepository):
                         if cursor.rowcount > 0:
                             total_inserted += 1
 
-        return {"inserted": total_inserted, "updated": total_updated}
+        return {"inserted": total_inserted, "updated": total_updated, "duplicates": []}
 
     def get_by_ids(self, ids: List[int]) -> List[Dict[str, Any]]:
         """
