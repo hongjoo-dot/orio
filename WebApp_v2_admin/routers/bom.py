@@ -10,8 +10,8 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from repositories import BOMRepository
-from core.dependencies import get_current_user, get_client_ip, CurrentUser
-from core import log_activity, log_delete, log_bulk_delete
+from core.dependencies import get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete, require_permission
 
 router = APIRouter(prefix="/api/bom", tags=["BOM"])
 
@@ -52,7 +52,8 @@ async def get_bom_parents(
     parent_erp: Optional[str] = None,
     parent_name: Optional[str] = None,
     child_erp: Optional[str] = None,
-    child_name: Optional[str] = None
+    child_name: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("BOM", "READ"))
 ):
     """부모 제품 목록 조회 (세트 제품)"""
     try:
@@ -70,7 +71,7 @@ async def get_bom_parents(
 
 
 @router.get("/children/{parent_box_id}")
-async def get_bom_children(parent_box_id: int):
+async def get_bom_children(parent_box_id: int, user: CurrentUser = Depends(require_permission("BOM", "READ"))):
     """특정 부모 제품의 구성품 목록 조회"""
     try:
         children = bom_repo.get_children(parent_box_id)
@@ -80,7 +81,7 @@ async def get_bom_children(parent_box_id: int):
 
 
 @router.get("/metadata")
-async def get_bom_metadata():
+async def get_bom_metadata(user: CurrentUser = Depends(require_permission("BOM", "READ"))):
     """BOM 메타데이터 조회 (필터용)"""
     try:
         metadata = bom_repo.get_metadata()
@@ -90,7 +91,7 @@ async def get_bom_metadata():
 
 
 @router.get("/{bom_id}")
-async def get_bom(bom_id: int):
+async def get_bom(bom_id: int, user: CurrentUser = Depends(require_permission("BOM", "READ"))):
     """BOM 단일 조회"""
     try:
         bom = bom_repo.get_by_id(bom_id)
@@ -110,7 +111,7 @@ async def get_bom(bom_id: int):
 async def create_bom(
     data: BOMCreateByERP,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("BOM", "CREATE"))
 ):
     """BOM 생성 (ERPCode로 생성)"""
     try:
@@ -132,7 +133,7 @@ async def create_bom(
 async def create_bom_by_boxid(
     data: BOMCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("BOM", "CREATE"))
 ):
     """BOM 생성 (BoxID 직접 지정)"""
     try:
@@ -151,7 +152,7 @@ async def update_bom(
     bom_id: int,
     data: BOMUpdate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("BOM", "UPDATE"))
 ):
     """BOM 수정"""
     try:
@@ -178,7 +179,7 @@ async def update_bom(
 async def delete_bom(
     bom_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("BOM", "DELETE"))
 ):
     """BOM 삭제"""
     try:
@@ -201,7 +202,7 @@ async def delete_bom(
 async def bulk_delete_bom(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("BOM", "DELETE"))
 ):
     """BOM 일괄 삭제"""
     try:

@@ -14,8 +14,8 @@ import io
 from datetime import datetime
 from urllib.parse import quote
 from repositories import ProductRepository, ProductBoxRepository
-from core.dependencies import get_current_user, get_client_ip, CurrentUser
-from core import log_activity, log_delete, log_bulk_delete
+from core.dependencies import get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete, require_permission
 from utils.excel import ProductExcelHandler
 
 router = APIRouter(prefix="/api/products", tags=["Product"])
@@ -91,7 +91,8 @@ async def get_products(
     brand: Optional[str] = None,
     unique_code: Optional[str] = None,
     name: Optional[str] = None,
-    bundle_type: Optional[str] = None
+    bundle_type: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Product", "READ"))
 ):
     """
     Product 목록 조회 (페이지네이션 및 필터링)
@@ -131,7 +132,7 @@ async def get_products(
 
 
 @router.get("/metadata")
-async def get_product_metadata():
+async def get_product_metadata(user: CurrentUser = Depends(require_permission("Product", "READ"))):
     """
     Product 메타데이터 조회 (필터용)
 
@@ -155,7 +156,8 @@ async def download_products_excel(
     brand: Optional[str] = None,
     unique_code: Optional[str] = None,
     name: Optional[str] = None,
-    bundle_type: Optional[str] = None
+    bundle_type: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Product", "EXPORT"))
 ):
     """
     필터 조건에 맞는 Product 데이터를 엑셀로 다운로드
@@ -270,7 +272,7 @@ async def download_products_excel(
 
 
 @router.get("/{product_id}")
-async def get_product(product_id: int):
+async def get_product(product_id: int, user: CurrentUser = Depends(require_permission("Product", "READ"))):
     """Product 단일 조회"""
     try:
         product = product_repo.get_by_id(product_id)
@@ -290,7 +292,7 @@ async def get_product(product_id: int):
 async def create_product(
     data: ProductCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "CREATE"))
 ):
     """Product 생성"""
     try:
@@ -313,7 +315,7 @@ async def create_product(
 async def create_product_integrated(
     data: ProductIntegratedCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "CREATE"))
 ):
     """
     Product와 ProductBox를 한 번에 생성 (트랜잭션)
@@ -355,7 +357,7 @@ async def update_product(
     product_id: int,
     data: ProductUpdate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "UPDATE"))
 ):
     """Product 수정"""
     try:
@@ -389,7 +391,7 @@ async def update_product(
 async def delete_product(
     product_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "DELETE"))
 ):
     """Product 삭제 (연관된 ProductBox도 함께 삭제)"""
     try:
@@ -418,7 +420,7 @@ async def delete_product(
 async def bulk_delete_products(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "DELETE"))
 ):
     """Product 일괄 삭제"""
     try:
@@ -442,7 +444,7 @@ async def bulk_delete_products(
 # ========== 엑셀 다운로드/업로드 ==========
 
 @router.get("/download/template")
-async def download_template():
+async def download_template(user: CurrentUser = Depends(require_permission("Product", "UPLOAD"))):
     """업로드용 엑셀 템플릿 다운로드"""
     try:
         handler = ProductExcelHandler()
@@ -491,7 +493,7 @@ async def download_excel(
 async def upload_excel(
     file: UploadFile = File(...),
     request: Request = None,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "UPLOAD"))
 ):
     """엑셀 업로드 (제품 및 박스 일괄 등록/수정)"""
     try:
@@ -508,7 +510,7 @@ async def upload_excel(
 # ========== ProductBox 관련 엔드포인트 ==========
 
 @router.get("/{product_id}/boxes")
-async def get_product_boxes(product_id: int):
+async def get_product_boxes(product_id: int, user: CurrentUser = Depends(require_permission("Product", "READ"))):
     """특정 Product의 모든 Box 조회"""
     try:
         boxes = box_repo.get_by_product_id(product_id)
@@ -523,7 +525,7 @@ async def create_product_box(
     product_id: int,
     data: ProductBoxCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "CREATE"))
 ):
     """ProductBox 생성"""
     try:
@@ -553,7 +555,7 @@ async def create_product_box(
 async def delete_product_box(
     box_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "DELETE"))
 ):
     """ProductBox 삭제"""
     try:
@@ -578,7 +580,8 @@ productbox_router = APIRouter(prefix="/api/productboxes", tags=["ProductBox"])
 async def get_productboxes(
     page: int = 1,
     limit: int = 50,
-    product_id: Optional[int] = None
+    product_id: Optional[int] = None,
+    user: CurrentUser = Depends(require_permission("Product", "READ"))
 ):
     """ProductBox 목록 조회 (product_id 필터 지원)"""
     try:
@@ -599,7 +602,7 @@ async def get_productboxes(
 
 
 @productbox_router.get("/{box_id}")
-async def get_productbox_by_id(box_id: int):
+async def get_productbox_by_id(box_id: int, user: CurrentUser = Depends(require_permission("Product", "READ"))):
     """ProductBox 단일 조회"""
     try:
         box = box_repo.get_by_id(box_id)
@@ -617,7 +620,7 @@ async def get_productbox_by_id(box_id: int):
 async def create_productbox_direct(
     data: ProductBoxFull,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "CREATE"))
 ):
     """ProductBox 직접 생성 (ProductID 포함)"""
     try:
@@ -644,7 +647,7 @@ async def update_productbox_direct(
     box_id: int,
     data: ProductBoxFull,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "UPDATE"))
 ):
     """ProductBox 수정"""
     try:
@@ -675,7 +678,7 @@ async def update_productbox_direct(
 async def delete_productbox_direct(
     box_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Product", "DELETE"))
 ):
     """ProductBox 삭제"""
     try:

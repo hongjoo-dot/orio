@@ -8,6 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import RedirectResponse
 
 from .security import decode_token
+from .database import get_db_cursor
 
 # HTTP Bearer 토큰 스키마 (옵션: 로그인 안 한 경우도 허용)
 security = HTTPBearer(auto_error=False)
@@ -197,3 +198,85 @@ async def require_login_for_page(
         return RedirectResponse(url="/login", status_code=302)
 
     return None
+
+
+def _get_role_id(role_name: str) -> Optional[int]:
+    """역할 이름으로 역할 ID 조회"""
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute("SELECT RoleID FROM [dbo].[Role] WHERE Name = ?", role_name)
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
+def _check_effective_permission(user_id: int, role_id: int, module: str, action: str) -> bool:
+    """
+    사용자 최종 권한 확인
+    = 역할 권한 + 개별 GRANT - 개별 DENY
+    """
+    with get_db_cursor(commit=False) as cursor:
+        # 권한 ID 조회
+        cursor.execute(
+            "SELECT PermissionID FROM [dbo].[Permission] WHERE Module = ? AND Action = ?",
+            module, action
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False
+        perm_id = row[0]
+
+        # 개별 DENY 확인 (우선순위 최상)
+        cursor.execute(
+            "SELECT COUNT(*) FROM [dbo].[UserPermission] WHERE UserID = ? AND PermissionID = ? AND Type = 'DENY'",
+            user_id, perm_id
+        )
+        if cursor.fetchone()[0] > 0:
+            return False
+
+        # 개별 GRANT 확인
+        cursor.execute(
+            "SELECT COUNT(*) FROM [dbo].[UserPermission] WHERE UserID = ? AND PermissionID = ? AND Type = 'GRANT'",
+            user_id, perm_id
+        )
+        if cursor.fetchone()[0] > 0:
+            return True
+
+        # 역할 권한 확인
+        cursor.execute(
+            "SELECT COUNT(*) FROM [dbo].[RolePermission] WHERE RoleID = ? AND PermissionID = ?",
+            role_id, perm_id
+        )
+        return cursor.fetchone()[0] > 0
+
+
+def require_permission(module: str, action: str):
+    """
+    특정 권한 요구 (의존성 팩토리)
+
+    Args:
+        module: 모듈명 (Product, Channel, Sales 등)
+        action: 액션 (CREATE, READ, UPDATE, DELETE 등)
+
+    Example:
+        @router.post("/")
+        async def create_product(user: CurrentUser = Depends(require_permission("Product", "CREATE"))):
+            ...
+    """
+    async def permission_checker(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+        # 역할 ID 조회
+        role_id = _get_role_id(user.role)
+        if role_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="유효하지 않은 역할입니다"
+            )
+
+        # 권한 체크
+        if not _check_effective_permission(user.user_id, role_id, module, action):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"권한이 없습니다: {module}:{action}"
+            )
+
+        return user
+
+    return permission_checker

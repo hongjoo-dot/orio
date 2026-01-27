@@ -117,6 +117,17 @@ async def activity_log_page(request: Request, redirect = Depends(require_login_f
     })
 
 
+@router.get("/admin/permissions", response_class=HTMLResponse)
+async def permissions_page(request: Request, redirect = Depends(require_login_for_page)):
+    """권한 관리 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("permissions.html", {
+        "request": request,
+        "active_page": "permissions"
+    })
+
+
 @router.get("/admin/system-config", response_class=HTMLResponse)
 async def system_config_page(request: Request, redirect = Depends(require_login_for_page)):
     """시스템 설정 페이지"""

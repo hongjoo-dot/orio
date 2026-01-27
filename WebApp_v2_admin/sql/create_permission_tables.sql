@@ -1,15 +1,18 @@
 -- =====================================================
 -- Permission System Tables
 -- 모듈+액션 기반 RBAC 권한 시스템
+-- 실행 순서: 1. Permission → 2. RolePermission → 3. UserPermission
 -- =====================================================
 
+-- =====================================================
 -- 1. Permission 테이블 (권한 정의)
+-- =====================================================
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Permission')
 BEGIN
     CREATE TABLE [dbo].[Permission] (
         PermissionID INT IDENTITY(1,1) PRIMARY KEY,
         Module NVARCHAR(50) NOT NULL,           -- 모듈명 (Product, Channel, Sales, Admin 등)
-        Action NVARCHAR(50) NOT NULL,           -- 액션 (CREATE, READ, UPDATE, DELETE, EXPORT, UPLOAD 등)
+        Action NVARCHAR(50) NOT NULL,           -- 액션 (CREATE, READ, UPDATE, DELETE, EXPORT 등)
         Name NVARCHAR(100) NOT NULL,            -- 권한 표시명 (제품 등록, 채널 삭제 등)
         Description NVARCHAR(255) NULL,         -- 설명
         CreatedDate DATETIME DEFAULT GETDATE(),
@@ -17,11 +20,14 @@ BEGIN
         CONSTRAINT UQ_Permission_Module_Action UNIQUE (Module, Action)
     );
 
+    CREATE INDEX IX_Permission_Module ON [dbo].[Permission](Module);
     PRINT 'Permission 테이블 생성 완료';
 END
 GO
 
+-- =====================================================
 -- 2. RolePermission 테이블 (역할-권한 매핑)
+-- =====================================================
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'RolePermission')
 BEGIN
     CREATE TABLE [dbo].[RolePermission] (
@@ -38,27 +44,41 @@ BEGIN
         CONSTRAINT UQ_RolePermission UNIQUE (RoleID, PermissionID)
     );
 
+    CREATE INDEX IX_RolePermission_RoleID ON [dbo].[RolePermission](RoleID);
     PRINT 'RolePermission 테이블 생성 완료';
 END
 GO
 
--- 3. 인덱스 생성
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Permission_Module')
-    CREATE INDEX IX_Permission_Module ON [dbo].[Permission](Module);
+-- =====================================================
+-- 3. UserPermission 테이블 (사용자별 개별 권한)
+-- Type: 'GRANT' = 추가 권한, 'DENY' = 제외 권한
+-- =====================================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserPermission')
+BEGIN
+    CREATE TABLE [dbo].[UserPermission] (
+        UserPermissionID INT IDENTITY(1,1) PRIMARY KEY,
+        UserID INT NOT NULL,
+        PermissionID INT NOT NULL,
+        Type NVARCHAR(10) NOT NULL DEFAULT 'GRANT',  -- 'GRANT' 또는 'DENY'
+        CreatedDate DATETIME DEFAULT GETDATE(),
+        CreatedBy INT NULL,
 
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_RolePermission_RoleID')
-    CREATE INDEX IX_RolePermission_RoleID ON [dbo].[RolePermission](RoleID);
+        CONSTRAINT FK_UserPermission_User FOREIGN KEY (UserID)
+            REFERENCES [dbo].[User](UserID) ON DELETE CASCADE,
+        CONSTRAINT FK_UserPermission_Permission FOREIGN KEY (PermissionID)
+            REFERENCES [dbo].[Permission](PermissionID) ON DELETE CASCADE,
+        CONSTRAINT UQ_UserPermission UNIQUE (UserID, PermissionID),
+        CONSTRAINT CK_UserPermission_Type CHECK (Type IN ('GRANT', 'DENY'))
+    );
+
+    CREATE INDEX IX_UserPermission_UserID ON [dbo].[UserPermission](UserID);
+    PRINT 'UserPermission 테이블 생성 완료';
+END
 GO
 
 -- =====================================================
 -- 기본 권한 데이터 삽입
 -- =====================================================
-
--- 기존 데이터 삭제 (선택적)
--- DELETE FROM [dbo].[RolePermission];
--- DELETE FROM [dbo].[Permission];
-
--- Permission 데이터 삽입
 IF NOT EXISTS (SELECT * FROM [dbo].[Permission])
 BEGIN
     INSERT INTO [dbo].[Permission] (Module, Action, Name, Description) VALUES
@@ -108,70 +128,65 @@ BEGIN
     ('Admin', 'USER_CREATE', '사용자 등록', '새 사용자 등록'),
     ('Admin', 'USER_UPDATE', '사용자 수정', '사용자 정보 수정'),
     ('Admin', 'USER_DELETE', '사용자 삭제', '사용자 삭제'),
-    ('Admin', 'ROLE_MANAGE', '역할 관리', '역할 및 권한 설정'),
+    ('Admin', 'ROLE_MANAGE', '역할/권한 관리', '역할 및 권한 설정'),
     ('Admin', 'LOG_VIEW', '활동 로그 조회', '시스템 활동 이력 조회');
 
-    PRINT 'Permission 기본 데이터 삽입 완료';
+    PRINT 'Permission 기본 데이터 삽입 완료 (35개 권한)';
 END
 GO
 
 -- =====================================================
--- 역할별 권한 할당 (예시)
+-- 역할별 기본 권한 할당
 -- =====================================================
 
--- Admin 역할: 모든 권한
+-- Admin 역할 (RoleID=1): 모든 권한
 IF NOT EXISTS (SELECT * FROM [dbo].[RolePermission] WHERE RoleID = 1)
 BEGIN
     INSERT INTO [dbo].[RolePermission] (RoleID, PermissionID)
     SELECT 1, PermissionID FROM [dbo].[Permission];
-
-    PRINT 'Admin 역할에 모든 권한 할당 완료';
+    PRINT 'Admin 역할: 모든 권한 할당 완료';
 END
 GO
 
--- Manager 역할 (RoleID = 2): Admin 모듈 제외 모든 권한
+-- Manager 역할 (RoleID=2): Admin 모듈 제외
 IF NOT EXISTS (SELECT * FROM [dbo].[RolePermission] WHERE RoleID = 2)
 BEGIN
     INSERT INTO [dbo].[RolePermission] (RoleID, PermissionID)
-    SELECT 2, PermissionID
-    FROM [dbo].[Permission]
-    WHERE Module != 'Admin';
-
-    PRINT 'Manager 역할에 권한 할당 완료';
+    SELECT 2, PermissionID FROM [dbo].[Permission] WHERE Module != 'Admin';
+    PRINT 'Manager 역할: Admin 제외 권한 할당 완료';
 END
 GO
 
--- Viewer 역할 (RoleID = 3): READ 권한만
+-- Viewer 역할 (RoleID=3): READ 권한만
 IF NOT EXISTS (SELECT * FROM [dbo].[RolePermission] WHERE RoleID = 3)
 BEGIN
     INSERT INTO [dbo].[RolePermission] (RoleID, PermissionID)
-    SELECT 3, PermissionID
-    FROM [dbo].[Permission]
-    WHERE Action = 'READ';
-
-    PRINT 'Viewer 역할에 조회 권한 할당 완료';
+    SELECT 3, PermissionID FROM [dbo].[Permission] WHERE Action = 'READ';
+    PRINT 'Viewer 역할: 조회 권한만 할당 완료';
 END
 GO
 
 -- =====================================================
--- 권한 조회용 뷰 (선택)
+-- 확인용 쿼리 (실행 후 확인)
 -- =====================================================
-IF EXISTS (SELECT * FROM sys.views WHERE name = 'vw_RolePermissions')
-    DROP VIEW vw_RolePermissions;
-GO
+/*
+-- 전체 권한 목록
+SELECT * FROM [dbo].[Permission] ORDER BY Module, Action;
 
-CREATE VIEW vw_RolePermissions AS
-SELECT
-    r.RoleID,
-    r.Name AS RoleName,
-    p.PermissionID,
-    p.Module,
-    p.Action,
-    p.Name AS PermissionName,
-    p.Module + ':' + p.Action AS PermissionCode
+-- 역할별 권한 확인
+SELECT r.Name AS RoleName, p.Module, p.Action, p.Name AS PermissionName
 FROM [dbo].[Role] r
 JOIN [dbo].[RolePermission] rp ON r.RoleID = rp.RoleID
-JOIN [dbo].[Permission] p ON rp.PermissionID = p.PermissionID;
-GO
+JOIN [dbo].[Permission] p ON rp.PermissionID = p.PermissionID
+ORDER BY r.RoleID, p.Module, p.Action;
 
+-- 역할별 권한 개수
+SELECT r.Name, COUNT(*) AS PermissionCount
+FROM [dbo].[Role] r
+LEFT JOIN [dbo].[RolePermission] rp ON r.RoleID = rp.RoleID
+GROUP BY r.RoleID, r.Name;
+*/
+
+PRINT '====================================';
 PRINT '권한 시스템 테이블 설정 완료!';
+PRINT '====================================';

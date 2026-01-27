@@ -60,6 +60,10 @@
             style="display: none;">
             <i class="fa-solid fa-users-gear"></i> <span class="nav-text">사용자 관리</span>
         </a>
+        <a href="/admin/permissions"
+            class="nav-item admin-only {% if active_page == 'permissions' %}active{% endif %}" style="display: none;">
+            <i class="fa-solid fa-shield-halved"></i> <span class="nav-text">권한 관리</span>
+        </a>
         <a href="/admin/activity-log"
             class="nav-item admin-only {% if active_page == 'activity-log' %}active{% endif %}" style="display: none;">
             <i class="fa-solid fa-clock-rotate-left"></i> <span class="nav-text">활동 이력</span>

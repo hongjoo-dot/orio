@@ -10,6 +10,16 @@ from .user_repository import UserRepository, RoleRepository
 from .activity_log_repository import ActivityLogRepository
 from .target_base_repository import TargetBaseRepository
 from .target_promotion_repository import TargetPromotionRepository
+from .permission_repository import (
+    PermissionRepository,
+    RolePermissionRepository,
+    UserPermissionRepository,
+    EffectivePermissionService,
+    permission_repo,
+    role_permission_repo,
+    user_permission_repo,
+    effective_permission_service
+)
 
 __all__ = [
     'ProductRepository',
@@ -24,5 +34,13 @@ __all__ = [
     'ActivityLogRepository',
     'TargetBaseRepository',
     'TargetPromotionRepository',
+    'PermissionRepository',
+    'RolePermissionRepository',
+    'UserPermissionRepository',
+    'EffectivePermissionService',
+    'permission_repo',
+    'role_permission_repo',
+    'user_permission_repo',
+    'effective_permission_service',
 ]
 

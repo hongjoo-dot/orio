@@ -14,8 +14,8 @@ import io
 from datetime import datetime
 from repositories import SalesRepository, ActivityLogRepository
 from core import get_db_cursor
-from core.dependencies import get_current_user, get_client_ip, CurrentUser
-from core import log_activity, log_delete, log_bulk_delete
+from core.dependencies import get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete, require_permission
 from utils import send_sync_notification, send_erpsales_upload_notification
 from utils.excel import SalesExcelHandler
 
@@ -91,7 +91,8 @@ async def get_sales(
     erp_code: Optional[str] = None,
     channel_name: Optional[str] = None,
     start_date: Optional[str] = None,
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Sales", "READ"))
 ):
     """ERPSales 목록 조회 (페이지네이션 및 필터링)"""
     try:
@@ -123,7 +124,7 @@ async def get_sales(
 
 
 @router.get("/{idx}")
-async def get_sales_item(idx: int):
+async def get_sales_item(idx: int, user: CurrentUser = Depends(require_permission("Sales", "READ"))):
     """ERPSales 단일 조회"""
     try:
         sales_item = sales_repo.get_by_id(idx)
@@ -141,7 +142,7 @@ async def get_sales_item(idx: int):
 async def create_sales(
     data: SalesCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Sales", "CREATE"))
 ):
     """ERPSales 생성"""
     try:
@@ -158,7 +159,7 @@ async def update_sales(
     idx: int,
     data: SalesUpdate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Sales", "UPDATE"))
 ):
     """ERPSales 수정"""
     try:
@@ -185,7 +186,7 @@ async def update_sales(
 async def delete_sales(
     idx: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Sales", "DELETE"))
 ):
     """ERPSales 삭제"""
     try:
@@ -208,7 +209,7 @@ async def delete_sales(
 async def bulk_delete_sales(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Sales", "DELETE"))
 ):
     """ERPSales 일괄 삭제"""
     try:
@@ -229,7 +230,7 @@ async def bulk_delete_sales(
 async def bulk_update_sales(
     request_body: BulkUpdateRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Sales", "UPDATE"))
 ):
     """ERPSales 일괄 수정"""
     try:
@@ -255,7 +256,7 @@ async def bulk_update_sales(
 # ========== 엑셀 업로드/다운로드 ==========
 
 @router.get("/download/template")
-async def download_template():
+async def download_template(user: CurrentUser = Depends(require_permission("Sales", "EXPORT"))):
     """엑셀 업로드용 양식 다운로드"""
     columns = [
         '라인별', '일자-No.', '일자', 
@@ -292,7 +293,7 @@ async def download_template():
 async def upload_excel(
     file: UploadFile = File(...),
     request: Request = None,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Sales", "UPLOAD"))
 ):
     """
     엑셀 파일 업로드 및 ERPSales에 삽입 (대용량 지원 - 배치 처리)
@@ -518,7 +519,7 @@ async def sync_erpsales_to_orders(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     request: Request = None,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Sales", "UPDATE"))
 ):
     """
     ERPSales 데이터를 OrdersRealtime으로 동기화 (MERGE 방식)

@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+
+{% block title %}권한 관리 - Orio ERP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-shield-halved"></i> 권한 관리
+    </h1>
+    <p class="page-subtitle">역할별 권한 설정, 사용자별 개별 권한 부여/제외</p>
+</div>
+
+<!-- 탭 메뉴 -->
+<div class="card" style="padding: 0;">
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('roles')" id="tabRoles">
+            <i class="fa-solid fa-user-tag"></i> 역할별 권한
+        </button>
+        <button class="tab-btn" onclick="switchTab('users')" id="tabUsers">
+            <i class="fa-solid fa-user-gear"></i> 사용자별 권한
+        </button>
+    </div>
+</div>
+
+<!-- 역할별 권한 탭 -->
+<div id="rolesTab" class="tab-content">
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div class="card-title" style="margin:0;"><i class="fa-solid fa-list-check"></i> 역할 선택</div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <select id="roleSelect" class="form-select" style="width:200px;" onchange="loadRolePermissions()">
+                <option value="">역할 선택...</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveRolePermissions()" id="btnSaveRole" disabled>
+                <i class="fa-solid fa-save"></i> 권한 저장
+            </button>
+        </div>
+    </div>
+
+    <div class="card" id="rolePermissionsCard" style="display:none;">
+        <div class="card-title"><i class="fa-solid fa-key"></i> <span id="selectedRoleName">역할</span> 권한 설정</div>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+            체크된 권한이 해당 역할에 부여됩니다. 변경 후 "권한 저장" 버튼을 클릭하세요.
+        </p>
+        <div id="rolePermissionsList"></div>
+    </div>
+</div>
+
+<!-- 사용자별 권한 탭 -->
+<div id="usersTab" class="tab-content" style="display:none;">
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div class="card-title" style="margin:0;"><i class="fa-solid fa-user"></i> 사용자 선택</div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
+            <div>
+                <label class="form-label">검색</label>
+                <input type="text" id="userSearch" class="form-input" placeholder="이름 또는 이메일..."
+                       style="width:200px;" onkeyup="searchUsers()">
+            </div>
+            <div>
+                <label class="form-label">사용자</label>
+                <select id="userSelect" class="form-select" style="width:250px;" onchange="loadUserPermissions()">
+                    <option value="">사용자 선택...</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="saveUserPermissions()" id="btnSaveUser" disabled>
+                <i class="fa-solid fa-save"></i> 권한 저장
+            </button>
+        </div>
+    </div>
+
+    <div class="card" id="userPermissionsCard" style="display:none;">
+        <div class="card-title"><i class="fa-solid fa-user-shield"></i> <span id="selectedUserName">사용자</span> 권한 설정</div>
+        <div style="background:var(--bg-tertiary);padding:12px;border-radius:8px;margin-bottom:16px;">
+            <p style="color:var(--text-muted);font-size:13px;margin:0;">
+                <strong>역할 권한:</strong> <span id="userRoleName" class="badge badge-info">-</span>에서 상속<br>
+                <strong>추가 허용:</strong> 역할에 없는 권한을 추가로 부여<br>
+                <strong>제외:</strong> 역할에 있는 권한을 개별적으로 제외
+            </p>
+        </div>
+        <div id="userPermissionsList"></div>
+    </div>
+</div>
+
+<style>
+.tab-container {
+    display: flex;
+    border-bottom: 2px solid var(--border-color);
+}
+.tab-btn {
+    padding: 16px 24px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+}
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+}
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+.tab-content {
+    margin-top: 20px;
+}
+.permission-module {
+    margin-bottom: 24px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.permission-module-header {
+    background: var(--bg-secondary);
+    padding: 12px 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.permission-module-body {
+    padding: 16px;
+}
+.permission-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.permission-item:last-child {
+    border-bottom: none;
+}
+.permission-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+.permission-info {
+    flex: 1;
+    margin-left: 12px;
+}
+.permission-name {
+    font-weight: 500;
+}
+.permission-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.permission-action {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    margin-left: auto;
+}
+/* 사용자 권한 - 3가지 상태 */
+.permission-user-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.permission-user-item:last-child {
+    border-bottom: none;
+}
+.permission-status {
+    display: flex;
+    gap: 4px;
+}
+.status-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+.status-btn:hover {
+    background: var(--bg-secondary);
+}
+.status-btn.inherit {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+}
+.status-btn.inherit.active {
+    background: var(--bg-tertiary);
+    border-color: var(--text-muted);
+    font-weight: 600;
+}
+.status-btn.grant {
+    color: var(--success-color);
+}
+.status-btn.grant.active {
+    background: var(--success-color);
+    color: white;
+    border-color: var(--success-color);
+}
+.status-btn.deny {
+    color: var(--danger-color);
+}
+.status-btn.deny.active {
+    background: var(--danger-color);
+    color: white;
+    border-color: var(--danger-color);
+}
+.role-has-permission {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.role-has-permission.yes {
+    color: var(--success-color);
+}
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_BASE = '/api/admin';
+let allPermissions = [];
+let permissionsByModule = {};
+let roles = [];
+let users = [];
+let currentRoleId = null;
+let currentUserId = null;
+let rolePermissionIds = new Set();
+let userGrants = new Set();
+let userDenies = new Set();
+
+function getAuthHeaders() {
+    const token = localStorage.getItem('access_token');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadPermissions();
+    loadRoles();
+    loadAllUsers();
+});
+
+// 탭 전환
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
+
+    if (tab === 'roles') {
+        document.getElementById('tabRoles').classList.add('active');
+        document.getElementById('rolesTab').style.display = 'block';
+    } else {
+        document.getElementById('tabUsers').classList.add('active');
+        document.getElementById('usersTab').style.display = 'block';
+    }
+}
+
+// 전체 권한 목록 로드
+async function loadPermissions() {
+    try {
+        const response = await fetch(`${API_BASE}/permissions`, { headers: getAuthHeaders() });
+        if (response.status === 401) { window.location.href = '/login'; return; }
+        if (response.status === 403) { alert('관리자 권한이 필요합니다.'); return; }
+
+        const data = await response.json();
+        allPermissions = data.permissions;
+        permissionsByModule = data.grouped;
+    } catch (error) {
+        console.error('권한 로드 실패:', error);
+    }
+}
+
+// 역할 목록 로드
+async function loadRoles() {
+    try {
+        const response = await fetch(`${API_BASE}/roles`, { headers: getAuthHeaders() });
+        roles = await response.json();
+
+        const select = document.getElementById('roleSelect');
+        select.innerHTML = '<option value="">역할 선택...</option>';
+        roles.forEach(role => {
+            select.innerHTML += `<option value="${role.RoleID}">${role.Name} - ${role.Description || ''}</option>`;
+        });
+    } catch (error) {
+        console.error('역할 로드 실패:', error);
+    }
+}
+
+// 역할 권한 로드
+async function loadRolePermissions() {
+    const roleId = document.getElementById('roleSelect').value;
+    if (!roleId) {
+        document.getElementById('rolePermissionsCard').style.display = 'none';
+        document.getElementById('btnSaveRole').disabled = true;
+        return;
+    }
+
+    currentRoleId = parseInt(roleId);
+
+    try {
+        const response = await fetch(`${API_BASE}/roles/${roleId}/permissions`, { headers: getAuthHeaders() });
+        const data = await response.json();
+
+        rolePermissionIds = new Set(data.permission_ids);
+
+        document.getElementById('selectedRoleName').textContent = data.role.Name;
+        document.getElementById('rolePermissionsCard').style.display = 'block';
+        document.getElementById('btnSaveRole').disabled = false;
+
+        renderRolePermissions();
+    } catch (error) {
+        console.error('역할 권한 로드 실패:', error);
+    }
+}
+
+// 역할 권한 렌더링
+function renderRolePermissions() {
+    const container = document.getElementById('rolePermissionsList');
+    let html = '';
+
+    for (const [module, permissions] of Object.entries(permissionsByModule)) {
+        html += `
+            <div class="permission-module">
+                <div class="permission-module-header">
+                    <i class="fa-solid fa-folder"></i> ${module}
+                    <span style="font-weight:normal;font-size:12px;color:var(--text-muted);">(${permissions.length}개)</span>
+                </div>
+                <div class="permission-module-body">
+        `;
+
+        permissions.forEach(perm => {
+            const checked = rolePermissionIds.has(perm.PermissionID) ? 'checked' : '';
+            html += `
+                <div class="permission-item">
+                    <input type="checkbox" class="permission-checkbox"
+                           data-id="${perm.PermissionID}" ${checked}
+                           onchange="toggleRolePermission(${perm.PermissionID}, this.checked)">
+                    <div class="permission-info">
+                        <div class="permission-name">${perm.Name}</div>
+                        <div class="permission-desc">${perm.Description || ''}</div>
+                    </div>
+                    <span class="permission-action">${perm.Action}</span>
+                </div>
+            `;
+        });
+
+        html += '</div></div>';
+    }
+
+    container.innerHTML = html;
+}
+
+// 역할 권한 토글
+function toggleRolePermission(permId, checked) {
+    if (checked) {
+        rolePermissionIds.add(permId);
+    } else {
+        rolePermissionIds.delete(permId);
+    }
+}
+
+// 역할 권한 저장
+async function saveRolePermissions() {
+    if (!currentRoleId) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/roles/${currentRoleId}/permissions`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ permission_ids: Array.from(rolePermissionIds) })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.detail || '저장 실패');
+            return;
+        }
+
+        alert('권한이 저장되었습니다.');
+    } catch (error) {
+        console.error('권한 저장 실패:', error);
+        alert('저장 중 오류가 발생했습니다.');
+    }
+}
+
+// 전체 사용자 로드 (페이지네이션 처리)
+async function loadAllUsers() {
+    try {
+        users = [];
+        let page = 1;
+        const limit = 100;
+        let hasMore = true;
+
+        while (hasMore) {
+            const response = await fetch(`${API_BASE}/users?page=${page}&limit=${limit}`, { headers: getAuthHeaders() });
+            if (!response.ok) {
+                console.error('사용자 로드 실패:', response.status);
+                break;
+            }
+            const data = await response.json();
+            const pageUsers = data.data || [];
+            users = users.concat(pageUsers);
+
+            // 더 가져올 데이터가 있는지 확인
+            hasMore = pageUsers.length === limit && page < data.total_pages;
+            page++;
+        }
+
+        renderUserOptions(users);
+        console.log(`사용자 ${users.length}명 로드 완료`);
+    } catch (error) {
+        console.error('사용자 로드 실패:', error);
+    }
+}
+
+// 사용자 검색
+function searchUsers() {
+    const search = document.getElementById('userSearch').value.toLowerCase();
+    const filtered = users.filter(u =>
+        u.Name.toLowerCase().includes(search) ||
+        u.Email.toLowerCase().includes(search)
+    );
+    renderUserOptions(filtered);
+}
+
+// 사용자 옵션 렌더링
+function renderUserOptions(userList) {
+    const select = document.getElementById('userSelect');
+    select.innerHTML = '<option value="">사용자 선택...</option>';
+    userList.forEach(user => {
+        select.innerHTML += `<option value="${user.UserID}">${user.Name} (${user.Email}) - ${user.RoleName || 'N/A'}</option>`;
+    });
+}
+
+// 사용자 권한 로드
+async function loadUserPermissions() {
+    const userId = document.getElementById('userSelect').value;
+    if (!userId) {
+        document.getElementById('userPermissionsCard').style.display = 'none';
+        document.getElementById('btnSaveUser').disabled = true;
+        return;
+    }
+
+    currentUserId = parseInt(userId);
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${userId}/permissions`, { headers: getAuthHeaders() });
+        const data = await response.json();
+
+        // 역할 권한 ID 세트
+        rolePermissionIds = new Set(data.role_permission_ids);
+        // 사용자 개별 GRANT/DENY
+        userGrants = new Set(data.user_grants);
+        userDenies = new Set(data.user_denies);
+
+        // 역할 이름 찾기
+        const user = users.find(u => u.UserID === currentUserId);
+        document.getElementById('selectedUserName').textContent = user ? user.Name : '사용자';
+        document.getElementById('userRoleName').textContent = user ? user.RoleName : '-';
+
+        document.getElementById('userPermissionsCard').style.display = 'block';
+        document.getElementById('btnSaveUser').disabled = false;
+
+        renderUserPermissions();
+    } catch (error) {
+        console.error('사용자 권한 로드 실패:', error);
+    }
+}
+
+// 사용자 권한 렌더링
+function renderUserPermissions() {
+    const container = document.getElementById('userPermissionsList');
+    let html = '';
+
+    for (const [module, permissions] of Object.entries(permissionsByModule)) {
+        html += `
+            <div class="permission-module">
+                <div class="permission-module-header">
+                    <i class="fa-solid fa-folder"></i> ${module}
+                </div>
+                <div class="permission-module-body">
+        `;
+
+        permissions.forEach(perm => {
+            const hasRole = rolePermissionIds.has(perm.PermissionID);
+            const isGrant = userGrants.has(perm.PermissionID);
+            const isDeny = userDenies.has(perm.PermissionID);
+
+            // 현재 상태 결정
+            let status = 'inherit';
+            if (isGrant) status = 'grant';
+            if (isDeny) status = 'deny';
+
+            html += `
+                <div class="permission-user-item">
+                    <div class="permission-info">
+                        <div class="permission-name">${perm.Name} <span class="permission-action">${perm.Action}</span></div>
+                        <div class="permission-desc">${perm.Description || ''}</div>
+                        <div class="role-has-permission ${hasRole ? 'yes' : ''}">
+                            역할 권한: ${hasRole ? '있음' : '없음'}
+                        </div>
+                    </div>
+                    <div class="permission-status">
+                        <button class="status-btn inherit ${status === 'inherit' ? 'active' : ''}"
+                                onclick="setUserPermissionStatus(${perm.PermissionID}, 'inherit', this)">
+                            상속
+                        </button>
+                        <button class="status-btn grant ${status === 'grant' ? 'active' : ''}"
+                                onclick="setUserPermissionStatus(${perm.PermissionID}, 'grant', this)">
+                            허용
+                        </button>
+                        <button class="status-btn deny ${status === 'deny' ? 'active' : ''}"
+                                onclick="setUserPermissionStatus(${perm.PermissionID}, 'deny', this)">
+                            제외
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div></div>';
+    }
+
+    container.innerHTML = html;
+}
+
+// 사용자 권한 상태 설정
+function setUserPermissionStatus(permId, status, btn) {
+    // 모든 버튼에서 active 제거
+    const parent = btn.parentElement;
+    parent.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // 세트 업데이트
+    userGrants.delete(permId);
+    userDenies.delete(permId);
+
+    if (status === 'grant') {
+        userGrants.add(permId);
+    } else if (status === 'deny') {
+        userDenies.add(permId);
+    }
+}
+
+// 사용자 권한 저장
+async function saveUserPermissions() {
+    if (!currentUserId) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/users/${currentUserId}/permissions`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                grants: Array.from(userGrants),
+                denies: Array.from(userDenies)
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.detail || '저장 실패');
+            return;
+        }
+
+        alert('권한이 저장되었습니다.');
+    } catch (error) {
+        console.error('권한 저장 실패:', error);
+        alert('저장 중 오류가 발생했습니다.');
+    }
+}
+</script>
+{% endblock %}

@@ -15,8 +15,8 @@ from repositories.target_base_repository import TargetBaseRepository
 from repositories.target_promotion_repository import TargetPromotionRepository
 from repositories import BrandRepository, ChannelRepository, ProductRepository, ActivityLogRepository
 from core import get_db_cursor
-from core.dependencies import get_current_user, get_client_ip, CurrentUser
-from core import log_activity, log_delete, log_bulk_delete
+from core.dependencies import get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete, require_permission
 
 
 def _format_time_value(value, default: str = '00:00:00') -> str:
@@ -89,7 +89,8 @@ async def get_target_base_list(
     limit: int = 20,
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None
+    channel_id: Optional[int] = None,
+    user: CurrentUser = Depends(require_permission("Target", "READ"))
 ):
     """기본 목표 목록 조회"""
     try:
@@ -114,7 +115,7 @@ async def get_target_base_list(
 
 
 @router.get("/year-months")
-async def get_target_base_year_months():
+async def get_target_base_year_months(user: CurrentUser = Depends(require_permission("Target", "READ"))):
     """기본 목표 년월 목록 조회"""
     try:
         year_months = target_base_repo.get_year_months()
@@ -128,7 +129,8 @@ async def download_target_base(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    ids: Optional[str] = None
+    ids: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Target", "EXPORT"))
 ):
     """기본 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
     try:
@@ -348,7 +350,7 @@ async def download_target_base(
 
 
 @router.get("/{target_id}")
-async def get_target_base_item(target_id: int):
+async def get_target_base_item(target_id: int, user: CurrentUser = Depends(require_permission("Target", "READ"))):
     """기본 목표 단일 조회"""
     try:
         item = target_base_repo.get_by_id(target_id)
@@ -366,7 +368,7 @@ async def get_target_base_item(target_id: int):
 async def create_target_base(
     data: TargetBaseCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "CREATE"))
 ):
     """기본 목표 생성"""
     try:
@@ -383,7 +385,7 @@ async def update_target_base(
     target_id: int,
     data: TargetBaseUpdate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "UPDATE"))
 ):
     """기본 목표 수정"""
     try:
@@ -410,7 +412,7 @@ async def update_target_base(
 async def delete_target_base(
     target_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
     """기본 목표 삭제"""
     try:
@@ -433,7 +435,7 @@ async def delete_target_base(
 async def bulk_delete_target_base(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
     """기본 목표 일괄 삭제"""
     try:
@@ -454,7 +456,7 @@ async def bulk_delete_target_base(
 async def filter_delete_target_base(
     request_body: FilterDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
     """필터 조건으로 기본 목표 일괄 삭제"""
     try:
@@ -478,7 +480,7 @@ async def filter_delete_target_base(
 async def upload_target_base(
     file: UploadFile = File(...),
     request: Request = None,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "UPLOAD"))
 ):
     """기본 목표 엑셀 업로드"""
     try:
@@ -732,7 +734,8 @@ async def get_target_promotion_list(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_type: Optional[str] = None
+    promotion_type: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Target", "READ"))
 ):
     """행사 목표 목록 조회"""
     try:
@@ -759,7 +762,7 @@ async def get_target_promotion_list(
 
 
 @promotion_router.get("/year-months")
-async def get_target_promotion_year_months():
+async def get_target_promotion_year_months(user: CurrentUser = Depends(require_permission("Target", "READ"))):
     """행사 목표 년월 목록 조회"""
     try:
         year_months = target_promotion_repo.get_year_months()
@@ -769,7 +772,7 @@ async def get_target_promotion_year_months():
 
 
 @promotion_router.get("/promotion-types")
-async def get_promotion_types():
+async def get_promotion_types(user: CurrentUser = Depends(require_permission("Target", "READ"))):
     """행사유형 목록 조회 (드롭다운용)"""
     try:
         promotion_types = target_promotion_repo.get_promotion_types()
@@ -784,7 +787,8 @@ async def download_target_promotion(
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
     promotion_type: Optional[str] = None,
-    ids: Optional[str] = None
+    ids: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Target", "EXPORT"))
 ):
     """행사 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
     try:
@@ -1043,7 +1047,7 @@ async def download_target_promotion(
 
 
 @promotion_router.get("/{target_id}")
-async def get_target_promotion_item(target_id: int):
+async def get_target_promotion_item(target_id: int, user: CurrentUser = Depends(require_permission("Target", "READ"))):
     """행사 목표 단일 조회"""
     try:
         item = target_promotion_repo.get_by_id(target_id)
@@ -1061,7 +1065,7 @@ async def get_target_promotion_item(target_id: int):
 async def create_target_promotion(
     data: TargetPromotionCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "CREATE"))
 ):
     """행사 목표 생성"""
     try:
@@ -1078,7 +1082,7 @@ async def update_target_promotion(
     target_id: int,
     data: TargetPromotionUpdate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "UPDATE"))
 ):
     """행사 목표 수정"""
     try:
@@ -1105,7 +1109,7 @@ async def update_target_promotion(
 async def delete_target_promotion(
     target_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
     """행사 목표 삭제"""
     try:
@@ -1128,7 +1132,7 @@ async def delete_target_promotion(
 async def bulk_delete_target_promotion(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
     """행사 목표 일괄 삭제"""
     try:
@@ -1149,7 +1153,7 @@ async def bulk_delete_target_promotion(
 async def filter_delete_target_promotion(
     request_body: PromotionFilterDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
     """필터 조건으로 행사 목표 일괄 삭제"""
     try:
@@ -1174,7 +1178,7 @@ async def filter_delete_target_promotion(
 async def upload_target_promotion(
     file: UploadFile = File(...),
     request: Request = None,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Target", "UPLOAD"))
 ):
     """행사 목표 엑셀 업로드"""
     try:

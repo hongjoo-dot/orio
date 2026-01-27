@@ -7,8 +7,8 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional
 from repositories import BrandRepository
-from core.dependencies import get_current_user, get_client_ip, CurrentUser
-from core import log_activity, log_delete
+from core.dependencies import get_client_ip, CurrentUser
+from core import log_activity, log_delete, require_permission
 
 router = APIRouter(prefix="/api/brands", tags=["Brand"])
 
@@ -30,7 +30,7 @@ class BrandUpdate(BaseModel):
 async def get_brands(
     page: int = 1,
     limit: int = 50,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Brand", "READ"))
 ):
     """Brand 목록 조회"""
     try:
@@ -46,7 +46,7 @@ async def get_brands(
 
 
 @router.get("/all")
-async def get_all_brands(user: CurrentUser = Depends(get_current_user)):
+async def get_all_brands(user: CurrentUser = Depends(require_permission("Brand", "READ"))):
     """모든 브랜드 Title 조회 (중복 제거)"""
     try:
         brands = brand_repo.get_all_brands()
@@ -56,7 +56,7 @@ async def get_all_brands(user: CurrentUser = Depends(get_current_user)):
 
 
 @router.get("/{brand_id}")
-async def get_brand(brand_id: int, user: CurrentUser = Depends(get_current_user)):
+async def get_brand(brand_id: int, user: CurrentUser = Depends(require_permission("Brand", "READ"))):
     """Brand 단일 조회"""
     try:
         brand = brand_repo.get_by_id(brand_id)
@@ -74,7 +74,7 @@ async def get_brand(brand_id: int, user: CurrentUser = Depends(get_current_user)
 async def create_brand(
     data: BrandCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Brand", "CREATE"))
 ):
     """Brand 생성"""
     try:
@@ -90,7 +90,7 @@ async def update_brand(
     brand_id: int,
     data: BrandUpdate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Brand", "UPDATE"))
 ):
     """Brand 수정"""
     try:
@@ -117,7 +117,7 @@ async def update_brand(
 async def delete_brand(
     brand_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Brand", "DELETE"))
 ):
     """Brand 삭제"""
     try:

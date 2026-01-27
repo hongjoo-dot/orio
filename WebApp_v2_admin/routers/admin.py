@@ -11,6 +11,12 @@ from core.dependencies import get_current_user, require_admin, CurrentUser
 from core import log_activity, log_delete
 from repositories.user_repository import user_repo, role_repo
 from repositories.activity_log_repository import activity_log_repo, ActivityLogRepository
+from repositories.permission_repository import (
+    permission_repo,
+    role_permission_repo,
+    user_permission_repo,
+    effective_permission_service
+)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -39,6 +45,17 @@ class RoleAssign(BaseModel):
 
 class PasswordReset(BaseModel):
     new_password: str
+
+
+class RolePermissionUpdate(BaseModel):
+    """역할 권한 일괄 업데이트"""
+    permission_ids: List[int]
+
+
+class UserPermissionUpdate(BaseModel):
+    """사용자 개별 권한 업데이트"""
+    grants: List[int] = []   # 추가 권한 ID 목록
+    denies: List[int] = []   # 제외 권한 ID 목록
 
 
 # ========================
@@ -377,3 +394,191 @@ async def get_user_activity_summary(
     사용자 활동 요약 (Admin만)
     """
     return activity_log_repo.get_user_activity_summary(user_id, days)
+
+
+# ========================
+# Permission APIs
+# ========================
+
+@router.get("/permissions")
+async def get_permissions(admin: CurrentUser = Depends(require_admin)):
+    """
+    전체 권한 목록 조회 (모듈별 그룹화)
+    """
+    return {
+        "permissions": permission_repo.get_all(),
+        "grouped": permission_repo.get_grouped_by_module(),
+        "modules": permission_repo.get_modules()
+    }
+
+
+@router.get("/roles/{role_id}/permissions")
+async def get_role_permissions(
+    role_id: int,
+    admin: CurrentUser = Depends(require_admin)
+):
+    """
+    역할의 권한 목록 조회
+    """
+    # 역할 존재 확인
+    role = role_repo.get_by_id(role_id)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="역할을 찾을 수 없습니다"
+        )
+
+    permissions = role_permission_repo.get_role_permissions(role_id)
+    permission_ids = list(role_permission_repo.get_role_permission_ids(role_id))
+
+    return {
+        "role": role,
+        "permissions": permissions,
+        "permission_ids": permission_ids
+    }
+
+
+@router.put("/roles/{role_id}/permissions")
+async def update_role_permissions(
+    role_id: int,
+    data: RolePermissionUpdate,
+    request: Request,
+    admin: CurrentUser = Depends(require_admin)
+):
+    """
+    역할 권한 일괄 업데이트
+    """
+    ip_address = get_client_ip(request)
+
+    # 역할 존재 확인
+    role = role_repo.get_by_id(role_id)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="역할을 찾을 수 없습니다"
+        )
+
+    # 권한 업데이트
+    role_permission_repo.update_role_permissions(
+        role_id=role_id,
+        permission_ids=data.permission_ids,
+        updated_by=admin.user_id
+    )
+
+    # 활동 로그
+    activity_log_repo.log_action(
+        user_id=admin.user_id,
+        action_type="PERMISSION_UPDATE",
+        target_table="RolePermission",
+        target_id=str(role_id),
+        details={
+            "role_name": role["Name"],
+            "permission_count": len(data.permission_ids)
+        },
+        ip_address=ip_address
+    )
+
+    return {
+        "message": f"역할 '{role['Name']}'의 권한이 업데이트되었습니다",
+        "permission_count": len(data.permission_ids)
+    }
+
+
+@router.get("/users/{user_id}/permissions")
+async def get_user_permissions(
+    user_id: int,
+    admin: CurrentUser = Depends(require_admin)
+):
+    """
+    사용자 권한 조회 (역할 권한 + 개별 권한)
+    """
+    # 사용자 존재 확인
+    user = user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다"
+        )
+
+    # 사용자의 역할 ID 조회
+    from core.database import get_db_cursor
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute("SELECT RoleID FROM [dbo].[UserRole] WHERE UserID = ?", user_id)
+        row = cursor.fetchone()
+        role_id = row[0] if row else None
+
+    if not role_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="사용자에게 역할이 할당되어 있지 않습니다"
+        )
+
+    # 역할 권한
+    role_permissions = role_permission_repo.get_role_permissions(role_id)
+    role_permission_ids = list(role_permission_repo.get_role_permission_ids(role_id))
+
+    # 개별 권한
+    user_permissions = user_permission_repo.get_user_permissions(user_id)
+    user_grants = list(user_permission_repo.get_user_grants(user_id))
+    user_denies = list(user_permission_repo.get_user_denies(user_id))
+
+    # 최종 권한
+    effective_ids = list(effective_permission_service.get_user_effective_permissions(user_id, role_id))
+
+    return {
+        "user_id": user_id,
+        "role_id": role_id,
+        "role_permissions": role_permissions,
+        "role_permission_ids": role_permission_ids,
+        "user_permissions": user_permissions,
+        "user_grants": user_grants,
+        "user_denies": user_denies,
+        "effective_permission_ids": effective_ids
+    }
+
+
+@router.put("/users/{user_id}/permissions")
+async def update_user_permissions(
+    user_id: int,
+    data: UserPermissionUpdate,
+    request: Request,
+    admin: CurrentUser = Depends(require_admin)
+):
+    """
+    사용자 개별 권한 업데이트 (GRANT/DENY)
+    """
+    ip_address = get_client_ip(request)
+
+    # 사용자 존재 확인
+    if not user_repo.exists(user_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다"
+        )
+
+    # 권한 업데이트
+    user_permission_repo.update_user_permissions(
+        user_id=user_id,
+        grants=data.grants,
+        denies=data.denies,
+        updated_by=admin.user_id
+    )
+
+    # 활동 로그
+    activity_log_repo.log_action(
+        user_id=admin.user_id,
+        action_type="PERMISSION_UPDATE",
+        target_table="UserPermission",
+        target_id=str(user_id),
+        details={
+            "grants_count": len(data.grants),
+            "denies_count": len(data.denies)
+        },
+        ip_address=ip_address
+    )
+
+    return {
+        "message": "사용자 개별 권한이 업데이트되었습니다",
+        "grants_count": len(data.grants),
+        "denies_count": len(data.denies)
+    }

@@ -9,8 +9,8 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from repositories import ChannelRepository, ChannelDetailRepository
-from core.dependencies import get_current_user, get_client_ip, CurrentUser
-from core import log_activity, log_delete, log_bulk_delete
+from core.dependencies import get_client_ip, CurrentUser
+from core import log_activity, log_delete, log_bulk_delete, require_permission
 
 router = APIRouter(prefix="/api/channels", tags=["Channel"])
 
@@ -71,7 +71,8 @@ async def get_channels(
     detail_name: Optional[str] = None,
     group: Optional[str] = None,
     type: Optional[str] = None,
-    contract_type: Optional[str] = None
+    contract_type: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Channel", "READ"))
 ):
     """Channel 목록 조회 (페이지네이션 및 필터링)"""
     try:
@@ -101,7 +102,7 @@ async def get_channels(
 
 
 @router.get("/metadata")
-async def get_channel_metadata():
+async def get_channel_metadata(user: CurrentUser = Depends(require_permission("Channel", "READ"))):
     """Channel 메타데이터 조회 (필터용)"""
     try:
         metadata = channel_repo.get_metadata()
@@ -112,7 +113,7 @@ async def get_channel_metadata():
 
 
 @router.get("/list")
-async def get_channel_list():
+async def get_channel_list(user: CurrentUser = Depends(require_permission("Channel", "READ"))):
     """채널 목록 조회 (드롭다운용) - ChannelID와 Name만 반환"""
     try:
         return channel_repo.get_channel_list()
@@ -121,7 +122,7 @@ async def get_channel_list():
 
 
 @router.get("/{channel_id}")
-async def get_channel(channel_id: int):
+async def get_channel(channel_id: int, user: CurrentUser = Depends(require_permission("Channel", "READ"))):
     """Channel 단일 조회"""
     try:
         channel = channel_repo.get_by_id(channel_id)
@@ -139,7 +140,7 @@ async def get_channel(channel_id: int):
 async def create_channel(
     data: ChannelCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "CREATE"))
 ):
     """Channel 생성"""
     try:
@@ -160,7 +161,7 @@ async def create_channel(
 async def create_channel_integrated(
     data: ChannelIntegratedCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "CREATE"))
 ):
     """Channel과 ChannelDetails를 한 번에 생성 (트랜잭션)"""
     try:
@@ -185,7 +186,7 @@ async def update_channel(
     channel_id: int,
     data: ChannelUpdate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "UPDATE"))
 ):
     """Channel 수정"""
     try:
@@ -215,7 +216,7 @@ async def update_channel(
 async def delete_channel(
     channel_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "DELETE"))
 ):
     """Channel 삭제 (연관된 ChannelDetail도 함께 삭제)"""
     try:
@@ -240,7 +241,7 @@ async def delete_channel(
 async def bulk_delete_channels(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "DELETE"))
 ):
     """Channel 일괄 삭제"""
     try:
@@ -262,7 +263,7 @@ async def bulk_delete_channels(
 # ========== ChannelDetail 관련 엔드포인트 ==========
 
 @router.get("/{channel_id}/details")
-async def get_channel_details(channel_id: int):
+async def get_channel_details(channel_id: int, user: CurrentUser = Depends(require_permission("Channel", "READ"))):
     """특정 Channel의 모든 Detail 조회"""
     try:
         details = detail_repo.get_by_channel_id(channel_id)
@@ -277,7 +278,7 @@ async def create_channel_detail(
     channel_id: int,
     data: ChannelDetailCreate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "CREATE"))
 ):
     """ChannelDetail 생성"""
     try:
@@ -301,7 +302,7 @@ async def update_channel_detail(
     detail_id: int,
     data: ChannelDetailUpdate,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "UPDATE"))
 ):
     """ChannelDetail 수정"""
     try:
@@ -328,7 +329,7 @@ async def update_channel_detail(
 async def delete_channel_detail(
     detail_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "DELETE"))
 ):
     """ChannelDetail 삭제"""
     try:
@@ -353,7 +354,8 @@ async def get_channeldetails(
     page: int = 1,
     limit: int = 50,
     channel_id: Optional[int] = None,
-    detail_name: Optional[str] = None
+    detail_name: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Channel", "READ"))
 ):
     """ChannelDetail 목록 조회"""
     try:
@@ -376,7 +378,7 @@ async def get_channeldetails(
 
 
 @channeldetail_router.get("/{detail_id}")
-async def get_channeldetail_by_id(detail_id: int):
+async def get_channeldetail_by_id(detail_id: int, user: CurrentUser = Depends(require_permission("Channel", "READ"))):
     """ChannelDetail 단일 조회"""
     try:
         detail = detail_repo.get_by_id(detail_id)
@@ -401,7 +403,7 @@ class ChannelDetailFull(BaseModel):
 async def create_channeldetail_direct(
     data: ChannelDetailFull,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "CREATE"))
 ):
     """ChannelDetail 직접 생성"""
     try:
@@ -426,7 +428,7 @@ async def update_channeldetail_direct(
     detail_id: int,
     data: ChannelDetailFull,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "UPDATE"))
 ):
     """ChannelDetail 수정"""
     try:
@@ -459,7 +461,7 @@ async def update_channeldetail_direct(
 async def delete_channeldetail_direct(
     detail_id: int,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "DELETE"))
 ):
     """ChannelDetail 삭제"""
     try:
@@ -479,7 +481,7 @@ async def delete_channeldetail_direct(
 async def bulk_delete_channeldetails(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(require_permission("Channel", "DELETE"))
 ):
     """ChannelDetail 일괄 삭제"""
     try:
