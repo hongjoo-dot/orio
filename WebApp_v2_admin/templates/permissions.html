@@ -84,6 +84,37 @@
     </div>
 </div>
 
+<!-- 저장 결과 모달 -->
+<div class="modal" id="saveResultModal">
+    <div class="modal-content" style="max-width:480px;">
+        <div class="modal-header">
+            <h3 class="modal-title" id="saveResultTitle"></h3>
+            <button class="modal-close" onclick="closeSaveResultModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="saveResultBody"></div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeSaveResultModal()">확인</button>
+        </div>
+    </div>
+</div>
+
+<!-- 페이지 이탈 경고 모달 -->
+<div class="modal" id="leaveWarningModal">
+    <div class="modal-content" style="max-width:420px;">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 변경 사항 미저장</h3>
+            <button class="modal-close" onclick="closeLeaveWarning()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color:var(--text-muted);">저장하지 않은 변경 사항이 있습니다.<br>저장하지 않고 이동하시겠습니까?</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeLeaveWarning()">취소</button>
+            <button class="btn btn-danger" onclick="confirmLeave()">저장 안 함</button>
+        </div>
+    </div>
+</div>
+
 <style>
 .tab-container {
     display: flex;
@@ -117,6 +148,7 @@
     border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
+    max-width: 700px;
 }
 .permission-module-header {
     background: var(--bg-secondary);
@@ -170,6 +202,7 @@
 .permission-user-item {
     display: flex;
     align-items: center;
+    gap: 12px;
     padding: 8px 0;
     border-bottom: 1px solid var(--border-color);
     max-width: 600px;
@@ -185,51 +218,52 @@
     display: flex;
     gap: 4px;
     flex-shrink: 0;
-    margin-left: 12px;
 }
 .status-btn {
     padding: 4px 12px;
-    border: 1px solid var(--border-color);
     border-radius: 4px;
-    background: var(--bg-primary);
     cursor: pointer;
     font-size: 12px;
     transition: all 0.2s;
+    font-weight: 500;
 }
 .status-btn:hover {
-    background: var(--bg-secondary);
-}
-.status-btn.inherit {
-    background: var(--bg-secondary);
-    color: var(--text-muted);
-}
-.status-btn.inherit.active {
-    background: var(--bg-tertiary);
-    border-color: var(--text-muted);
-    font-weight: 600;
+    opacity: 0.85;
 }
 .status-btn.grant {
-    color: var(--success-color);
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
 }
 .status-btn.grant.active {
-    background: var(--success-color);
+    background: #10b981;
+    border-color: #10b981;
     color: white;
-    border-color: var(--success-color);
 }
 .status-btn.deny {
-    color: var(--danger-color);
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
 }
 .status-btn.deny.active {
-    background: var(--danger-color);
+    background: #ef4444;
+    border-color: #ef4444;
     color: white;
-    border-color: var(--danger-color);
 }
-.role-has-permission {
+.perm-badge {
     font-size: 11px;
-    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+    flex-shrink: 0;
 }
-.role-has-permission.yes {
-    color: var(--success-color);
+.perm-badge.allowed {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+.perm-badge.denied {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
 }
 </style>
 
@@ -247,6 +281,12 @@ let currentUserId = null;
 let rolePermissionIds = new Set();
 let userGrants = new Set();
 let userDenies = new Set();
+
+// 변경 추적용 초기 상태
+let initialRolePermissionIds = new Set();
+let initialUserGrants = new Set();
+let initialUserDenies = new Set();
+let pendingLeaveUrl = null;
 
 function getAuthHeaders() {
     const token = localStorage.getItem('access_token');
@@ -323,6 +363,7 @@ async function loadRolePermissions() {
         const data = await response.json();
 
         rolePermissionIds = new Set(data.permission_ids);
+        initialRolePermissionIds = new Set(data.permission_ids);
 
         document.getElementById('selectedRoleName').textContent = data.role.Name;
         document.getElementById('rolePermissionsCard').style.display = 'block';
@@ -393,14 +434,20 @@ async function saveRolePermissions() {
 
         if (!response.ok) {
             const error = await response.json();
-            alert(error.detail || '저장 실패');
+            showSaveResult('저장 실패', `<p style="color:#ef4444;">${error.detail || '알 수 없는 오류가 발생했습니다.'}</p>`);
             return;
         }
 
-        alert('권한이 저장되었습니다.');
+        // 변동 사항 계산
+        const added = [...rolePermissionIds].filter(id => !initialRolePermissionIds.has(id));
+        const removed = [...initialRolePermissionIds].filter(id => !rolePermissionIds.has(id));
+        let html = buildChangeSummary(added, removed, '추가', '제거');
+
+        initialRolePermissionIds = new Set(rolePermissionIds);
+        showSaveResult('권한 저장 완료', html);
     } catch (error) {
         console.error('권한 저장 실패:', error);
-        alert('저장 중 오류가 발생했습니다.');
+        showSaveResult('저장 실패', '<p style="color:#ef4444;">저장 중 오류가 발생했습니다.</p>');
     }
 }
 
@@ -473,6 +520,9 @@ async function loadUserPermissions() {
         // 사용자 개별 GRANT/DENY
         userGrants = new Set(data.user_grants);
         userDenies = new Set(data.user_denies);
+        // 초기 상태 저장
+        initialUserGrants = new Set(data.user_grants);
+        initialUserDenies = new Set(data.user_denies);
 
         // 역할 이름 찾기
         const user = users.find(u => u.UserID === currentUserId);
@@ -512,26 +562,25 @@ function renderUserPermissions() {
             if (isGrant) status = 'grant';
             if (isDeny) status = 'deny';
 
+            // 최종 권한 상태: grant → 있음, deny → 없음, inherit → 역할 따름
+            const effective = isGrant ? true : (isDeny ? false : hasRole);
+
             html += `
                 <div class="permission-user-item">
                     <div class="permission-info">
                         <div class="permission-name">${perm.Name} <span class="permission-action">${perm.Action}</span></div>
                         <div class="permission-desc">${perm.Description || ''}</div>
-                        <div class="role-has-permission ${hasRole ? 'yes' : ''}">
-                            역할 권한: ${hasRole ? '있음' : '없음'}
-                        </div>
                     </div>
+                    <span class="perm-badge ${effective ? 'allowed' : 'denied'}" id="badge-${perm.PermissionID}">
+                        ${effective ? '권한 있음' : '권한 없음'}
+                    </span>
                     <div class="permission-status">
-                        <button class="status-btn inherit ${status === 'inherit' ? 'active' : ''}"
-                                onclick="setUserPermissionStatus(${perm.PermissionID}, 'inherit', this)">
-                            상속
-                        </button>
                         <button class="status-btn grant ${status === 'grant' ? 'active' : ''}"
-                                onclick="setUserPermissionStatus(${perm.PermissionID}, 'grant', this)">
+                                onclick="setUserPermissionStatus(${perm.PermissionID}, 'grant', this, ${hasRole})">
                             허용
                         </button>
                         <button class="status-btn deny ${status === 'deny' ? 'active' : ''}"
-                                onclick="setUserPermissionStatus(${perm.PermissionID}, 'deny', this)">
+                                onclick="setUserPermissionStatus(${perm.PermissionID}, 'deny', this, ${hasRole})">
                             제외
                         </button>
                     </div>
@@ -546,21 +595,32 @@ function renderUserPermissions() {
 }
 
 // 사용자 권한 상태 설정
-function setUserPermissionStatus(permId, status, btn) {
-    // 모든 버튼에서 active 제거
+function setUserPermissionStatus(permId, status, btn, hasRole) {
     const parent = btn.parentElement;
+    const isAlreadyActive = btn.classList.contains('active');
+
+    // 모든 버튼에서 active 제거
     parent.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
 
     // 세트 업데이트
     userGrants.delete(permId);
     userDenies.delete(permId);
 
-    if (status === 'grant') {
-        userGrants.add(permId);
-    } else if (status === 'deny') {
-        userDenies.add(permId);
+    // 이미 활성화된 버튼을 다시 누르면 → 상속(초기화)
+    if (!isAlreadyActive) {
+        btn.classList.add('active');
+        if (status === 'grant') {
+            userGrants.add(permId);
+        } else if (status === 'deny') {
+            userDenies.add(permId);
+        }
     }
+
+    // 배지 업데이트
+    const effective = userGrants.has(permId) ? true : (userDenies.has(permId) ? false : hasRole);
+    const badge = document.getElementById(`badge-${permId}`);
+    badge.textContent = effective ? '권한 있음' : '권한 없음';
+    badge.className = `perm-badge ${effective ? 'allowed' : 'denied'}`;
 }
 
 // 사용자 권한 저장
@@ -579,15 +639,120 @@ async function saveUserPermissions() {
 
         if (!response.ok) {
             const error = await response.json();
-            alert(error.detail || '저장 실패');
+            showSaveResult('저장 실패', `<p style="color:#ef4444;">${error.detail || '알 수 없는 오류가 발생했습니다.'}</p>`);
             return;
         }
 
-        alert('권한이 저장되었습니다.');
+        // 변동 사항 계산
+        const addedGrants = [...userGrants].filter(id => !initialUserGrants.has(id));
+        const removedGrants = [...initialUserGrants].filter(id => !userGrants.has(id));
+        const addedDenies = [...userDenies].filter(id => !initialUserDenies.has(id));
+        const removedDenies = [...initialUserDenies].filter(id => !userDenies.has(id));
+
+        let html = '';
+        if (addedGrants.length) html += buildChangeSummary(addedGrants, [], '허용 추가', '');
+        if (removedGrants.length) html += buildChangeSummary([], removedGrants, '', '허용 해제');
+        if (addedDenies.length) html += buildChangeSummary(addedDenies, [], '제외 추가', '');
+        if (removedDenies.length) html += buildChangeSummary([], removedDenies, '', '제외 해제');
+        if (!html) html = '<p style="color:var(--text-muted);">변경 사항이 없습니다.</p>';
+
+        initialUserGrants = new Set(userGrants);
+        initialUserDenies = new Set(userDenies);
+        showSaveResult('권한 저장 완료', html);
     } catch (error) {
         console.error('권한 저장 실패:', error);
-        alert('저장 중 오류가 발생했습니다.');
+        showSaveResult('저장 실패', '<p style="color:#ef4444;">저장 중 오류가 발생했습니다.</p>');
     }
 }
+
+// 변동 사항 요약 HTML 생성
+function buildChangeSummary(addedIds, removedIds, addLabel, removeLabel) {
+    let html = '';
+    const getPermName = (id) => {
+        const perm = allPermissions.find(p => p.PermissionID === id);
+        return perm ? `${perm.Name} (${perm.Action})` : `ID: ${id}`;
+    };
+    if (addedIds.length) {
+        html += `<div style="margin-bottom:8px;"><strong style="color:#10b981;"><i class="fa-solid fa-plus"></i> ${addLabel} (${addedIds.length}건)</strong><ul style="margin:4px 0 0 16px;color:var(--text-muted);font-size:13px;">`;
+        addedIds.forEach(id => { html += `<li>${getPermName(id)}</li>`; });
+        html += '</ul></div>';
+    }
+    if (removedIds.length) {
+        html += `<div style="margin-bottom:8px;"><strong style="color:#ef4444;"><i class="fa-solid fa-minus"></i> ${removeLabel} (${removedIds.length}건)</strong><ul style="margin:4px 0 0 16px;color:var(--text-muted);font-size:13px;">`;
+        removedIds.forEach(id => { html += `<li>${getPermName(id)}</li>`; });
+        html += '</ul></div>';
+    }
+    if (!addedIds.length && !removedIds.length) {
+        html = '<p style="color:var(--text-muted);">변경 사항이 없습니다.</p>';
+    }
+    return html;
+}
+
+// 저장 결과 모달
+function showSaveResult(title, bodyHtml) {
+    document.getElementById('saveResultTitle').textContent = title;
+    document.getElementById('saveResultBody').innerHTML = bodyHtml;
+    document.getElementById('saveResultModal').classList.add('show');
+}
+function closeSaveResultModal() {
+    document.getElementById('saveResultModal').classList.remove('show');
+}
+
+// 변경 감지
+function hasUnsavedChanges() {
+    // 역할 권한 변경 확인
+    if (currentRoleId) {
+        if (rolePermissionIds.size !== initialRolePermissionIds.size) return true;
+        for (const id of rolePermissionIds) {
+            if (!initialRolePermissionIds.has(id)) return true;
+        }
+    }
+    // 사용자 권한 변경 확인
+    if (currentUserId) {
+        if (userGrants.size !== initialUserGrants.size) return true;
+        if (userDenies.size !== initialUserDenies.size) return true;
+        for (const id of userGrants) { if (!initialUserGrants.has(id)) return true; }
+        for (const id of userDenies) { if (!initialUserDenies.has(id)) return true; }
+    }
+    return false;
+}
+
+// 페이지 이탈 경고
+function closeLeaveWarning() {
+    document.getElementById('leaveWarningModal').classList.remove('show');
+    pendingLeaveUrl = null;
+}
+function confirmLeave() {
+    document.getElementById('leaveWarningModal').classList.remove('show');
+    if (pendingLeaveUrl) {
+        window.removeEventListener('beforeunload', beforeUnloadHandler);
+        window.location.href = pendingLeaveUrl;
+    }
+}
+function beforeUnloadHandler(e) {
+    if (hasUnsavedChanges()) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+}
+
+// 브라우저 이탈 경고
+window.addEventListener('beforeunload', beforeUnloadHandler);
+
+// 사이드바 링크 클릭 가로채기
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('a[href]').forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && href.startsWith('/') && !href.startsWith('/api')) {
+            link.addEventListener('click', (e) => {
+                if (hasUnsavedChanges()) {
+                    e.preventDefault();
+                    pendingLeaveUrl = href;
+                    document.getElementById('leaveWarningModal').classList.add('show');
+                }
+            });
+        }
+    });
+});
 </script>
 {% endblock %}
