@@ -50,8 +50,8 @@ const promotionColumns = [
         header: '시작일',
         render: (row) => {
             const date = row.StartDate || '';
-            const time = row.StartTime || '';
-            return time && time !== '00:00:00' ? `${date} ${time}` : date;
+            const time = row.StartTime || '00:00:00';
+            return date ? `${date} ${time}` : '-';
         }
     },
     {
@@ -59,8 +59,8 @@ const promotionColumns = [
         header: '종료일',
         render: (row) => {
             const date = row.EndDate || '';
-            const time = row.EndTime || '';
-            return time && time !== '00:00:00' ? `${date} ${time}` : date;
+            const time = row.EndTime || '23:59:59';
+            return date ? `${date} ${time}` : '-';
         }
     },
     { key: 'BrandName', header: '브랜드', render: (row) => row.BrandName || '-' },
