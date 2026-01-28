@@ -14,7 +14,12 @@ class PromotionRepository(BaseRepository):
     SELECT_COLUMNS = (
         "p.PromotionID", "p.PromotionName", "p.PromotionType",
         "p.StartDate", "p.StartTime", "p.EndDate", "p.EndTime",
-        "p.Status",
+        """CASE
+            WHEN p.Status = 'CANCELLED' THEN 'CANCELLED'
+            WHEN CAST(p.StartDate AS DATETIME) + CAST(ISNULL(p.StartTime, '00:00:00') AS DATETIME) > GETDATE() THEN 'SCHEDULED'
+            WHEN CAST(p.EndDate AS DATETIME) + CAST(ISNULL(p.EndTime, '23:59:59') AS DATETIME) < GETDATE() THEN 'ENDED'
+            ELSE 'ACTIVE'
+        END AS Status""",
         "p.BrandID", "p.BrandName",
         "p.ChannelID", "p.ChannelName",
         "p.CommissionRate", "p.DiscountOwner",
@@ -82,7 +87,19 @@ class PromotionRepository(BaseRepository):
             builder.where_equals("p.PromotionType", filters['promotion_type'])
 
         if filters.get('status'):
-            builder.where_equals("p.Status", filters['status'])
+            status_val = filters['status']
+            if status_val == 'CANCELLED':
+                builder.where_equals("p.Status", 'CANCELLED')
+            elif status_val == 'SCHEDULED':
+                builder.where("p.Status != 'CANCELLED'")
+                builder.where("CAST(p.StartDate AS DATETIME) + CAST(ISNULL(p.StartTime, '00:00:00') AS DATETIME) > GETDATE()")
+            elif status_val == 'ENDED':
+                builder.where("p.Status != 'CANCELLED'")
+                builder.where("CAST(p.EndDate AS DATETIME) + CAST(ISNULL(p.EndTime, '23:59:59') AS DATETIME) < GETDATE()")
+            elif status_val == 'ACTIVE':
+                builder.where("p.Status != 'CANCELLED'")
+                builder.where("CAST(p.StartDate AS DATETIME) + CAST(ISNULL(p.StartTime, '00:00:00') AS DATETIME) <= GETDATE()")
+                builder.where("CAST(p.EndDate AS DATETIME) + CAST(ISNULL(p.EndTime, '23:59:59') AS DATETIME) >= GETDATE()")
 
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
         """Promotion 전용 QueryBuilder 생성"""
@@ -180,7 +197,6 @@ class PromotionRepository(BaseRepository):
                                 EndDate = ?,
                                 EndTime = ?,
                                 StartTime = ?,
-                                Status = ?,
                                 CommissionRate = ?,
                                 DiscountOwner = ?,
                                 CompanyShare = ?,
@@ -196,7 +212,6 @@ class PromotionRepository(BaseRepository):
                             record.get('EndDate'),
                             record.get('EndTime', '23:59:59'),
                             record.get('StartTime', '00:00:00'),
-                            record.get('Status', 'SCHEDULED'),
                             record.get('CommissionRate'),
                             record.get('DiscountOwner'),
                             record.get('CompanyShare'),

@@ -51,7 +51,6 @@ class PromotionCreate(BaseModel):
     StartTime: Optional[str] = "00:00:00"
     EndDate: str
     EndTime: Optional[str] = "23:59:59"
-    Status: Optional[str] = "SCHEDULED"
     BrandID: int
     BrandName: Optional[str] = None
     ChannelID: int
@@ -265,15 +264,12 @@ async def download_promotions(
                         '시작시간': promo['StartTime'],
                         '종료일': promo['EndDate'],
                         '종료시간': promo['EndTime'],
-                        '상태': promo['Status'],
                         '브랜드명': promo['BrandName'],
                         '채널명': promo['ChannelName'],
                         '수수료율': promo['CommissionRate'],
                         '할인부담': promo['DiscountOwner'],
                         '자사분담율': promo['CompanyShare'],
                         '채널분담율': promo['ChannelShare'],
-                        '예상매출(행사)': promo['ExpectedSalesAmount'],
-                        '예상수량(행사)': promo['ExpectedQuantity'],
                         '비고(행사)': promo['Notes'],
                         '상품ID': prod['PromotionProductID'],
                         '상품코드': prod['UniqueCode'],
@@ -301,15 +297,12 @@ async def download_promotions(
                     '시작시간': promo['StartTime'],
                     '종료일': promo['EndDate'],
                     '종료시간': promo['EndTime'],
-                    '상태': promo['Status'],
                     '브랜드명': promo['BrandName'],
                     '채널명': promo['ChannelName'],
                     '수수료율': promo['CommissionRate'],
                     '할인부담': promo['DiscountOwner'],
                     '자사분담율': promo['CompanyShare'],
                     '채널분담율': promo['ChannelShare'],
-                    '예상매출(행사)': promo['ExpectedSalesAmount'],
-                    '예상수량(행사)': promo['ExpectedQuantity'],
                     '비고(행사)': promo['Notes'],
                     '상품ID': None,
                     '상품코드': None,
@@ -330,9 +323,9 @@ async def download_promotions(
 
         # 컬럼 정의 (순서 중요)
         export_columns = [
-            '행사ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간', '상태',
+            '행사ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
-            '예상매출(행사)', '예상수량(행사)', '비고(행사)',
+            '비고(행사)',
             '상품ID', '상품코드', '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
             '예상매출(상품)', '예상수량(상품)', '비고(상품)'
@@ -340,12 +333,12 @@ async def download_promotions(
 
         # ID 컬럼 인덱스 (빨간색)
         promo_id_col_idx = 0   # 행사ID
-        product_id_col_idx = 17  # 상품ID
+        product_id_col_idx = 14  # 상품ID
         id_column_indices = [promo_id_col_idx, product_id_col_idx]
 
         # 수정 불가 (복합키) 컬럼 인덱스 (검정색)
-        # 행사유형(2), 시작일(3), 브랜드명(8), 채널명(9), 행사명(1), 상품코드(18)
-        readonly_columns = [1, 2, 3, 8, 9, 18]
+        # 행사명(1), 행사유형(2), 시작일(3), 브랜드명(7), 채널명(8), 상품코드(15)
+        readonly_columns = [1, 2, 3, 7, 8, 15]
 
         if not rows:
             df = pd.DataFrame(columns=export_columns)
@@ -374,15 +367,12 @@ async def download_promotions(
             ['시작시간', 'HH:MM:SS 형식 (기본값: 00:00:00)'],
             ['종료일', 'YYYY-MM-DD 형식'],
             ['종료시간', 'HH:MM:SS 형식 (기본값: 00:00:00)'],
-            ['상태', 'SCHEDULED / ACTIVE / ENDED / CANCELLED'],
             ['브랜드명 (검정)', 'Brand 테이블에 등록된 브랜드명 (수정 불가)'],
             ['채널명 (검정)', 'Channel 테이블에 등록된 채널명 (수정 불가)'],
             ['수수료율', '숫자 (예: 15.5)'],
             ['할인부담', 'COMPANY / CHANNEL / BOTH'],
             ['자사분담율', '숫자 (예: 50.0)'],
             ['채널분담율', '숫자 (예: 50.0)'],
-            ['예상매출(행사)', '숫자'],
-            ['예상수량(행사)', '숫자'],
             ['비고(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
             ['상품코드 (검정)', 'Product 테이블에 등록된 상품코드 (수정 불가)'],
@@ -405,7 +395,6 @@ async def download_promotions(
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
         promotion_type_display_names = promotion_repo.get_promotion_type_display_names()
-        status_list = ['SCHEDULED', 'ACTIVE', 'ENDED', 'CANCELLED']
         discount_owner_list = ['COMPANY', 'CHANNEL', 'BOTH']
 
         output = io.BytesIO()
@@ -429,28 +418,25 @@ async def download_promotions(
             # C열: 행사유형 목록
             for i, name in enumerate(promotion_type_display_names):
                 list_sheet.write(i, 2, name)
-            # D열: 상태 목록
-            for i, name in enumerate(status_list):
-                list_sheet.write(i, 3, name)
-            # E열: 할인부담 목록
+            # D열: 할인부담 목록
             for i, name in enumerate(discount_owner_list):
-                list_sheet.write(i, 4, name)
+                list_sheet.write(i, 3, name)
 
             # 드롭다운 적용 범위
             max_row = max(len(df) + 100, 1000)
 
-            # 브랜드명 드롭다운 (인덱스 8)
+            # 브랜드명 드롭다운 (인덱스 7)
             if brand_names:
-                worksheet.data_validation(1, 8, max_row, 8, {
+                worksheet.data_validation(1, 7, max_row, 7, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 채널명 드롭다운 (인덱스 9)
+            # 채널명 드롭다운 (인덱스 8)
             if channel_names:
-                worksheet.data_validation(1, 9, max_row, 9, {
+                worksheet.data_validation(1, 8, max_row, 8, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
@@ -466,18 +452,10 @@ async def download_promotions(
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 상태 드롭다운 (인덱스 7)
-            worksheet.data_validation(1, 7, max_row, 7, {
+            # 할인부담 드롭다운 (인덱스 10)
+            worksheet.data_validation(1, 10, max_row, 10, {
                 'validate': 'list',
-                'source': f'=목록!$D$1:$D${len(status_list)}',
-                'input_message': '상태를 선택하세요',
-                'error_message': '목록에서 선택해주세요'
-            })
-
-            # 할인부담 드롭다운 (인덱스 11)
-            worksheet.data_validation(1, 11, max_row, 11, {
-                'validate': 'list',
-                'source': f'=목록!$E$1:$E${len(discount_owner_list)}',
+                'source': f'=목록!$D$1:$D${len(discount_owner_list)}',
                 'input_message': '할인부담을 선택하세요',
                 'error_message': '목록에서 선택해주세요'
             })
@@ -601,15 +579,12 @@ async def upload_promotions(
             '시작시간': 'StartTime',
             '종료일': 'EndDate',
             '종료시간': 'EndTime',
-            '상태': 'Status',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
             '수수료율': 'CommissionRate',
             '할인부담': 'DiscountOwner',
             '자사분담율': 'CompanyShare',
             '채널분담율': 'ChannelShare',
-            '예상매출(행사)': 'PromoExpectedSalesAmount',
-            '예상수량(행사)': 'PromoExpectedQuantity',
             '비고(행사)': 'PromoNotes',
             '상품ID': 'PromotionProductID',
             '상품코드': 'UniqueCode',
@@ -652,11 +627,9 @@ async def upload_promotions(
             df['EndTime'] = '23:59:59'
 
         # 숫자 변환 (행사)
-        for col in ['CommissionRate', 'CompanyShare', 'ChannelShare', 'PromoExpectedSalesAmount']:
+        for col in ['CommissionRate', 'CompanyShare', 'ChannelShare']:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        if 'PromoExpectedQuantity' in df.columns:
-            df['PromoExpectedQuantity'] = pd.to_numeric(df['PromoExpectedQuantity'], errors='coerce').fillna(0).astype(int)
 
         # 숫자 변환 (상품)
         product_numeric_cols = [
@@ -933,6 +906,16 @@ async def upload_promotions(
             start_time_val = _format_time_value(first_row.get('StartTime', '00:00:00'))
             end_time_val = _format_time_value(first_row.get('EndTime', '23:59:59'))
 
+            # 상품 레벨 예상매출/예상수량 합산 → 행사 레벨 자동 계산
+            sum_sales = 0.0
+            sum_qty = 0
+            for idx in indices:
+                row = df.iloc[idx]
+                if pd.notna(row.get('ProdExpectedSalesAmount')):
+                    sum_sales += float(row['ProdExpectedSalesAmount'])
+                if pd.notna(row.get('ProdExpectedQuantity')):
+                    sum_qty += int(row['ProdExpectedQuantity'])
+
             promotion_records.append({
                 'PromotionID': promo_id,
                 'PromotionName': str(first_row['PromotionName']).strip() if pd.notna(first_row.get('PromotionName')) else None,
@@ -941,7 +924,6 @@ async def upload_promotions(
                 'StartTime': start_time_val,
                 'EndDate': first_row['EndDate'].strftime('%Y-%m-%d') if pd.notna(first_row['EndDate']) else None,
                 'EndTime': end_time_val,
-                'Status': str(first_row.get('Status')).strip() if pd.notna(first_row.get('Status')) and str(first_row.get('Status')).strip() != 'nan' else 'SCHEDULED',
                 'BrandID': brand_info.get('BrandID'),
                 'BrandName': brand_info.get('BrandName'),
                 'ChannelID': channel_info.get('ChannelID'),
@@ -950,8 +932,8 @@ async def upload_promotions(
                 'DiscountOwner': str(first_row.get('DiscountOwner')).strip() if pd.notna(first_row.get('DiscountOwner')) and str(first_row.get('DiscountOwner')).strip() != 'nan' else None,
                 'CompanyShare': float(first_row['CompanyShare']) if pd.notna(first_row.get('CompanyShare')) else None,
                 'ChannelShare': float(first_row['ChannelShare']) if pd.notna(first_row.get('ChannelShare')) else None,
-                'ExpectedSalesAmount': float(first_row['PromoExpectedSalesAmount']) if pd.notna(first_row.get('PromoExpectedSalesAmount')) else None,
-                'ExpectedQuantity': int(first_row['PromoExpectedQuantity']) if pd.notna(first_row.get('PromoExpectedQuantity')) else None,
+                'ExpectedSalesAmount': sum_sales if sum_sales > 0 else None,
+                'ExpectedQuantity': sum_qty if sum_qty > 0 else None,
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
             })
 
