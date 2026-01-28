@@ -194,7 +194,7 @@ class PromotionRepository(BaseRepository):
                         params = [
                             record.get('PromotionName'),
                             record.get('EndDate'),
-                            record.get('EndTime', '00:00:00'),
+                            record.get('EndTime', '23:59:59'),
                             record.get('StartTime', '00:00:00'),
                             record.get('Status', 'SCHEDULED'),
                             record.get('CommissionRate'),
@@ -227,7 +227,7 @@ class PromotionRepository(BaseRepository):
                             record.get('StartDate'),
                             record.get('StartTime', '00:00:00'),
                             record.get('EndDate'),
-                            record.get('EndTime', '00:00:00'),
+                            record.get('EndTime', '23:59:59'),
                             record.get('Status', 'SCHEDULED'),
                             record.get('BrandID'),
                             record.get('BrandName'),

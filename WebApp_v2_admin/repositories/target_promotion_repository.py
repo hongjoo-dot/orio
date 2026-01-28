@@ -166,7 +166,7 @@ class TargetPromotionRepository(BaseRepository):
                         params = [
                             record.get('PromotionName'),
                             record.get('StartTime', '00:00:00'),
-                            record.get('EndTime', '00:00:00'),
+                            record.get('EndTime', '23:59:59'),
                             record.get('TargetAmount'),
                             record.get('TargetQuantity'),
                             record.get('Notes'),
@@ -190,7 +190,7 @@ class TargetPromotionRepository(BaseRepository):
                             record.get('StartDate'),
                             record.get('StartTime', '00:00:00'),
                             record.get('EndDate'),
-                            record.get('EndTime', '00:00:00'),
+                            record.get('EndTime', '23:59:59'),
                             record.get('BrandID'),
                             record.get('BrandName'),
                             record.get('ChannelID'),

@@ -1,14 +1,14 @@
 /**
  * 행사 관리 페이지 JavaScript
- * - 행사 목록 (Promotion)
- * - 행사 상품 (PromotionProduct)
+ * - 마스터: 행사 목록 (Promotion)
+ * - 디테일: 행사 상품 (PromotionProduct) — 행사 클릭 시 표시
  */
 
-// 현재 활성 탭
-let currentTab = 'promotion';
+// 선택된 행사 ID
+let currentPromotionId = null;
 
 // 테이블 및 페이지네이션 매니저
-let promotionTableManager, productTableManager;
+let masterTableManager, detailTableManager;
 let paginationManager;
 
 // 모달 매니저
@@ -19,8 +19,8 @@ let currentFilters = {};
 let currentPage = 1;
 let currentLimit = 20;
 
-// 행사 목록 컬럼 정의
-const promotionColumns = [
+// 마스터 컬럼 정의 (행사 목록)
+const masterColumns = [
     { key: 'PromotionID', header: '행사ID', render: (row) => row.PromotionID || '-' },
     { key: 'PromotionName', header: '행사명', render: (row) => row.PromotionName || '-' },
     { key: 'PromotionType', header: '행사유형', render: (row) => row.PromotionType || '-' },
@@ -71,13 +71,8 @@ const promotionColumns = [
     }
 ];
 
-// 행사 상품 컬럼 정의
-const productColumns = [
-    { key: 'PromotionID', header: '행사ID', render: (row) => row.PromotionID || '-' },
-    { key: 'PromotionName', header: '행사명', render: (row) => row.PromotionName || '-' },
-    { key: 'PromotionType', header: '행사유형', render: (row) => row.PromotionType || '-' },
-    { key: 'BrandName', header: '브랜드', render: (row) => row.BrandName || '-' },
-    { key: 'ChannelName', header: '채널', render: (row) => row.ChannelName || '-' },
+// 디테일 컬럼 정의 (행사 상품 — 상품 고유 정보만)
+const detailColumns = [
     { key: 'UniqueCode', header: '상품코드', render: (row) => row.UniqueCode || '-' },
     { key: 'ProductName', header: '상품명', render: (row) => row.ProductName || '-' },
     {
@@ -94,6 +89,21 @@ const productColumns = [
         key: 'SupplyPrice',
         header: '공급가',
         render: (row) => `<div style="text-align:right;">${(row.SupplyPrice || 0).toLocaleString()}</div>`
+    },
+    {
+        key: 'CouponDiscountRate',
+        header: '쿠폰할인율',
+        render: (row) => `<div style="text-align:right;">${row.CouponDiscountRate != null ? row.CouponDiscountRate + '%' : '-'}</div>`
+    },
+    {
+        key: 'UnitCost',
+        header: '원가',
+        render: (row) => `<div style="text-align:right;">${(row.UnitCost || 0).toLocaleString()}</div>`
+    },
+    {
+        key: 'LogisticsCost',
+        header: '물류비',
+        render: (row) => `<div style="text-align:right;">${(row.LogisticsCost || 0).toLocaleString()}</div>`
     },
     {
         key: 'ExpectedSalesAmount',
@@ -117,22 +127,23 @@ document.addEventListener('DOMContentLoaded', function () {
     confirmModal = new ModalManager('confirmModal');
     alertModal = new ModalManager('alertModal');
 
-    // 테이블 매니저 초기화 - 행사 목록
-    promotionTableManager = new TableManager('promotion-table', {
+    // 마스터 테이블 매니저
+    masterTableManager = new TableManager('master-table', {
         selectable: true,
         idKey: 'PromotionID',
         onSelectionChange: (selectedIds) => {
             updateActionButtons(selectedIds);
         },
+        onRowClick: (row, tr) => selectPromotion(row, tr),
         emptyMessage: '행사 데이터가 없습니다.'
     });
 
-    // 테이블 매니저 초기화 - 행사 상품
-    productTableManager = new TableManager('product-table', {
+    // 디테일 테이블 매니저
+    detailTableManager = new TableManager('detail-table', {
         selectable: true,
         idKey: 'PromotionProductID',
         onSelectionChange: (selectedIds) => {
-            updateActionButtons(selectedIds);
+            updateDetailActionButtons(selectedIds);
         },
         emptyMessage: '행사 상품 데이터가 없습니다.'
     });
@@ -153,37 +164,56 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 /**
- * 탭 전환
+ * 행사 선택 (마스터 행 클릭)
  */
-function switchTab(tab) {
-    currentTab = tab;
+function selectPromotion(row, tr) {
+    // 이전 선택 행 하이라이트 제거
+    document.querySelectorAll('#master-table tbody tr').forEach(r => r.classList.remove('selected'));
+    // 현재 행 하이라이트
+    tr.classList.add('selected');
 
-    // 탭 버튼 스타일 변경
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.tab === tab) {
-            btn.classList.add('active');
-        }
-    });
-
-    // 테이블 표시 전환
-    document.getElementById('promotion-table').style.display = tab === 'promotion' ? '' : 'none';
-    document.getElementById('product-table').style.display = tab === 'product' ? '' : 'none';
-
-    // 테이블 제목 변경
-    document.getElementById('tableTitle').textContent = tab === 'promotion' ? '행사' : '행사 상품';
-
-    // 선택 해제 및 데이터 새로고침
-    getActiveTableManager().clearSelection();
-    updateActionButtons([]);
-    loadData(1, currentLimit);
+    currentPromotionId = row.PromotionID;
+    loadDetail(currentPromotionId);
 }
 
 /**
- * 현재 활성 테이블 매니저 반환
+ * 디테일 데이터 로드 (행사 상품)
  */
-function getActiveTableManager() {
-    return currentTab === 'promotion' ? promotionTableManager : productTableManager;
+async function loadDetail(promotionId) {
+    try {
+        // 플레이스홀더 숨기고 디테일 표시
+        document.getElementById('detailPlaceholder').style.display = 'none';
+        document.getElementById('detailContainer').style.display = 'block';
+        document.getElementById('detailActions').style.display = 'flex';
+        document.getElementById('detailCount').style.display = 'inline';
+
+        detailTableManager.showLoading(detailColumns.length);
+
+        const result = await api.get(`/api/promotions/products?promotion_id=${promotionId}&page=1&limit=1000`);
+        const data = result.data || [];
+
+        detailTableManager.render(data, detailColumns);
+        document.getElementById('detailCount').textContent = `(${data.length}개)`;
+
+    } catch (e) {
+        console.error('행사 상품 로드 실패:', e);
+        showAlertModal('행사 상품 로드 실패: ' + e.message, 'error');
+        detailTableManager.render([], detailColumns);
+        document.getElementById('detailCount').textContent = '(0개)';
+    }
+}
+
+/**
+ * 디테일 패널 초기화 (플레이스홀더로 복귀)
+ */
+function resetDetail() {
+    currentPromotionId = null;
+    document.getElementById('detailPlaceholder').style.display = 'block';
+    document.getElementById('detailContainer').style.display = 'none';
+    document.getElementById('detailActions').style.display = 'none';
+    document.getElementById('detailCount').style.display = 'none';
+    detailTableManager.render([], detailColumns);
+    updateDetailActionButtons([]);
 }
 
 /**
@@ -291,28 +321,21 @@ async function loadStatuses() {
 }
 
 /**
- * 데이터 로드
+ * 마스터 데이터 로드 (행사 목록)
  */
 async function loadData(page = 1, limit = 20) {
     currentPage = page;
     currentLimit = limit;
 
-    const tableManager = getActiveTableManager();
-    const columns = currentTab === 'promotion' ? promotionColumns : productColumns;
-
     try {
-        tableManager.showLoading(columns.length);
-
-        const endpoint = currentTab === 'promotion'
-            ? '/api/promotions'
-            : '/api/promotions/products';
+        masterTableManager.showLoading(masterColumns.length);
 
         const params = { page, limit, ...currentFilters };
         const queryString = api.buildQueryString(params);
 
-        const result = await api.get(`${endpoint}${queryString}`);
+        const result = await api.get(`/api/promotions${queryString}`);
 
-        tableManager.render(result.data || [], columns);
+        masterTableManager.render(result.data || [], masterColumns);
 
         document.getElementById('resultCount').textContent = `(${result.total?.toLocaleString() || 0}건)`;
 
@@ -347,6 +370,8 @@ function applyFilters() {
     if (promotionType) currentFilters.promotion_type = promotionType;
     if (status) currentFilters.status = status;
 
+    // 디테일 패널 초기화
+    resetDetail();
     loadData(1, currentLimit);
 }
 
@@ -361,6 +386,7 @@ function resetFilters() {
     document.getElementById('searchStatus').value = '';
 
     currentFilters = {};
+    resetDetail();
     loadData(1, currentLimit);
 }
 
@@ -373,7 +399,7 @@ function changeLimit() {
 }
 
 /**
- * 액션 버튼 상태 업데이트
+ * 마스터 액션 버튼 상태 업데이트
  */
 function updateActionButtons(selectedIds) {
     const deleteBtn = document.getElementById('deleteButton');
@@ -388,37 +414,44 @@ function updateActionButtons(selectedIds) {
 }
 
 /**
- * 전체 선택
+ * 디테일 액션 버튼 상태 업데이트
+ */
+function updateDetailActionButtons(selectedIds) {
+    const deleteBtn = document.getElementById('detailDeleteButton');
+
+    if (selectedIds.length > 0) {
+        deleteBtn.classList.remove('btn-disabled');
+        deleteBtn.disabled = false;
+    } else {
+        deleteBtn.classList.add('btn-disabled');
+        deleteBtn.disabled = true;
+    }
+}
+
+/**
+ * 마스터 전체 선택
  */
 async function selectAllData() {
     try {
-        const endpoint = currentTab === 'promotion'
-            ? '/api/promotions'
-            : '/api/promotions/products';
-
         const params = { page: 1, limit: 100000, ...currentFilters };
         const queryString = api.buildQueryString(params);
 
-        const result = await api.get(`${endpoint}${queryString}`);
+        const result = await api.get(`/api/promotions${queryString}`);
         const data = result.data || [];
 
-        const tableManager = getActiveTableManager();
-        const idKey = currentTab === 'promotion' ? 'PromotionID' : 'PromotionProductID';
+        const allIds = data.map(row => row.PromotionID);
 
-        const allIds = data.map(row => row[idKey]);
+        masterTableManager.selectedRows = new Set(allIds);
 
-        tableManager.selectedRows = new Set(allIds);
-
-        const tableId = currentTab === 'promotion' ? 'promotion-table' : 'product-table';
-        document.querySelectorAll(`#${tableId} tbody input[type="checkbox"]`).forEach(cb => {
+        document.querySelectorAll('#master-table tbody input[type="checkbox"]').forEach(cb => {
             cb.checked = true;
         });
 
-        const headerCb = document.querySelector(`#${tableId} thead input[type="checkbox"]`);
+        const headerCb = document.querySelector('#master-table thead input[type="checkbox"]');
         if (headerCb) headerCb.checked = true;
 
         updateActionButtons(allIds);
-        showAlertModal(`${allIds.length}개 항목이 선택되었습니다.`, 'success');
+        showAlertModal(`${allIds.length}개 행사가 선택되었습니다.`, 'success');
 
     } catch (e) {
         console.error('전체 선택 실패:', e);
@@ -427,28 +460,49 @@ async function selectAllData() {
 }
 
 /**
- * 선택 삭제
+ * 디테일 전체 선택
+ */
+function selectAllDetail() {
+    const allIds = detailTableManager.getAllIds ? detailTableManager.getAllIds() : [];
+
+    // 테이블에서 직접 수집
+    const checkboxes = document.querySelectorAll('#detail-table tbody input[type="checkbox"]');
+    const ids = [];
+    checkboxes.forEach(cb => {
+        cb.checked = true;
+        if (cb.value) ids.push(parseInt(cb.value) || cb.value);
+    });
+
+    if (ids.length > 0) {
+        detailTableManager.selectedRows = new Set(ids);
+    }
+
+    const headerCb = document.querySelector('#detail-table thead input[type="checkbox"]');
+    if (headerCb) headerCb.checked = true;
+
+    updateDetailActionButtons(ids);
+    showAlertModal(`${ids.length}개 상품이 선택되었습니다.`, 'success');
+}
+
+/**
+ * 마스터 선택 삭제 (행사 삭제)
  */
 async function bulkDelete() {
-    const tableManager = getActiveTableManager();
-    const selectedIds = tableManager.getSelectedRows();
+    const selectedIds = masterTableManager.getSelectedRows();
 
     if (selectedIds.length === 0) {
-        showAlertModal('삭제할 항목을 선택해주세요.', 'warning');
+        showAlertModal('삭제할 행사를 선택해주세요.', 'warning');
         return;
     }
 
-    showConfirmModal(`${selectedIds.length}개 항목을 삭제하시겠습니까?`, async () => {
+    showConfirmModal(`${selectedIds.length}개 행사를 삭제하시겠습니까?\n(해당 행사의 상품도 함께 삭제됩니다)`, async () => {
         try {
-            const endpoint = currentTab === 'promotion'
-                ? '/api/promotions/bulk-delete'
-                : '/api/promotions/products/bulk-delete';
+            const result = await api.post('/api/promotions/bulk-delete', { ids: selectedIds });
 
-            const result = await api.post(endpoint, { ids: selectedIds });
-
-            showAlertModal(`${result.deleted_count}개 항목이 삭제되었습니다.`, 'success');
-            tableManager.clearSelection();
+            showAlertModal(`${result.deleted_count}개 행사가 삭제되었습니다.`, 'success');
+            masterTableManager.clearSelection();
             updateActionButtons([]);
+            resetDetail();
             loadData(currentPage, currentLimit);
 
         } catch (e) {
@@ -458,6 +512,36 @@ async function bulkDelete() {
     });
 }
 
+/**
+ * 디테일 선택 삭제 (행사 상품 삭제)
+ */
+async function bulkDeleteDetail() {
+    const selectedIds = detailTableManager.getSelectedRows();
+
+    if (selectedIds.length === 0) {
+        showAlertModal('삭제할 상품을 선택해주세요.', 'warning');
+        return;
+    }
+
+    showConfirmModal(`${selectedIds.length}개 상품을 삭제하시겠습니까?`, async () => {
+        try {
+            const result = await api.post('/api/promotions/products/bulk-delete', { ids: selectedIds });
+
+            showAlertModal(`${result.deleted_count}개 상품이 삭제되었습니다.`, 'success');
+            detailTableManager.clearSelection();
+            updateDetailActionButtons([]);
+
+            // 디테일 새로고침
+            if (currentPromotionId) {
+                loadDetail(currentPromotionId);
+            }
+
+        } catch (e) {
+            console.error('삭제 실패:', e);
+            showAlertModal('삭제 실패: ' + e.message, 'error');
+        }
+    });
+}
 
 /**
  * 엑셀 양식 다운로드
@@ -465,17 +549,11 @@ async function bulkDelete() {
 function downloadExcel() {
     const endpoint = '/api/promotions/download';
 
-    const tableManager = getActiveTableManager();
-    const selectedIds = tableManager.getSelectedRows();
-
+    const selectedIds = masterTableManager.getSelectedRows();
     const params = { ...currentFilters };
 
     if (selectedIds.length > 0) {
-        if (currentTab === 'promotion') {
-            params.ids = selectedIds.join(',');
-        } else {
-            params.product_ids = selectedIds.join(',');
-        }
+        params.ids = selectedIds.join(',');
     }
 
     const queryString = api.buildQueryString(params);
@@ -574,6 +652,8 @@ async function uploadFile() {
 
         uploadResultModal.show();
 
+        // 마스터 새로고침 + 디테일 초기화
+        resetDetail();
         loadData(1, currentLimit);
 
     } catch (e) {
@@ -593,7 +673,6 @@ async function uploadFile() {
  * 알림 모달 표시
  */
 function showAlertModal(message, type = 'info') {
-    // showAlert가 전역에 있으면 사용, 없으면 자체 모달 사용
     if (typeof showAlert === 'function') {
         showAlert(message, type);
         return;
@@ -632,7 +711,6 @@ function showAlertModal(message, type = 'info') {
  * 확인 모달 표시
  */
 function showConfirmModal(message, onConfirm) {
-    // showConfirm이 전역에 있으면 사용
     if (typeof showConfirm === 'function') {
         showConfirm(message, onConfirm);
         return;

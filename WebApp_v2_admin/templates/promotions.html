@@ -8,16 +8,6 @@
     <p class="page-subtitle">행사 및 행사 상품 관리</p>
 </div>
 
-<!-- Tab Navigation -->
-<div class="tab-container" style="margin-bottom:20px;">
-    <button class="tab-btn active" data-tab="promotion" onclick="switchTab('promotion')">
-        <i class="fa-solid fa-tags"></i> 행사 목록
-    </button>
-    <button class="tab-btn" data-tab="product" onclick="switchTab('product')">
-        <i class="fa-solid fa-box"></i> 행사 상품
-    </button>
-</div>
-
 <!-- Search Filters -->
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
@@ -63,82 +53,112 @@
     </div>
 </div>
 
-<!-- Data Table -->
-<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-        <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
+<!-- Master-Detail Layout -->
+<div style="display:grid;grid-template-columns:1.7fr 1fr;gap:24px;">
+
+    <!-- Master: 행사 목록 -->
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
+                <h2 class="card-title" style="margin:0;white-space:nowrap;">
+                    행사 목록
+                    <span id="resultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
+                </h2>
+                <select id="limitSelector" onchange="changeLimit()" class="form-select"
+                    style="width:auto;padding:8px 12px;font-size:13px;">
+                    <option value="20" selected>20개씩</option>
+                    <option value="50">50개씩</option>
+                    <option value="100">100개씩</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
+                    <i class="fa-solid fa-check-double"></i> 전체 선택
+                </button>
+                <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton" disabled>
+                    <i class="fa-solid fa-trash"></i> 선택 삭제
+                </button>
+                <button class="btn btn-success btn-sm" onclick="downloadExcel()">
+                    <i class="fa-solid fa-file-excel"></i> 엑셀 양식
+                </button>
+                <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
+                    <i class="fa-solid fa-upload"></i> 엑셀 업로드
+                </button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="table" id="master-table">
+                <thead>
+                    <tr>
+                        <th>행사ID</th>
+                        <th>행사명</th>
+                        <th>행사유형</th>
+                        <th>시작일</th>
+                        <th>종료일</th>
+                        <th>브랜드</th>
+                        <th>채널</th>
+                        <th>상태</th>
+                        <th style="text-align:right;">수수료율</th>
+                        <th>할인부담</th>
+                        <th style="text-align:right;">예상매출</th>
+                        <th style="text-align:right;">예상수량</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div id="pagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
+    </div>
+
+    <!-- Detail: 행사 상품 -->
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
             <h2 class="card-title" style="margin:0;white-space:nowrap;">
-                <span id="tableTitle">행사</span> 목록
-                <span id="resultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
+                행사 상품
+                <span id="detailCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;display:none;"></span>
             </h2>
-            <select id="limitSelector" onchange="changeLimit()" class="form-select"
-                style="width:auto;padding:8px 12px;font-size:13px;">
-                <option value="20" selected>20개씩</option>
-                <option value="50">50개씩</option>
-                <option value="100">100개씩</option>
-            </select>
+            <div id="detailActions" style="display:none;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="selectAllDetail()">
+                    <i class="fa-solid fa-check-double"></i> 전체 선택
+                </button>
+                <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteDetail()" id="detailDeleteButton" disabled>
+                    <i class="fa-solid fa-trash"></i> 선택 삭제
+                </button>
+            </div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
-                <i class="fa-solid fa-check-double"></i> 전체 선택
-            </button>
-            <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton" disabled>
-                <i class="fa-solid fa-trash"></i> 선택 삭제
-            </button>
-            <button class="btn btn-success btn-sm" onclick="downloadExcel()">
-                <i class="fa-solid fa-file-excel"></i> 엑셀 양식
-            </button>
-            <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
-                <i class="fa-solid fa-upload"></i> 엑셀 업로드
-            </button>
+
+        <!-- 플레이스홀더 -->
+        <div id="detailPlaceholder" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+            <i class="fa-solid fa-hand-pointer" style="font-size:48px;margin-bottom:16px;display:block;opacity:0.4;"></i>
+            <p style="font-size:15px;">행사를 선택하세요</p>
+            <p style="font-size:13px;margin-top:4px;">좌측 행사 목록에서 행사를 클릭하면<br>해당 행사의 상품이 표시됩니다.</p>
+        </div>
+
+        <!-- 상품 테이블 (행사 선택 시 표시) -->
+        <div id="detailContainer" style="display:none;">
+            <div class="table-container">
+                <table class="table" id="detail-table">
+                    <thead>
+                        <tr>
+                            <th>상품코드</th>
+                            <th>상품명</th>
+                            <th style="text-align:right;">판매가</th>
+                            <th style="text-align:right;">행사가</th>
+                            <th style="text-align:right;">공급가</th>
+                            <th style="text-align:right;">쿠폰할인율</th>
+                            <th style="text-align:right;">원가</th>
+                            <th style="text-align:right;">물류비</th>
+                            <th style="text-align:right;">예상매출</th>
+                            <th style="text-align:right;">예상수량</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
     </div>
-
-    <div class="table-container">
-        <!-- 행사 목록 테이블 -->
-        <table class="table" id="promotion-table">
-            <thead>
-                <tr>
-                    <th>행사ID</th>
-                    <th>행사명</th>
-                    <th>행사유형</th>
-                    <th>시작일</th>
-                    <th>종료일</th>
-                    <th>브랜드</th>
-                    <th>채널</th>
-                    <th>상태</th>
-                    <th style="text-align:right;">수수료율</th>
-                    <th>할인부담</th>
-                    <th style="text-align:right;">예상매출</th>
-                    <th style="text-align:right;">예상수량</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-
-        <!-- 행사 상품 테이블 -->
-        <table class="table" id="product-table" style="display:none;">
-            <thead>
-                <tr>
-                    <th>행사ID</th>
-                    <th>행사명</th>
-                    <th>행사유형</th>
-                    <th>브랜드</th>
-                    <th>채널</th>
-                    <th>상품코드</th>
-                    <th>상품명</th>
-                    <th style="text-align:right;">판매가</th>
-                    <th style="text-align:right;">행사가</th>
-                    <th style="text-align:right;">공급가</th>
-                    <th style="text-align:right;">예상매출</th>
-                    <th style="text-align:right;">예상수량</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-
-    <div id="pagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
 </div>
 
 <!-- Upload Modal -->
@@ -311,42 +331,6 @@
 
 {% block extra_css %}
 <style>
-    .tab-container {
-        display: flex;
-        gap: 8px;
-        background: var(--bg-card);
-        padding: 8px;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-    }
-    .tab-btn {
-        flex: 1;
-        padding: 12px 24px;
-        border: none;
-        background: transparent;
-        color: var(--text-muted);
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        border-radius: 8px;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
-    .tab-btn:hover {
-        background: var(--bg-hover);
-        color: var(--text);
-    }
-    .tab-btn.active {
-        background: var(--accent);
-        color: white;
-    }
-    .tab-btn i {
-        font-size: 16px;
-    }
-
     /* 상태 배지 */
     .status-badge {
         display: inline-block;
@@ -359,6 +343,17 @@
     .status-ACTIVE { background: rgba(34,197,94,0.15); color: #22c55e; }
     .status-ENDED { background: rgba(156,163,175,0.15); color: #9ca3af; }
     .status-CANCELLED { background: rgba(239,68,68,0.15); color: #ef4444; }
+
+    /* 마스터 행 선택 스타일 */
+    #master-table tbody tr {
+        cursor: pointer;
+    }
+    #master-table tbody tr.selected {
+        background: rgba(99,102,241,0.15) !important;
+    }
+    #master-table tbody tr:hover {
+        background: var(--bg-hover);
+    }
 </style>
 {% endblock %}
 

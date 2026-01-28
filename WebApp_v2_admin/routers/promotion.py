@@ -50,7 +50,7 @@ class PromotionCreate(BaseModel):
     StartDate: str
     StartTime: Optional[str] = "00:00:00"
     EndDate: str
-    EndTime: Optional[str] = "00:00:00"
+    EndTime: Optional[str] = "23:59:59"
     Status: Optional[str] = "SCHEDULED"
     BrandID: int
     BrandName: Optional[str] = None
@@ -277,7 +277,6 @@ async def download_promotions(
                         '비고(행사)': promo['Notes'],
                         '상품ID': prod['PromotionProductID'],
                         '상품코드': prod['UniqueCode'],
-                        '상품명': prod['ProductName'],
                         '판매가': prod['SellingPrice'],
                         '행사가': prod['PromotionPrice'],
                         '공급가': prod['SupplyPrice'],
@@ -314,7 +313,6 @@ async def download_promotions(
                     '비고(행사)': promo['Notes'],
                     '상품ID': None,
                     '상품코드': None,
-                    '상품명': None,
                     '판매가': None,
                     '행사가': None,
                     '공급가': None,
@@ -335,7 +333,7 @@ async def download_promotions(
             '행사ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간', '상태',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
             '예상매출(행사)', '예상수량(행사)', '비고(행사)',
-            '상품ID', '상품코드', '상품명', '판매가', '행사가', '공급가', '쿠폰할인율',
+            '상품ID', '상품코드', '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
             '예상매출(상품)', '예상수량(상품)', '비고(상품)'
         ]
@@ -388,7 +386,6 @@ async def download_promotions(
             ['비고(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
             ['상품코드 (검정)', 'Product 테이블에 등록된 상품코드 (수정 불가)'],
-            ['상품명', '상품명'],
             ['판매가~기타비', '가격/비용 정보'],
             ['예상매출(상품)', '숫자'],
             ['예상수량(상품)', '숫자'],
@@ -652,7 +649,7 @@ async def upload_promotions(
         if 'StartTime' not in df.columns:
             df['StartTime'] = '00:00:00'
         if 'EndTime' not in df.columns:
-            df['EndTime'] = '00:00:00'
+            df['EndTime'] = '23:59:59'
 
         # 숫자 변환 (행사)
         for col in ['CommissionRate', 'CompanyShare', 'ChannelShare', 'PromoExpectedSalesAmount']:
@@ -934,7 +931,7 @@ async def upload_promotions(
             type_info = promotion_type_map.get(promo_type, {})
 
             start_time_val = _format_time_value(first_row.get('StartTime', '00:00:00'))
-            end_time_val = _format_time_value(first_row.get('EndTime', '00:00:00'))
+            end_time_val = _format_time_value(first_row.get('EndTime', '23:59:59'))
 
             promotion_records.append({
                 'PromotionID': promo_id,

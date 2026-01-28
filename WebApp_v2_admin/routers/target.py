@@ -686,9 +686,9 @@ class TargetPromotionCreate(BaseModel):
     PromotionID: str
     PromotionName: Optional[str] = None
     StartDate: str
-    StartTime: Optional[str] = "00:00"
+    StartTime: Optional[str] = "00:00:00"
     EndDate: str
-    EndTime: Optional[str] = "00:00"
+    EndTime: Optional[str] = "23:59:59"
     BrandID: int
     BrandName: Optional[str] = None
     ChannelID: int
@@ -1245,9 +1245,9 @@ async def upload_target_promotion(
 
         # 시간 처리 (기본값 00:00)
         if 'StartTime' not in df.columns:
-            df['StartTime'] = '00:00'
+            df['StartTime'] = '00:00:00'
         if 'EndTime' not in df.columns:
-            df['EndTime'] = '00:00'
+            df['EndTime'] = '23:59:59'
 
         # 데이터 타입 변환
         df['TargetAmount'] = pd.to_numeric(df['TargetAmount'], errors='coerce').fillna(0)
@@ -1434,7 +1434,7 @@ async def upload_target_promotion(
         for idx, row in df.iterrows():
             # 시간 포맷 처리 (HH:MM:SS)
             start_time_val = _format_time_value(row.get('StartTime', '00:00:00'))
-            end_time_val = _format_time_value(row.get('EndTime', '00:00:00'))
+            end_time_val = _format_time_value(row.get('EndTime', '23:59:59'))
 
             brand_name = row['BrandName'] if pd.notna(row['BrandName']) and row['BrandName'] != 'nan' else None
             channel_name = row['ChannelName'] if pd.notna(row['ChannelName']) and row['ChannelName'] != 'nan' else None
