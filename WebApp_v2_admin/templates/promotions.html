@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block title %}행사 관리 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">행사 관리</h1>
+    <p class="page-subtitle">행사 및 행사 상품 관리</p>
+</div>
+
+<!-- Tab Navigation -->
+<div class="tab-container" style="margin-bottom:20px;">
+    <button class="tab-btn active" data-tab="promotion" onclick="switchTab('promotion')">
+        <i class="fa-solid fa-tags"></i> 행사 목록
+    </button>
+    <button class="tab-btn" data-tab="product" onclick="switchTab('product')">
+        <i class="fa-solid fa-box"></i> 행사 상품
+    </button>
+</div>
+
+<!-- Search Filters -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 검색 필터</div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                <i class="fa-solid fa-rotate-right"></i> 초기화
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="applyFilters()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+        <div>
+            <label class="form-label">년월</label>
+            <input type="month" id="searchYearMonth" class="form-input">
+        </div>
+        <div>
+            <label class="form-label">브랜드</label>
+            <select id="searchBrand" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">채널</label>
+            <select id="searchChannel" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">행사유형</label>
+            <select id="searchPromotionType" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">상태</label>
+            <select id="searchStatus" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
+            <h2 class="card-title" style="margin:0;white-space:nowrap;">
+                <span id="tableTitle">행사</span> 목록
+                <span id="resultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
+            </h2>
+            <select id="limitSelector" onchange="changeLimit()" class="form-select"
+                style="width:auto;padding:8px 12px;font-size:13px;">
+                <option value="20" selected>20개씩</option>
+                <option value="50">50개씩</option>
+                <option value="100">100개씩</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
+                <i class="fa-solid fa-check-double"></i> 전체 선택
+            </button>
+            <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton" disabled>
+                <i class="fa-solid fa-trash"></i> 선택 삭제
+            </button>
+            <button class="btn btn-success btn-sm" onclick="downloadExcel()">
+                <i class="fa-solid fa-file-excel"></i> 엑셀 양식
+            </button>
+            <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
+                <i class="fa-solid fa-upload"></i> 엑셀 업로드
+            </button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <!-- 행사 목록 테이블 -->
+        <table class="table" id="promotion-table">
+            <thead>
+                <tr>
+                    <th>행사ID</th>
+                    <th>행사명</th>
+                    <th>행사유형</th>
+                    <th>시작일</th>
+                    <th>종료일</th>
+                    <th>브랜드</th>
+                    <th>채널</th>
+                    <th>상태</th>
+                    <th style="text-align:right;">수수료율</th>
+                    <th>할인부담</th>
+                    <th style="text-align:right;">예상매출</th>
+                    <th style="text-align:right;">예상수량</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <!-- 행사 상품 테이블 -->
+        <table class="table" id="product-table" style="display:none;">
+            <thead>
+                <tr>
+                    <th>행사ID</th>
+                    <th>행사명</th>
+                    <th>행사유형</th>
+                    <th>브랜드</th>
+                    <th>채널</th>
+                    <th>상품코드</th>
+                    <th>상품명</th>
+                    <th style="text-align:right;">판매가</th>
+                    <th style="text-align:right;">행사가</th>
+                    <th style="text-align:right;">공급가</th>
+                    <th style="text-align:right;">예상매출</th>
+                    <th style="text-align:right;">예상수량</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div id="pagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
+</div>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">행사 데이터 업로드</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="upload-zone" onclick="document.getElementById('fileInput').click()"
+                style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:all 0.2s;">
+                <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileSelect(event)"
+                    style="display:none;">
+                <i class="fa-solid fa-cloud-arrow-up"
+                    style="font-size:48px;color:var(--text-muted);margin-bottom:16px;"></i>
+                <p style="font-size:16px;margin-bottom:8px;">파일을 드래그하거나 클릭하여 선택</p>
+                <p style="font-size:13px;color:var(--text-muted);">지원 형식: .xlsx, .xls</p>
+            </div>
+            <div id="fileInfo" style="margin-top:16px;display:none;">
+                <p><strong>선택된 파일:</strong> <span id="fileName"></span></p>
+            </div>
+            <div id="uploadProgress" style="margin-top:16px;display:none;">
+                <div style="background:var(--border);border-radius:8px;overflow:hidden;height:8px;">
+                    <div id="progressBar" style="background:var(--success);height:100%;width:0%;transition:width 0.3s;"></div>
+                </div>
+                <p id="progressText" style="margin-top:8px;font-size:13px;color:var(--text-muted);text-align:center;">0%</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-primary" id="uploadButton" onclick="uploadFile()" disabled>
+                <i class="fa-solid fa-upload"></i> 업로드
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Result Modal -->
+<div id="uploadResultModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="uploadResultTitle">업로드 결과</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- 성공 시 표시 -->
+            <div id="uploadSuccessSection">
+                <div style="margin-bottom:24px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                        <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--success);"></i>
+                        <div>
+                            <h3 style="font-size:20px;margin-bottom:4px;">업로드 완료</h3>
+                            <p style="color:var(--text-muted);font-size:14px;">데이터가 성공적으로 업로드되었습니다.</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                    <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
+                        <i class="fa-solid fa-chart-bar"></i> 업로드 통계
+                    </h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <!-- 행사 통계 -->
+                        <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:16px;">
+                            <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">행사(Promotion)</div>
+                            <div style="display:flex;gap:16px;">
+                                <div>
+                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">신규</div>
+                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="promoInserted">0</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">수정</div>
+                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="promoUpdated">0</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 상품 통계 -->
+                        <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:16px;">
+                            <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">상품(Product)</div>
+                            <div style="display:flex;gap:16px;">
+                                <div>
+                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">신규</div>
+                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="prodInserted">0</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">수정</div>
+                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="prodUpdated">0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top:12px;text-align:center;">
+                        <span style="font-size:12px;color:var(--text-muted);">총 행 수: </span>
+                        <span style="font-size:14px;font-weight:600;" id="uploadTotalRows">0</span>
+                    </div>
+                </div>
+            </div>
+            <!-- 실패 시 표시 -->
+            <div id="uploadErrorSection" style="display:none;">
+                <div style="margin-bottom:24px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                        <i class="fa-solid fa-circle-xmark" style="font-size:48px;color:var(--danger);"></i>
+                        <div>
+                            <h3 style="font-size:20px;margin-bottom:4px;">업로드 실패</h3>
+                            <p style="color:var(--text-muted);font-size:14px;">데이터 업로드 중 오류가 발생했습니다.</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="background:rgba(239,68,68,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                    <h4 style="font-size:15px;margin-bottom:12px;color:var(--danger);">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 오류 내용
+                    </h4>
+                    <p id="uploadErrorMessage" style="font-size:14px;color:var(--text-primary);word-break:break-all;"></p>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" data-modal-close>
+                <i class="fa-solid fa-check"></i> 확인
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Modal -->
+<div id="confirmModal" class="modal">
+    <div class="modal-content" style="max-width:460px;">
+        <div class="modal-header">
+            <h2 class="modal-title" id="confirmTitle">확인</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex;align-items:flex-start;gap:16px;">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;color:var(--warning);flex-shrink:0;margin-top:2px;"></i>
+                <div>
+                    <p id="confirmMessage" style="font-size:15px;line-height:1.6;"></p>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-danger" id="confirmOkButton">
+                <i class="fa-solid fa-check"></i> 확인
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Modal -->
+<div id="alertModal" class="modal">
+    <div class="modal-content" style="max-width:420px;">
+        <div class="modal-header">
+            <h2 class="modal-title" id="alertTitle">알림</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex;align-items:flex-start;gap:16px;">
+                <i id="alertIcon" class="fa-solid fa-circle-info" style="font-size:32px;color:var(--accent);flex-shrink:0;margin-top:2px;"></i>
+                <p id="alertMessage" style="font-size:15px;line-height:1.6;"></p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" data-modal-close>
+                <i class="fa-solid fa-check"></i> 확인
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tab-container {
+        display: flex;
+        gap: 8px;
+        background: var(--bg-card);
+        padding: 8px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+    }
+    .tab-btn {
+        flex: 1;
+        padding: 12px 24px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    .tab-btn:hover {
+        background: var(--bg-hover);
+        color: var(--text);
+    }
+    .tab-btn.active {
+        background: var(--accent);
+        color: white;
+    }
+    .tab-btn i {
+        font-size: 16px;
+    }
+
+    /* 상태 배지 */
+    .status-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .status-SCHEDULED { background: rgba(99,102,241,0.15); color: #6366f1; }
+    .status-ACTIVE { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .status-ENDED { background: rgba(156,163,175,0.15); color: #9ca3af; }
+    .status-CANCELLED { background: rgba(239,68,68,0.15); color: #ef4444; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/promotions.js"></script>
+{% endblock %}

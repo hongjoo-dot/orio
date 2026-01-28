@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 # Routers
-from routers import product, brand, channel, sales, bom, pages, target
+from routers import product, brand, channel, sales, bom, pages, target, promotion
 from routers import auth, admin, system_config
 
 app = FastAPI(
@@ -52,6 +52,8 @@ app.include_router(sales.router)
 app.include_router(bom.router)
 app.include_router(target.router)  # 기본 목표
 app.include_router(target.promotion_router)  # 행사 목표
+app.include_router(promotion.product_router)  # 행사 상품 (하위 경로 우선 등록)
+app.include_router(promotion.router)  # 행사 관리
 app.include_router(system_config.router)
 
 
