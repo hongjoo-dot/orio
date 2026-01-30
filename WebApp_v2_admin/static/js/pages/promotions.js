@@ -18,15 +18,18 @@ let uploadModal, uploadResultModal, confirmModal, alertModal;
 let currentFilters = {};
 let currentPage = 1;
 let currentLimit = 20;
+let currentSortBy = null;
+let currentSortDir = null;
 
 // 마스터 컬럼 정의 (행사 목록)
 const masterColumns = [
-    { key: 'PromotionID', header: '행사ID', render: (row) => row.PromotionID || '-' },
-    { key: 'PromotionName', header: '행사명', render: (row) => row.PromotionName || '-' },
-    { key: 'PromotionType', header: '행사유형', render: (row) => row.PromotionType || '-' },
+    { key: 'PromotionID', header: '행사ID', sortKey: 'PromotionID', render: (row) => row.PromotionID || '-' },
+    { key: 'PromotionName', header: '행사명', sortKey: 'PromotionName', render: (row) => row.PromotionName || '-' },
+    { key: 'PromotionType', header: '행사유형', sortKey: 'PromotionType', render: (row) => row.PromotionType || '-' },
     {
         key: 'StartDate',
         header: '시작일',
+        sortKey: 'StartDate',
         render: (row) => {
             const date = row.StartDate || '';
             const time = row.StartTime || '';
@@ -36,17 +39,19 @@ const masterColumns = [
     {
         key: 'EndDate',
         header: '종료일',
+        sortKey: 'EndDate',
         render: (row) => {
             const date = row.EndDate || '';
             const time = row.EndTime || '';
             return time && time !== '00:00:00' ? `${date} ${time}` : date;
         }
     },
-    { key: 'BrandName', header: '브랜드', render: (row) => row.BrandName || '-' },
-    { key: 'ChannelName', header: '채널', render: (row) => row.ChannelName || '-' },
+    { key: 'BrandName', header: '브랜드', sortKey: 'BrandName', render: (row) => row.BrandName || '-' },
+    { key: 'ChannelName', header: '채널', sortKey: 'ChannelName', render: (row) => row.ChannelName || '-' },
     {
         key: 'Status',
         header: '상태',
+        sortKey: 'Status',
         render: (row) => {
             const status = row.Status || '';
             const labels = { SCHEDULED: '예정', ACTIVE: '진행중', ENDED: '종료', CANCELLED: '취소' };
@@ -56,17 +61,23 @@ const masterColumns = [
     {
         key: 'CommissionRate',
         header: '수수료율',
+        sortKey: 'CommissionRate',
+        align: 'right',
         render: (row) => `<div style="text-align:right;">${row.CommissionRate != null ? row.CommissionRate + '%' : '-'}</div>`
     },
-    { key: 'DiscountOwner', header: '할인부담', render: (row) => row.DiscountOwner || '-' },
+    { key: 'DiscountOwner', header: '할인부담', sortKey: 'DiscountOwner', render: (row) => row.DiscountOwner || '-' },
     {
         key: 'ExpectedSalesAmount',
         header: '예상매출',
+        sortKey: 'ExpectedSalesAmount',
+        align: 'right',
         render: (row) => `<div style="text-align:right;">${(row.ExpectedSalesAmount || 0).toLocaleString()}</div>`
     },
     {
         key: 'ExpectedQuantity',
         header: '예상수량',
+        sortKey: 'ExpectedQuantity',
+        align: 'right',
         render: (row) => `<div style="text-align:right;">${(row.ExpectedQuantity || 0).toLocaleString()}</div>`
     }
 ];
@@ -135,8 +146,14 @@ document.addEventListener('DOMContentLoaded', function () {
             updateActionButtons(selectedIds);
         },
         onRowClick: (row, tr) => selectPromotion(row, tr),
+        onSort: (sortKey, sortDir) => {
+            currentSortBy = sortKey;
+            currentSortDir = sortDir;
+            loadData(1, currentLimit);
+        },
         emptyMessage: '행사 데이터가 없습니다.'
     });
+    masterTableManager.renderHeader(masterColumns);
 
     // 디테일 테이블 매니저
     detailTableManager = new TableManager('detail-table', {
@@ -330,7 +347,7 @@ async function loadData(page = 1, limit = 20) {
     try {
         masterTableManager.showLoading(masterColumns.length);
 
-        const params = { page, limit, ...currentFilters };
+        const params = { page, limit, sort_by: currentSortBy, sort_dir: currentSortDir, ...currentFilters };
         const queryString = api.buildQueryString(params);
 
         const result = await api.get(`/api/promotions${queryString}`);

@@ -67,6 +67,8 @@ class BulkDeleteRequest(BaseModel):
 async def get_channels(
     page: int = 1,
     limit: int = 20,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = "DESC",
     name: Optional[str] = None,
     detail_name: Optional[str] = None,
     group: Optional[str] = None,
@@ -88,12 +90,22 @@ async def get_channels(
         if contract_type:
             filters['contract_type'] = contract_type
 
+        ALLOWED_SORT = {
+            "ChannelID": "ChannelID",
+            "Name": "Name",
+            "Group": "[Group]",
+            "Type": "[Type]",
+            "ContractType": "ContractType",
+        }
+        order_by = ALLOWED_SORT.get(sort_by, "ChannelID")
+        order_dir = sort_dir if sort_dir in ("ASC", "DESC") else "DESC"
+
         result = channel_repo.get_list(
             page=page,
             limit=limit,
             filters=filters,
-            order_by="ChannelID",
-            order_dir="DESC"
+            order_by=order_by,
+            order_dir=order_dir
         )
 
         return result

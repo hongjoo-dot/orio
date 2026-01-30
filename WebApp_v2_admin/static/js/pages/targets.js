@@ -20,34 +20,41 @@ let currentFilters = {};
 // 현재 페이지 정보
 let currentPage = 1;
 let currentLimit = 20;
+let currentSortBy = null;
+let currentSortDir = null;
 
 // 기본 목표 컬럼 정의
 const baseColumns = [
-    { key: 'Date', header: '날짜', render: (row) => row.Date || '-' },
-    { key: 'BrandName', header: '브랜드', render: (row) => row.BrandName || '-' },
-    { key: 'ChannelName', header: '채널', render: (row) => row.ChannelName || '-' },
-    { key: 'UniqueCode', header: '상품코드', render: (row) => row.UniqueCode || '-' },
-    { key: 'ProductName', header: '상품명', render: (row) => row.ProductName || '-' },
+    { key: 'Date', header: '날짜', sortKey: 'Date', render: (row) => row.Date || '-' },
+    { key: 'BrandName', header: '브랜드', sortKey: 'BrandName', render: (row) => row.BrandName || '-' },
+    { key: 'ChannelName', header: '채널', sortKey: 'ChannelName', render: (row) => row.ChannelName || '-' },
+    { key: 'UniqueCode', header: '상품코드', sortKey: 'UniqueCode', render: (row) => row.UniqueCode || '-' },
+    { key: 'ProductName', header: '상품명', sortKey: 'ProductName', render: (row) => row.ProductName || '-' },
     {
         key: 'TargetAmount',
         header: '목표금액',
+        sortKey: 'TargetAmount',
+        align: 'right',
         render: (row) => `<div style="text-align:right;">${(row.TargetAmount || 0).toLocaleString()}</div>`
     },
     {
         key: 'TargetQuantity',
         header: '목표수량',
+        sortKey: 'TargetQuantity',
+        align: 'right',
         render: (row) => `<div style="text-align:right;">${(row.TargetQuantity || 0).toLocaleString()}</div>`
     }
 ];
 
 // 행사 목표 컬럼 정의
 const promotionColumns = [
-    { key: 'PromotionID', header: '행사ID', render: (row) => row.PromotionID || '-' },
-    { key: 'PromotionName', header: '행사명', render: (row) => row.PromotionName || '-' },
-    { key: 'PromotionType', header: '행사유형', render: (row) => row.PromotionType || '-' },
+    { key: 'PromotionID', header: '행사ID', sortKey: 'PromotionID', render: (row) => row.PromotionID || '-' },
+    { key: 'PromotionName', header: '행사명', sortKey: 'PromotionName', render: (row) => row.PromotionName || '-' },
+    { key: 'PromotionType', header: '행사유형', sortKey: 'PromotionType', render: (row) => row.PromotionType || '-' },
     {
         key: 'StartDate',
         header: '시작일',
+        sortKey: 'StartDate',
         render: (row) => {
             const date = row.StartDate || '';
             const time = row.StartTime || '00:00:00';
@@ -57,22 +64,27 @@ const promotionColumns = [
     {
         key: 'EndDate',
         header: '종료일',
+        sortKey: 'EndDate',
         render: (row) => {
             const date = row.EndDate || '';
             const time = row.EndTime || '23:59:59';
             return date ? `${date} ${time}` : '-';
         }
     },
-    { key: 'BrandName', header: '브랜드', render: (row) => row.BrandName || '-' },
-    { key: 'UniqueCode', header: '상품코드', render: (row) => row.UniqueCode || '-' },
+    { key: 'BrandName', header: '브랜드', sortKey: 'BrandName', render: (row) => row.BrandName || '-' },
+    { key: 'UniqueCode', header: '상품코드', sortKey: 'UniqueCode', render: (row) => row.UniqueCode || '-' },
     {
         key: 'TargetAmount',
         header: '목표금액',
+        sortKey: 'TargetAmount',
+        align: 'right',
         render: (row) => `<div style="text-align:right;">${(row.TargetAmount || 0).toLocaleString()}</div>`
     },
     {
         key: 'TargetQuantity',
         header: '목표수량',
+        sortKey: 'TargetQuantity',
+        align: 'right',
         render: (row) => `<div style="text-align:right;">${(row.TargetQuantity || 0).toLocaleString()}</div>`
     }
 ];
@@ -92,8 +104,14 @@ document.addEventListener('DOMContentLoaded', function () {
         onSelectionChange: (selectedIds) => {
             updateActionButtons(selectedIds);
         },
+        onSort: (sortKey, sortDir) => {
+            currentSortBy = sortKey;
+            currentSortDir = sortDir;
+            loadData(1, currentLimit);
+        },
         emptyMessage: '목표 데이터가 없습니다.'
     });
+    baseTableManager.renderHeader(baseColumns);
 
     // 테이블 매니저 초기화 - 행사 목표
     promotionTableManager = new TableManager('promotion-table', {
@@ -102,8 +120,14 @@ document.addEventListener('DOMContentLoaded', function () {
         onSelectionChange: (selectedIds) => {
             updateActionButtons(selectedIds);
         },
+        onSort: (sortKey, sortDir) => {
+            currentSortBy = sortKey;
+            currentSortDir = sortDir;
+            loadData(1, currentLimit);
+        },
         emptyMessage: '목표 데이터가 없습니다.'
     });
+    promotionTableManager.renderHeader(promotionColumns);
 
     // 페이지네이션 초기화
     paginationManager = new PaginationManager('pagination', {
@@ -150,6 +174,10 @@ function switchTab(tab) {
     if (tab === 'promotion') {
         loadPromotionTypes();
     }
+
+    // 정렬 상태 초기화
+    currentSortBy = null;
+    currentSortDir = null;
 
     // 선택 해제 및 데이터 새로고침
     getActiveTableManager().clearSelection();
@@ -269,7 +297,7 @@ async function loadData(page = 1, limit = 20) {
             : '/api/targets/promotion';
 
         // 쿼리 파라미터 구성
-        const params = { page, limit, ...currentFilters };
+        const params = { page, limit, sort_by: currentSortBy, sort_dir: currentSortDir, ...currentFilters };
         const queryString = api.buildQueryString(params);
 
         const result = await api.get(`${endpoint}${queryString}`);

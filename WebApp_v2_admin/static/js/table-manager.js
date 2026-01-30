@@ -1,7 +1,7 @@
 /**
  * Table Manager Module
  * - 테이블 렌더링
- * - 정렬
+ * - 칼럼 헤더 정렬
  * - 행 선택
  */
 
@@ -11,15 +11,104 @@ class TableManager {
         this.tbody = this.table?.querySelector('tbody');
         this.options = {
             selectable: options.selectable || false,
-            idKey: options.idKey || null,  // 명시적 ID 키 지정 (예: 'TargetID', 'ProductID')
+            idKey: options.idKey || null,
             onRowClick: options.onRowClick || null,
             onSelectionChange: options.onSelectionChange || null,
+            onSort: options.onSort || null,
             emptyMessage: options.emptyMessage || '데이터가 없습니다'
         };
         this.selectedRows = new Set();
+        this.currentSortKey = null;
+        this.currentSortDir = null;
+        this._headerRendered = false;
+        this._selectAllCheckbox = null;
 
+        // 개별 체크박스 이벤트 (tbody 위임)
         if (this.options.selectable) {
-            this._initSelection();
+            this.tbody?.addEventListener('change', (e) => {
+                if (e.target.classList.contains('row-checkbox')) {
+                    this._handleRowSelection(e.target);
+                }
+            });
+        }
+    }
+
+    /**
+     * 테이블 헤더 렌더링 (정렬 UI 포함)
+     */
+    renderHeader(columns) {
+        const thead = this.table?.querySelector('thead');
+        if (!thead) return;
+
+        let headerRow = thead.querySelector('tr');
+        if (!headerRow) {
+            headerRow = document.createElement('tr');
+            thead.appendChild(headerRow);
+        }
+        headerRow.innerHTML = '';
+
+        // 체크박스 컬럼
+        if (this.options.selectable) {
+            const th = document.createElement('th');
+            th.style.width = '40px';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.addEventListener('change', (e) => {
+                this._handleSelectAll(e.target.checked);
+            });
+            this._selectAllCheckbox = checkbox;
+            th.appendChild(checkbox);
+            headerRow.appendChild(th);
+        }
+
+        // 데이터 컬럼
+        columns.forEach(col => {
+            const th = document.createElement('th');
+            th.textContent = col.header;
+
+            if (col.align === 'right') {
+                th.style.textAlign = 'right';
+            }
+
+            if (col.sortKey && this.options.onSort) {
+                th.setAttribute('data-sortable', col.sortKey);
+
+                // 현재 정렬 상태 반영
+                if (this.currentSortKey === col.sortKey) {
+                    th.classList.add(this.currentSortDir === 'ASC' ? 'sort-asc' : 'sort-desc');
+                }
+
+                th.addEventListener('click', () => this._handleSortClick(col.sortKey));
+            }
+
+            headerRow.appendChild(th);
+        });
+
+        this._headerRendered = true;
+    }
+
+    /**
+     * 정렬 클릭 처리
+     */
+    _handleSortClick(sortKey) {
+        if (this.currentSortKey === sortKey) {
+            this.currentSortDir = this.currentSortDir === 'DESC' ? 'ASC' : 'DESC';
+        } else {
+            this.currentSortKey = sortKey;
+            this.currentSortDir = 'DESC';
+        }
+
+        // 헤더 정렬 표시 갱신
+        const allTh = this.table.querySelectorAll('thead th[data-sortable]');
+        allTh.forEach(th => {
+            th.classList.remove('sort-asc', 'sort-desc');
+            if (th.getAttribute('data-sortable') === this.currentSortKey) {
+                th.classList.add(this.currentSortDir === 'ASC' ? 'sort-asc' : 'sort-desc');
+            }
+        });
+
+        if (this.options.onSort) {
+            this.options.onSort(this.currentSortKey, this.currentSortDir);
         }
     }
 
@@ -51,7 +140,6 @@ class TableManager {
     _createRow(rowData, columns, index) {
         const tr = document.createElement('tr');
         tr.dataset.index = index;
-        // idKey가 명시적으로 지정된 경우 해당 키 사용, 아니면 폴백
         tr.dataset.id = this.options.idKey
             ? (rowData[this.options.idKey] || index)
             : (rowData.id || rowData.IDX || rowData.TargetID || rowData.ProductID || index);
@@ -72,7 +160,6 @@ class TableManager {
             const td = document.createElement('td');
 
             if (column.render) {
-                // 커스텀 렌더러
                 const content = column.render(rowData, rowData[column.key]);
                 if (typeof content === 'string' || typeof content === 'number') {
                     td.innerHTML = content;
@@ -80,7 +167,6 @@ class TableManager {
                     td.appendChild(content);
                 }
             } else {
-                // 기본 렌더링
                 td.textContent = rowData[column.key] ?? '-';
             }
 
@@ -120,38 +206,6 @@ class TableManager {
     }
 
     /**
-     * 선택 기능 초기화
-     */
-    _initSelection() {
-        // 전체 선택 체크박스
-        const thead = this.table?.querySelector('thead');
-        if (thead) {
-            const headerRow = thead.querySelector('tr');
-            if (headerRow) {
-                const th = document.createElement('th');
-                th.style.width = '40px';
-
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.id = 'select-all';
-                checkbox.addEventListener('change', (e) => {
-                    this._handleSelectAll(e.target.checked);
-                });
-
-                th.appendChild(checkbox);
-                headerRow.insertBefore(th, headerRow.firstChild);
-            }
-        }
-
-        // 개별 체크박스 이벤트
-        this.tbody?.addEventListener('change', (e) => {
-            if (e.target.classList.contains('row-checkbox')) {
-                this._handleRowSelection(e.target);
-            }
-        });
-    }
-
-    /**
      * 전체 선택
      */
     _handleSelectAll(checked) {
@@ -181,7 +235,9 @@ class TableManager {
             this.selectedRows.add(id);
         } else {
             this.selectedRows.delete(id);
-            document.getElementById('select-all').checked = false;
+            if (this._selectAllCheckbox) {
+                this._selectAllCheckbox.checked = false;
+            }
         }
 
         if (this.options.onSelectionChange) {
@@ -203,7 +259,9 @@ class TableManager {
         this.selectedRows.clear();
         const checkboxes = this.tbody.querySelectorAll('.row-checkbox');
         checkboxes.forEach(cb => cb.checked = false);
-        document.getElementById('select-all').checked = false;
+        if (this._selectAllCheckbox) {
+            this._selectAllCheckbox.checked = false;
+        }
 
         if (this.options.onSelectionChange) {
             this.options.onSelectionChange([]);

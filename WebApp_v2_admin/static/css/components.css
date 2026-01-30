@@ -264,6 +264,40 @@
     gap: var(--spacing-sm);
 }
 
+/* Table Sorting */
+.table th[data-sortable] {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 28px;
+}
+
+.table th[data-sortable]::after {
+    content: '⇅';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.3;
+    font-size: 12px;
+}
+
+.table th[data-sortable]:hover {
+    background: rgba(99, 102, 241, 0.15);
+}
+
+.table th[data-sortable].sort-asc::after {
+    content: '▲';
+    opacity: 0.9;
+    color: var(--accent);
+}
+
+.table th[data-sortable].sort-desc::after {
+    content: '▼';
+    opacity: 0.9;
+    color: var(--accent);
+}
+
 /* ==================== Pagination ==================== */
 .pagination {
     display: flex;

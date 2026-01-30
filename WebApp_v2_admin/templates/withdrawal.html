@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}행사 관리 - Orio ERP v2{% endblock %}
+{% block title %}불출 관리 - Orio ERP v2{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">행사 관리</h1>
-    <p class="page-subtitle">행사 및 행사 상품 관리</p>
+    <h1 class="page-title">불출 관리</h1>
+    <p class="page-subtitle">상품 불출 계획 및 승인 관리</p>
 </div>
 
 <!-- Search Filters -->
@@ -23,24 +23,12 @@
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
         <div>
-            <label class="form-label">년월</label>
+            <label class="form-label">출고희망월</label>
             <input type="month" id="searchYearMonth" class="form-input">
         </div>
         <div>
-            <label class="form-label">브랜드</label>
-            <select id="searchBrand" class="form-select">
-                <option value="">전체</option>
-            </select>
-        </div>
-        <div>
-            <label class="form-label">채널</label>
-            <select id="searchChannel" class="form-select">
-                <option value="">전체</option>
-            </select>
-        </div>
-        <div>
-            <label class="form-label">행사유형</label>
-            <select id="searchPromotionType" class="form-select">
+            <label class="form-label">사용유형</label>
+            <select id="searchType" class="form-select">
                 <option value="">전체</option>
             </select>
         </div>
@@ -50,18 +38,22 @@
                 <option value="">전체</option>
             </select>
         </div>
+        <div>
+            <label class="form-label">주문번호</label>
+            <input type="text" id="searchOrderNo" class="form-input" placeholder="주문번호 검색">
+        </div>
     </div>
 </div>
 
 <!-- Master-Detail Layout -->
 <div style="display:grid;grid-template-columns:1.7fr 1fr;gap:24px;">
 
-    <!-- Master: 행사 목록 -->
+    <!-- Master: 불출 계획 목록 -->
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
             <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
                 <h2 class="card-title" style="margin:0;white-space:nowrap;">
-                    행사 목록
+                    불출 계획
                     <span id="resultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
                 </h2>
                 <select id="limitSelector" onchange="changeLimit()" class="form-select"
@@ -99,19 +91,22 @@
         <div id="pagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
     </div>
 
-    <!-- Detail: 행사 상품 -->
+    <!-- Detail: 불출 상품 + 상세정보 -->
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
             <h2 class="card-title" style="margin:0;white-space:nowrap;">
-                행사 상품
+                상세 정보
                 <span id="detailCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;display:none;"></span>
             </h2>
             <div id="detailActions" style="display:none;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-secondary btn-sm" onclick="selectAllDetail()">
-                    <i class="fa-solid fa-check-double"></i> 전체 선택
+                <button class="btn btn-primary btn-sm" id="btnSubmit" onclick="submitPlan()" style="display:none;">
+                    <i class="fa-solid fa-paper-plane"></i> 신청
                 </button>
-                <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteDetail()" id="detailDeleteButton" disabled>
-                    <i class="fa-solid fa-trash"></i> 선택 삭제
+                <button class="btn btn-success btn-sm" id="btnApprove" onclick="approvePlan()" style="display:none;">
+                    <i class="fa-solid fa-check"></i> 승인
+                </button>
+                <button class="btn btn-danger btn-sm" id="btnReject" onclick="rejectPlan()" style="display:none;">
+                    <i class="fa-solid fa-xmark"></i> 반려
                 </button>
             </div>
         </div>
@@ -119,26 +114,25 @@
         <!-- 플레이스홀더 -->
         <div id="detailPlaceholder" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
             <i class="fa-solid fa-hand-pointer" style="font-size:48px;margin-bottom:16px;display:block;opacity:0.4;"></i>
-            <p style="font-size:15px;">행사를 선택하세요</p>
-            <p style="font-size:13px;margin-top:4px;">좌측 행사 목록에서 행사를 클릭하면<br>해당 행사의 상품이 표시됩니다.</p>
+            <p style="font-size:15px;">불출 계획을 선택하세요</p>
+            <p style="font-size:13px;margin-top:4px;">좌측 목록에서 계획을 클릭하면<br>상세 정보가 표시됩니다.</p>
         </div>
 
-        <!-- 상품 테이블 (행사 선택 시 표시) -->
+        <!-- 상세 정보 (선택 시 표시) -->
         <div id="detailContainer" style="display:none;">
+            <!-- 계획 상세 -->
+            <div id="planInfo" style="margin-bottom:20px;"></div>
+
+            <!-- 상품 테이블 -->
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">불출 상품</h3>
             <div class="table-container">
                 <table class="table" id="detail-table">
                     <thead>
                         <tr>
-                            <th>상품코드</th>
                             <th>상품명</th>
-                            <th style="text-align:right;">판매가</th>
-                            <th style="text-align:right;">행사가</th>
-                            <th style="text-align:right;">공급가</th>
-                            <th style="text-align:right;">쿠폰할인율</th>
-                            <th style="text-align:right;">원가</th>
-                            <th style="text-align:right;">물류비</th>
-                            <th style="text-align:right;">예상매출</th>
-                            <th style="text-align:right;">예상수량</th>
+                            <th>바코드</th>
+                            <th>고유코드</th>
+                            <th style="text-align:right;">수량</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -152,7 +146,7 @@
 <div id="uploadModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 class="modal-title">행사 데이터 업로드</h2>
+            <h2 class="modal-title">불출 계획 업로드</h2>
             <button class="modal-close" data-modal-close>&times;</button>
         </div>
         <div class="modal-body">
@@ -192,7 +186,7 @@
             <button class="modal-close" data-modal-close>&times;</button>
         </div>
         <div class="modal-body">
-            <!-- 성공 시 표시 -->
+            <!-- 성공 -->
             <div id="uploadSuccessSection">
                 <div style="margin-bottom:24px;">
                     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
@@ -208,31 +202,25 @@
                         <i class="fa-solid fa-chart-bar"></i> 업로드 통계
                     </h4>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-                        <!-- 행사 통계 -->
                         <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:16px;">
-                            <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">행사(Promotion)</div>
+                            <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">불출 계획</div>
                             <div style="display:flex;gap:16px;">
                                 <div>
                                     <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">신규</div>
-                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="promoInserted">0</div>
+                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="planInserted">0</div>
                                 </div>
                                 <div>
                                     <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">수정</div>
-                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="promoUpdated">0</div>
+                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="planUpdated">0</div>
                                 </div>
                             </div>
                         </div>
-                        <!-- 상품 통계 -->
                         <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:16px;">
-                            <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">상품(Product)</div>
+                            <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">불출 상품</div>
                             <div style="display:flex;gap:16px;">
                                 <div>
-                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">신규</div>
-                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="prodInserted">0</div>
-                                </div>
-                                <div>
-                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">수정</div>
-                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="prodUpdated">0</div>
+                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">등록</div>
+                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="itemsInserted">0</div>
                                 </div>
                             </div>
                         </div>
@@ -243,7 +231,7 @@
                     </div>
                 </div>
             </div>
-            <!-- 실패 시 표시 -->
+            <!-- 실패 -->
             <div id="uploadErrorSection" style="display:none;">
                 <div style="margin-bottom:24px;">
                     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
@@ -258,7 +246,7 @@
                     <h4 style="font-size:15px;margin-bottom:12px;color:var(--danger);">
                         <i class="fa-solid fa-triangle-exclamation"></i> 오류 내용
                     </h4>
-                    <p id="uploadErrorMessage" style="font-size:14px;color:var(--text-primary);word-break:break-all;"></p>
+                    <p id="uploadErrorMessage" style="font-size:14px;color:var(--text-primary);word-break:break-all;white-space:pre-line;"></p>
                 </div>
             </div>
         </div>
@@ -282,6 +270,10 @@
                 <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;color:var(--warning);flex-shrink:0;margin-top:2px;"></i>
                 <div>
                     <p id="confirmMessage" style="font-size:15px;line-height:1.6;"></p>
+                    <div id="rejectReasonContainer" style="display:none;margin-top:12px;">
+                        <label class="form-label">반려 사유</label>
+                        <textarea id="rejectReason" class="form-input" rows="3" placeholder="반려 사유를 입력하세요"></textarea>
+                    </div>
                 </div>
             </div>
         </div>
@@ -326,10 +318,10 @@
         font-size: 12px;
         font-weight: 600;
     }
-    .status-SCHEDULED { background: rgba(99,102,241,0.15); color: #6366f1; }
-    .status-ACTIVE { background: rgba(34,197,94,0.15); color: #22c55e; }
-    .status-ENDED { background: rgba(156,163,175,0.15); color: #9ca3af; }
-    .status-CANCELLED { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .status-DRAFT { background: rgba(156,163,175,0.15); color: #9ca3af; }
+    .status-PENDING { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .status-APPROVED { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .status-REJECTED { background: rgba(239,68,68,0.15); color: #ef4444; }
 
     /* 마스터 행 선택 스타일 */
     #master-table tbody tr {
@@ -341,9 +333,30 @@
     #master-table tbody tr:hover {
         background: var(--bg-hover);
     }
+
+    /* 계획 상세 정보 */
+    .plan-info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        font-size: 13px;
+    }
+    .plan-info-item {
+        display: flex;
+        gap: 8px;
+    }
+    .plan-info-label {
+        color: var(--text-muted);
+        min-width: 70px;
+        flex-shrink: 0;
+    }
+    .plan-info-value {
+        font-weight: 500;
+        word-break: break-all;
+    }
 </style>
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/pages/promotions.js"></script>
+<script src="/static/js/pages/withdrawal.js"></script>
 {% endblock %}

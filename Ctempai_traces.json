@@ -1,0 +1,274 @@
+WARNING: Unable to encode the output with cp949 encoding. Unsupported characters are discarded.
+{
+  "tables": [
+    {
+      "columns": [
+        {
+          "name": "timestamp",
+          "type": "datetime"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "name": "severityLevel",
+          "type": "int"
+        }
+      ],
+      "name": "PrimaryResult",
+      "rows": [
+        [
+          "2026-01-30T05:54:47.7466757Z",
+          "Call to StopAsync complete, registered listeners are now stopped",
+          1
+        ],
+        [
+          "2026-01-30T05:54:47.746588Z",
+          "Stopped the listener 'Microsoft.Azure.WebJobs.Host.Listeners.SingletonListener' for function 'daily_ad_data_collector'",
+          1
+        ],
+        [
+          "2026-01-30T05:54:47.7465496Z",
+          "Stopped the listener 'Microsoft.Azure.WebJobs.Host.Listeners.SingletonListener' for function 'warmup_ad_collector'",
+          1
+        ],
+        [
+          "2026-01-30T05:54:47.7340672Z",
+          "Stopping the listener 'Microsoft.Azure.WebJobs.Host.Listeners.SingletonListener' for function 'warmup_ad_collector'",
+          1
+        ],
+        [
+          "2026-01-30T05:54:47.7321899Z",
+          "Stopping the listener 'Microsoft.Azure.WebJobs.Host.Listeners.SingletonListener' for function 'daily_ad_data_collector'",
+          1
+        ],
+        [
+          "2026-01-30T05:54:47.7319363Z",
+          "Calling StopAsync on the registered listeners",
+          1
+        ],
+        [
+          "2026-01-30T05:54:47.7318445Z",
+          "DrainMode mode enabled",
+          1
+        ],
+        [
+          "2026-01-30T05:50:48.1737029Z",
+          "The next 5 occurrences of the 'daily_ad_data_collector' schedule (Cron: '0 20 0 * * *') will be:\n01/31/2026 00:20:00Z\n02/01/2026 00:20:00Z\n02/02/2026 00:20:00Z\n02/03/2026 00:20:00Z\n02/04/2026 00:20:00Z",
+          1
+        ],
+        [
+          "2026-01-30T05:50:48.1736928Z",
+          "The next 5 occurrences of the 'warmup_ad_collector' schedule (Cron: '0 15 0 * * *') will be:\n01/31/2026 00:15:00Z\n02/01/2026 00:15:00Z\n02/02/2026 00:15:00Z\n02/03/2026 00:15:00Z\n02/04/2026 00:15:00Z",
+          1
+        ],
+        [
+          "2026-01-30T05:50:03.1458865Z",
+          "Host lock lease acquired by instance ID '0000000000000000000000006A1132BC'.",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.544578Z",
+          "Executed 'Functions.daily_ad_data_collector' (Succeeded, Id=32f5f6bc-2cd8-4b2b-b790-02140de91c28, Duration=13260ms)",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5431658Z",
+          "[SUCCESS]   ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5431542Z",
+          "n/a",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5431473Z",
+          "[DB] AdDataNaver 40  ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5431405Z",
+          "[OK] 40    (: 0)",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5431338Z",
+          "[ ] 40",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5431201Z",
+          "  : 14",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5431138Z",
+          "   (2565 bytes)",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5431023Z",
+          "   (3)",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430915Z",
+          "     ( 120)...",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430737Z",
+          "  : 79825501",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430675Z",
+          " [AD_CONVERSION]   ...",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430608Z",
+          "n/a",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430504Z",
+          "  : 40",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.543044Z",
+          "   (7092 bytes)",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430373Z",
+          "   (3)",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430303Z",
+          "     ( 120)...",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430132Z",
+          "  : 79825493",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5430026Z",
+          " [AD]   ...",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429959Z",
+          "n/a",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429894Z",
+          "[  ] 2026-01-29",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429782Z",
+          "n/a",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.542972Z",
+          ">>> : 2026-01-29  ...",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429658Z",
+          "n/a",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429591Z",
+          "[OK]  ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429471Z",
+          ": 9",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429409Z",
+          ": 167",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429349Z",
+          ": 8",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429287Z",
+          " : (ON+) 1,  2",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429172Z",
+          ": 3",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429107Z",
+          "[  ]",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5429044Z",
+          "n/a",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.542897Z",
+          "- SECRET_KEY: ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5428858Z",
+          "- ACCESS_LICENSE: ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5428791Z",
+          "- CUSTOMER_ID: ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5428726Z",
+          "[Naver Auth]   :",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5428588Z",
+          "- SECRET_KEY: ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5428519Z",
+          "- ACCESS_LICENSE: ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5428443Z",
+          "- CUSTOMER_ID: ",
+          1
+        ],
+        [
+          "2026-01-30T05:48:01.5428375Z",
+          "[Naver Auth]   :",
+          1
+        ]
+      ]
+    }
+  ]
+}

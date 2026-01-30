@@ -102,6 +102,17 @@ async def promotions_page(request: Request, redirect = Depends(require_login_for
     })
 
 
+@router.get("/withdrawals", response_class=HTMLResponse)
+async def withdrawals_page(request: Request, redirect = Depends(require_login_for_page)):
+    """불출 관리 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("withdrawal.html", {
+        "request": request,
+        "active_page": "withdrawals"
+    })
+
+
 # ========================
 # Admin Pages (Admin only)
 # ========================

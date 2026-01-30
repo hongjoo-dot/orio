@@ -88,25 +88,16 @@ class BulkDeleteRequest(BaseModel):
 async def get_products(
     page: int = 1,
     limit: int = 20,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = "DESC",
     brand: Optional[str] = None,
     unique_code: Optional[str] = None,
     name: Optional[str] = None,
     bundle_type: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Product", "READ"))
 ):
-    """
-    Product 목록 조회 (페이지네이션 및 필터링)
-
-    Query Parameters:
-    - page: 페이지 번호 (기본: 1)
-    - limit: 페이지당 항목 수 (기본: 20)
-    - brand: 브랜드 Title 필터
-    - unique_code: 고유코드 필터 (LIKE)
-    - name: 상품명 필터 (LIKE)
-    - bundle_type: 유형 필터
-    """
+    """Product 목록 조회 (페이지네이션 및 필터링)"""
     try:
-        # 필터 딕셔너리 구성
         filters = {}
         if brand:
             filters['brand'] = brand
@@ -117,13 +108,24 @@ async def get_products(
         if bundle_type:
             filters['bundle_type'] = bundle_type
 
-        # Repository를 통한 조회
+        ALLOWED_SORT = {
+            "ProductID": "p.ProductID",
+            "BrandName": "b.Title",
+            "Name": "p.Name",
+            "UniqueCode": "pb.UniqueCode",
+            "BaseBarcode": "p.BaseBarcode",
+            "SabangnetCode": "p.SabangnetCode",
+            "Status": "p.Status",
+        }
+        order_by = ALLOWED_SORT.get(sort_by, "p.ProductID")
+        order_dir = sort_dir if sort_dir in ("ASC", "DESC") else "DESC"
+
         result = product_repo.get_list(
             page=page,
             limit=limit,
             filters=filters,
-            order_by="p.ProductID",
-            order_dir="DESC"
+            order_by=order_by,
+            order_dir=order_dir
         )
 
         return result

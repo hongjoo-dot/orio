@@ -2,16 +2,18 @@ let masterTableManager, detailTableManager, paginationManager;
 let integratedAddModal, addBoxModal, bulkEditProductModal, bulkEditBoxModal;
 let currentFilters = {};
 let currentProductId = null;
+let currentSortBy = null;
+let currentSortDir = null;
 
 // 마스터 테이블 컬럼
 const masterColumns = [
-    { key: 'ProductID', header: 'ID', render: (row) => row.ProductID },
-    { key: 'BrandName', header: '브랜드', render: (row) => row.BrandName || '-' },
-    { key: 'Name', header: '제품명', render: (row) => row.Name || '-' },
-    { key: 'UniqueCode', header: '고유코드', render: (row) => row.UniqueCode || '-' },
-    { key: 'BaseBarcode', header: '바코드', render: (row) => row.BaseBarcode || '-' },
-    { key: 'SabangnetCode', header: '사방넷코드', render: (row) => row.SabangnetCode || '-' },
-    { key: 'Status', header: '상태', render: (row) => row.Status || '-' }
+    { key: 'ProductID', header: 'ID', sortKey: 'ProductID', render: (row) => row.ProductID },
+    { key: 'BrandName', header: '브랜드', sortKey: 'BrandName', render: (row) => row.BrandName || '-' },
+    { key: 'Name', header: '제품명', sortKey: 'Name', render: (row) => row.Name || '-' },
+    { key: 'UniqueCode', header: '고유코드', sortKey: 'UniqueCode', render: (row) => row.UniqueCode || '-' },
+    { key: 'BaseBarcode', header: '바코드', sortKey: 'BaseBarcode', render: (row) => row.BaseBarcode || '-' },
+    { key: 'SabangnetCode', header: '사방넷코드', sortKey: 'SabangnetCode', render: (row) => row.SabangnetCode || '-' },
+    { key: 'Status', header: '상태', sortKey: 'Status', render: (row) => row.Status || '-' }
 ];
 
 // 디테일 테이블 컬럼
@@ -34,8 +36,14 @@ document.addEventListener('DOMContentLoaded', async function () {
         idKey: 'ProductID',
         onSelectionChange: (selectedIds) => updateActionButtons(selectedIds),
         onRowClick: (row, tr) => selectProduct(row, tr),
+        onSort: (sortKey, sortDir) => {
+            currentSortBy = sortKey;
+            currentSortDir = sortDir;
+            loadProducts(1, paginationManager.getLimit());
+        },
         emptyMessage: '데이터가 없습니다.'
     });
+    masterTableManager.renderHeader(masterColumns);
 
     detailTableManager = new TableManager('detail-table', {
         selectable: true,
@@ -77,7 +85,7 @@ async function loadProducts(page = 1, limit = 20) {
     try {
         masterTableManager.showLoading(7);
 
-        const params = { page, limit, ...currentFilters };
+        const params = { page, limit, sort_by: currentSortBy, sort_dir: currentSortDir, ...currentFilters };
         const queryString = api.buildQueryString(params);
         const res = await api.get(`/api/products${queryString}`);
 

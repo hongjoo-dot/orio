@@ -9,6 +9,7 @@ from .auth import MetaAPIAuth
 from .data_fetcher import MetaDataFetcher
 from .db_uploader import MetaDBUploader
 from ..system_config import get_config
+from ..slack_notifier import send_meta_notification
 
 
 def flatten_insights_data(insights_raw, ad_creatives_map, account_name, usd_to_krw):
@@ -230,9 +231,24 @@ def run_meta_pipeline():
             print("[ERROR] Meta 광고 계정 정보가 SystemConfig에 없습니다.")
             return
 
-        # 2. 인증
+        # 2. 인증 및 토큰 관리
         auth = MetaAPIAuth()
-        auth.refresh_long_lived_token()
+        refresh_ok = auth.refresh_long_lived_token()
+
+        # 토큰 만료 상태 점검
+        token_status = auth.check_token_expiry()
+        if not token_status['is_valid']:
+            msg = "[CRITICAL] Meta API 토큰이 만료되었습니다. 즉시 새 토큰을 발급해주세요."
+            logging.error(msg)
+            send_meta_notification(msg)
+        elif token_status['warning']:
+            days_left = token_status['days_left']
+            msg = f"[WARNING] Meta API 토큰이 {days_left}일 후 만료됩니다. 갱신이 필요합니다."
+            if not refresh_ok:
+                msg += "\n토큰 자동 갱신도 실패했습니다. 수동으로 새 토큰을 발급해주세요."
+            logging.warning(msg)
+            send_meta_notification(msg)
+
         fetcher = MetaDataFetcher(auth.get_current_token())
         uploader = MetaDBUploader()
 

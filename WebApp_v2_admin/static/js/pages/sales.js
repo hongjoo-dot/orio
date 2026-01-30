@@ -1,22 +1,27 @@
 let tableManager, paginationManager;
 let uploadModal, bulkEditModal, uploadResultModal, syncModal;
 let currentFilters = {};
+let currentSortBy = null;
+let currentSortDir = null;
 
 // 컬럼 정의
 const columns = [
-    { key: 'DATE', header: '날짜', render: (row) => row.DATE || '-' },
-    { key: 'BRAND', header: '브랜드', render: (row) => row.BRAND || '-' },
-    { key: 'PRODUCT', header: '상품', render: (row) => `${row.ERPCode || '-'} / ${row.PRODUCT_NAME || '-'}` },
-    { key: 'ChannelName', header: '채널', render: (row) => row.ChannelName || '-' },
+    { key: 'DATE', header: '날짜', sortKey: 'DATE', render: (row) => row.DATE || '-' },
+    { key: 'BRAND', header: '브랜드', sortKey: 'BRAND', render: (row) => row.BRAND || '-' },
+    { key: 'PRODUCT', header: '상품', sortKey: 'PRODUCT', render: (row) => `${row.ERPCode || '-'} / ${row.PRODUCT_NAME || '-'}` },
+    { key: 'ChannelName', header: '채널', sortKey: 'ChannelName', render: (row) => row.ChannelName || '-' },
     {
         key: 'Quantity',
         header: '수량',
-        className: 'text-right', // CSS 클래스 확인 필요 (text-right가 base.css에 있는지) -> style="text-align:right;"로 직접 주는 게 안전할 수 있음. 하지만 TableManager는 className만 지원.
-        render: (row) => `<div style="text-align:right;">${row.Quantity?.toLocaleString() || 0}</div>` // render에서 스타일 처리
+        sortKey: 'Quantity',
+        align: 'right',
+        render: (row) => `<div style="text-align:right;">${row.Quantity?.toLocaleString() || 0}</div>`
     },
     {
         key: 'Amount',
         header: '금액',
+        sortKey: 'Amount',
+        align: 'right',
         render: (row) => `<div style="text-align:right;">${(row.Quantity * row.UnitPrice)?.toLocaleString() || 0}</div>`
     }
 ];
@@ -35,8 +40,14 @@ document.addEventListener('DOMContentLoaded', function () {
         onSelectionChange: (selectedIds) => {
             updateActionButtons(selectedIds);
         },
+        onSort: (sortKey, sortDir) => {
+            currentSortBy = sortKey;
+            currentSortDir = sortDir;
+            loadSales(1, paginationManager.getLimit());
+        },
         emptyMessage: '검색 조건을 선택 후 검색 버튼을 눌러주세요.'
     });
+    tableManager.renderHeader(columns);
 
     // 페이지네이션 매니저 초기화
     paginationManager = new PaginationManager('pagination', {
@@ -56,7 +67,7 @@ async function loadSales(page = 1, limit = 20) {
     try {
         tableManager.showLoading(6);
 
-        const params = { page, limit, ...currentFilters };
+        const params = { page, limit, sort_by: currentSortBy, sort_dir: currentSortDir, ...currentFilters };
         const queryString = api.buildQueryString(params);
         const data = await api.get(`/api/erpsales${queryString}`);
 

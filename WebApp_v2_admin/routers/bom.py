@@ -53,17 +53,30 @@ async def get_bom_parents(
     parent_name: Optional[str] = None,
     child_erp: Optional[str] = None,
     child_name: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("BOM", "READ"))
 ):
     """부모 제품 목록 조회 (세트 제품)"""
     try:
+        ALLOWED_SORT = {
+            "BoxID": "pb.BoxID",
+            "ERPCode": "pb.ERPCode",
+            "Name": "p.Name",
+            "ChildCount": "ChildCount",
+        }
+        order_by = ALLOWED_SORT.get(sort_by, "pb.BoxID")
+        order_dir = sort_dir if sort_dir in ("ASC", "DESC") else "DESC"
+
         result = bom_repo.get_parents(
             page=page,
             limit=limit,
             parent_erp=parent_erp,
             parent_name=parent_name,
             child_erp=child_erp,
-            child_name=child_name
+            child_name=child_name,
+            order_by=order_by,
+            order_dir=order_dir
         )
         return result
     except Exception as e:

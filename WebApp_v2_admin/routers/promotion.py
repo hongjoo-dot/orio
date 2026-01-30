@@ -140,10 +140,29 @@ async def get_promotion_list(
     channel_id: Optional[int] = None,
     promotion_type: Optional[str] = None,
     status: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Promotion", "READ"))
 ):
     """행사 목록 조회"""
     try:
+        ALLOWED_SORT = {
+            "PromotionID": "p.PromotionID",
+            "PromotionName": "p.PromotionName",
+            "PromotionType": "p.PromotionType",
+            "StartDate": "p.StartDate",
+            "EndDate": "p.EndDate",
+            "BrandName": "b.Name",
+            "ChannelName": "ch.Name",
+            "Status": "p.Status",
+            "CommissionRate": "p.CommissionRate",
+            "DiscountBurden": "p.DiscountOwner",
+            "ExpectedSalesAmount": "p.ExpectedSalesAmount",
+            "ExpectedQuantity": "p.ExpectedQuantity",
+        }
+        order_by = ALLOWED_SORT.get(sort_by, "p.StartDate")
+        order_dir = sort_dir if sort_dir in ("ASC", "DESC") else "DESC"
+
         filters = {}
         if year_month:
             filters['year_month'] = year_month
@@ -160,8 +179,8 @@ async def get_promotion_list(
             page=page,
             limit=limit,
             filters=filters,
-            order_by="p.StartDate",
-            order_dir="DESC"
+            order_by=order_by,
+            order_dir=order_dir
         )
         return result
     except Exception as e:

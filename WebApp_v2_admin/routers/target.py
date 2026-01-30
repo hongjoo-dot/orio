@@ -90,10 +90,24 @@ async def get_target_base_list(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Target", "READ"))
 ):
     """기본 목표 목록 조회"""
     try:
+        ALLOWED_SORT = {
+            "Date": "t.[Date]",
+            "BrandName": "t.BrandName",
+            "ChannelName": "t.ChannelName",
+            "UniqueCode": "t.UniqueCode",
+            "ProductName": "t.ProductName",
+            "TargetAmount": "t.TargetAmount",
+            "TargetQuantity": "t.TargetQuantity",
+        }
+        order_by = ALLOWED_SORT.get(sort_by, "t.[Date]")
+        order_dir = sort_dir if sort_dir in ("ASC", "DESC") else "DESC"
+
         filters = {}
         if year_month:
             filters['year_month'] = year_month
@@ -106,8 +120,8 @@ async def get_target_base_list(
             page=page,
             limit=limit,
             filters=filters,
-            order_by="t.[Date]",
-            order_dir="DESC"
+            order_by=order_by,
+            order_dir=order_dir
         )
         return result
     except Exception as e:
@@ -735,10 +749,26 @@ async def get_target_promotion_list(
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
     promotion_type: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Target", "READ"))
 ):
     """행사 목표 목록 조회"""
     try:
+        ALLOWED_SORT = {
+            "PromotionID": "t.PromotionID",
+            "PromotionName": "t.PromotionName",
+            "PromotionType": "t.PromotionType",
+            "StartDate": "t.StartDate",
+            "EndDate": "t.EndDate",
+            "BrandName": "t.BrandName",
+            "UniqueCode": "t.UniqueCode",
+            "TargetAmount": "t.TargetAmount",
+            "TargetQuantity": "t.TargetQuantity",
+        }
+        order_by = ALLOWED_SORT.get(sort_by, "t.StartDate")
+        order_dir = sort_dir if sort_dir in ("ASC", "DESC") else "DESC"
+
         filters = {}
         if year_month:
             filters['year_month'] = year_month
@@ -753,8 +783,8 @@ async def get_target_promotion_list(
             page=page,
             limit=limit,
             filters=filters,
-            order_by="t.StartDate",
-            order_dir="DESC"
+            order_by=order_by,
+            order_dir=order_dir
         )
         return result
     except Exception as e:

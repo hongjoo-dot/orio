@@ -74,7 +74,9 @@ class BOMRepository(BaseRepository):
         parent_erp: Optional[str] = None,
         parent_name: Optional[str] = None,
         child_erp: Optional[str] = None,
-        child_name: Optional[str] = None
+        child_name: Optional[str] = None,
+        order_by: str = "pb.BoxID",
+        order_dir: str = "DESC"
     ) -> Dict[str, Any]:
         """
         부모 제품 목록 조회 (세트 제품)
@@ -149,7 +151,7 @@ class BOMRepository(BaseRepository):
                 JOIN [dbo].[ProductBOM] bom ON pb.BoxID = bom.ParentProductBoxID
                 {where_sql}
                 GROUP BY pb.BoxID, pb.ERPCode, p.Name, p.BrandID
-                ORDER BY pb.BoxID DESC
+                ORDER BY {order_by} {order_dir}
                 OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
             """
             cursor.execute(data_query, *params, offset, limit)

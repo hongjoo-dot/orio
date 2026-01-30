@@ -4,13 +4,15 @@ let currentFilters = {};
 let currentParentBoxID = null;
 let currentParentERPCode = null;
 let childRowCounter = 0;
+let currentSortBy = null;
+let currentSortDir = null;
 
 // 마스터 테이블 컬럼 (세트 제품)
 const masterColumns = [
-    { key: 'BoxID', header: 'BOMID', render: (row) => row.BoxID }, // BoxID가 BOMID 역할
-    { key: 'ERPCode', header: '품목코드', render: (row) => row.ERPCode || '-' },
-    { key: 'Name', header: '제품명', render: (row) => row.Name || '-' },
-    { key: 'ChildCount', header: '구성품 수', render: (row) => row.ChildCount || 0 }
+    { key: 'BoxID', header: 'BOMID', sortKey: 'BoxID', render: (row) => row.BoxID },
+    { key: 'ERPCode', header: '품목코드', sortKey: 'ERPCode', render: (row) => row.ERPCode || '-' },
+    { key: 'Name', header: '제품명', sortKey: 'Name', render: (row) => row.Name || '-' },
+    { key: 'ChildCount', header: '구성품 수', sortKey: 'ChildCount', render: (row) => row.ChildCount || 0 }
 ];
 
 // 디테일 테이블 컬럼 (구성품)
@@ -34,8 +36,14 @@ document.addEventListener('DOMContentLoaded', async function () {
         idKey: 'BoxID',
         onSelectionChange: (selectedIds) => updateActionButtons(selectedIds),
         onRowClick: (row, tr) => selectParent(row, tr),
+        onSort: (sortKey, sortDir) => {
+            currentSortBy = sortKey;
+            currentSortDir = sortDir;
+            loadParents(1, paginationManager.getLimit());
+        },
         emptyMessage: '데이터가 없습니다.'
     });
+    masterTableManager.renderHeader(masterColumns);
 
     detailTableManager = new TableManager('detail-table', {
         selectable: true,
@@ -69,7 +77,7 @@ async function loadParents(page = 1, limit = 20) {
     try {
         masterTableManager.showLoading(5);
 
-        const params = { page, limit, ...currentFilters };
+        const params = { page, limit, sort_by: currentSortBy, sort_dir: currentSortDir, ...currentFilters };
         const queryString = api.buildQueryString(params);
         const res = await api.get(`/api/bom/parents${queryString}`);
 

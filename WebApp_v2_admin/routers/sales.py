@@ -92,10 +92,23 @@ async def get_sales(
     channel_name: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Sales", "READ"))
 ):
     """ERPSales 목록 조회 (페이지네이션 및 필터링)"""
     try:
+        ALLOWED_SORT = {
+            "DATE": "e.DATE",
+            "BRAND": "e.BRAND",
+            "PRODUCT": "e.PRODUCT",
+            "ChannelName": "e.ChannelName",
+            "Quantity": "e.Quantity",
+            "Amount": "e.Amount",
+        }
+        order_by = ALLOWED_SORT.get(sort_by, "e.IDX")
+        order_dir = sort_dir if sort_dir in ("ASC", "DESC") else "DESC"
+
         filters = {}
         if brand:
             filters['brand'] = brand
@@ -114,8 +127,8 @@ async def get_sales(
             page=page,
             limit=limit,
             filters=filters,
-            order_by="e.IDX",
-            order_dir="DESC"
+            order_by=order_by,
+            order_dir=order_dir
         )
 
         return result

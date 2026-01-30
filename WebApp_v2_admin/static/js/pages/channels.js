@@ -6,18 +6,67 @@ let selectedDetailIds = new Set();
 let currentChannelId = null;
 let detailPage = 1;
 let detailLimit = 20;
+let currentSortBy = null;
+let currentSortDir = null;
+
+// 마스터 테이블 정렬용 컬럼 정의
+const masterSortColumns = [
+    { header: 'ID', sortKey: 'ChannelID' },
+    { header: '채널명', sortKey: 'Name' },
+    { header: '그룹', sortKey: 'Group' },
+    { header: '유형', sortKey: 'Type' },
+    { header: '계약유형', sortKey: 'ContractType' }
+];
 
 document.addEventListener('DOMContentLoaded', async function () {
+    renderSortableHeader();
     await loadChannels();
     await loadMetadata();
 });
 
+function renderSortableHeader() {
+    const thead = document.querySelector('#channelTable thead tr');
+    if (!thead) return;
+
+    // 체크박스 th 유지, 나머지 교체
+    const checkboxTh = thead.querySelector('th:first-child');
+    thead.innerHTML = '';
+    thead.appendChild(checkboxTh);
+
+    masterSortColumns.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col.header;
+        if (col.sortKey) {
+            th.setAttribute('data-sortable', col.sortKey);
+            if (currentSortBy === col.sortKey) {
+                th.classList.add(currentSortDir === 'ASC' ? 'sort-asc' : 'sort-desc');
+            }
+            th.addEventListener('click', () => {
+                if (currentSortBy === col.sortKey) {
+                    currentSortDir = currentSortDir === 'DESC' ? 'ASC' : 'DESC';
+                } else {
+                    currentSortBy = col.sortKey;
+                    currentSortDir = 'DESC';
+                }
+                renderSortableHeader();
+                currentPage = 1;
+                loadChannels();
+            });
+        }
+        thead.appendChild(th);
+    });
+}
+
 async function loadChannels() {
     try {
+        const filterParams = { ...currentFilters };
+        if (currentSortBy) filterParams.sort_by = currentSortBy;
+        if (currentSortDir) filterParams.sort_dir = currentSortDir;
+
         const params = new URLSearchParams({
             page: currentPage,
             limit: limit,
-            ...currentFilters
+            ...filterParams
         });
 
         const res = await api.get(`/api/channels?${params}`);
