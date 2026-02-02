@@ -756,13 +756,13 @@ async def get_target_promotion_list(
     """행사 목표 목록 조회"""
     try:
         ALLOWED_SORT = {
-            "PromotionID": "t.PromotionID",
             "PromotionName": "t.PromotionName",
             "PromotionType": "t.PromotionType",
             "StartDate": "t.StartDate",
             "EndDate": "t.EndDate",
             "BrandName": "t.BrandName",
-            "UniqueCode": "t.UniqueCode",
+            "ChannelName": "t.ChannelName",
+            "ProductName": "t.ProductName",
             "TargetAmount": "t.TargetAmount",
             "TargetQuantity": "t.TargetQuantity",
         }

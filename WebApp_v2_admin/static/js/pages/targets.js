@@ -48,7 +48,6 @@ const baseColumns = [
 
 // 행사 목표 컬럼 정의
 const promotionColumns = [
-    { key: 'PromotionID', header: '행사ID', sortKey: 'PromotionID', render: (row) => row.PromotionID || '-' },
     { key: 'PromotionName', header: '행사명', sortKey: 'PromotionName', render: (row) => row.PromotionName || '-' },
     { key: 'PromotionType', header: '행사유형', sortKey: 'PromotionType', render: (row) => row.PromotionType || '-' },
     {
@@ -72,7 +71,8 @@ const promotionColumns = [
         }
     },
     { key: 'BrandName', header: '브랜드', sortKey: 'BrandName', render: (row) => row.BrandName || '-' },
-    { key: 'UniqueCode', header: '상품코드', sortKey: 'UniqueCode', render: (row) => row.UniqueCode || '-' },
+    { key: 'ChannelName', header: '채널명', sortKey: 'ChannelName', render: (row) => row.ChannelName || '-' },
+    { key: 'ProductName', header: '상품명', sortKey: 'ProductName', render: (row) => row.ProductName || '-' },
     {
         key: 'TargetAmount',
         header: '목표금액',

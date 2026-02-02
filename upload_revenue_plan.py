@@ -6,8 +6,45 @@ RevenuePlan 엑셀 업로드 스크립트
 """
 
 import sys
+import os
+import pyodbc
 import openpyxl
-from WebApp_v2_admin.core.database import get_db_cursor
+from contextlib import contextmanager
+from dotenv import load_dotenv
+from pathlib import Path
+
+# .env 파일 로드
+env_path = Path(__file__).parent / 'WebApp_v2_admin' / '.env'
+load_dotenv(env_path)
+
+
+def get_db_cursor(commit=True):
+    conn_str = (
+        f"DRIVER={os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}')};"
+        f"SERVER={os.getenv('DB_SERVER')};"
+        f"DATABASE={os.getenv('DB_DATABASE')};"
+        f"UID={os.getenv('DB_USERNAME')};"
+        f"PWD={os.getenv('DB_PASSWORD')};"
+        f"Encrypt=yes;"
+        f"TrustServerCertificate=no;"
+    )
+
+    @contextmanager
+    def _cursor():
+        conn = pyodbc.connect(conn_str, timeout=600)
+        cursor = conn.cursor()
+        try:
+            yield cursor
+            if commit:
+                conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cursor.close()
+            conn.close()
+
+    return _cursor()
 
 
 def load_excel(file_path: str) -> list[dict]:
