@@ -19,13 +19,13 @@
         <div class="nav-section-title">Management / 관리</div>
 
         <!-- 판매 관리 그룹 -->
-        <div class="nav-group {% if active_page in ['sales', 'targets', 'expected', 'promotions', 'withdrawals'] %}open{% endif %}">
-            <div class="nav-item nav-group-header {% if active_page in ['sales', 'targets', 'expected', 'promotions', 'withdrawals'] %}active{% endif %}" onclick="toggleNavGroup(this)">
+        <div class="nav-group {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}open{% endif %}">
+            <div class="nav-item nav-group-header {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}active{% endif %}" onclick="toggleNavGroup(this)">
                 <i class="fa-solid fa-won-sign"></i>
                 <span class="nav-text">판매 관리</span>
                 <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
             </div>
-            <div class="nav-group-items {% if active_page in ['sales', 'targets', 'expected', 'promotions', 'withdrawals'] %}expanded{% endif %}">
+            <div class="nav-group-items {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}expanded{% endif %}">
                 <a href="/sales" class="nav-item nav-sub-item {% if active_page == 'sales' %}active{% endif %}">
                     <i class="fa-solid fa-receipt"></i> <span class="nav-text">판매 현황</span>
                 </a>
@@ -35,46 +35,55 @@
                 <a href="/promotions" class="nav-item nav-sub-item {% if active_page == 'promotions' %}active{% endif %}">
                     <i class="fa-solid fa-tags"></i> <span class="nav-text">행사 관리</span>
                 </a>
-                <a href="/withdrawals" class="nav-item nav-sub-item {% if active_page == 'withdrawals' %}active{% endif %}">
-                    <i class="fa-solid fa-truck-fast"></i> <span class="nav-text">불출 관리</span>
-                </a>
-                <!-- 매출 예측은 추후 구현 -->
-                <!--
-                <a href="/expected" class="nav-item nav-sub-item {% if active_page == 'expected' %}active{% endif %}">
-                    <i class="fa-solid fa-chart-simple"></i> <span class="nav-text">매출 예측</span>
-                </a>
-                -->
             </div>
         </div>
 
-        <a href="/products" class="nav-item {% if active_page == 'products' %}active{% endif %}">
-            <i class="fa-solid fa-box"></i> <span class="nav-text">상품 관리</span>
-        </a>
+        <!-- 상품 관리 그룹 -->
+        <div class="nav-group {% if active_page in ['products', 'bom'] %}open{% endif %}">
+            <div class="nav-item nav-group-header {% if active_page in ['products', 'bom'] %}active{% endif %}" onclick="toggleNavGroup(this)">
+                <i class="fa-solid fa-box"></i>
+                <span class="nav-text">상품 관리</span>
+                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            </div>
+            <div class="nav-group-items {% if active_page in ['products', 'bom'] %}expanded{% endif %}">
+                <a href="/products" class="nav-item nav-sub-item {% if active_page == 'products' %}active{% endif %}">
+                    <i class="fa-solid fa-box"></i> <span class="nav-text">상품 관리</span>
+                </a>
+                <a href="/bom" class="nav-item nav-sub-item {% if active_page == 'bom' %}active{% endif %}">
+                    <i class="fa-solid fa-sitemap"></i> <span class="nav-text">BOM 관리</span>
+                </a>
+            </div>
+        </div>
+
         <a href="/channels" class="nav-item {% if active_page == 'channels' %}active{% endif %}">
             <i class="fa-solid fa-store"></i> <span class="nav-text">채널 관리</span>
         </a>
-        <a href="/bom" class="nav-item {% if active_page == 'bom' %}active{% endif %}">
-            <i class="fa-solid fa-sitemap"></i> <span class="nav-text">BOM 관리</span>
+        <a href="/withdrawals" class="nav-item {% if active_page == 'withdrawals' %}active{% endif %}">
+            <i class="fa-solid fa-truck-fast"></i> <span class="nav-text">불출 관리</span>
         </a>
 
-        <!-- Admin Section (Admin 역할에게만 표시) -->
-        <div class="nav-section-title admin-only" style="display: none;">Admin / 관리자</div>
-        <a href="/admin/users" class="nav-item admin-only {% if active_page == 'admin-users' %}active{% endif %}"
-            style="display: none;">
-            <i class="fa-solid fa-users-gear"></i> <span class="nav-text">사용자 관리</span>
-        </a>
-        <a href="/admin/permissions"
-            class="nav-item admin-only {% if active_page == 'permissions' %}active{% endif %}" style="display: none;">
-            <i class="fa-solid fa-shield-halved"></i> <span class="nav-text">권한 관리</span>
-        </a>
-        <a href="/admin/activity-log"
-            class="nav-item admin-only {% if active_page == 'activity-log' %}active{% endif %}" style="display: none;">
-            <i class="fa-solid fa-clock-rotate-left"></i> <span class="nav-text">활동 이력</span>
-        </a>
-        <a href="/admin/system-config"
-            class="nav-item admin-only {% if active_page == 'system-config' %}active{% endif %}" style="display: none;">
-            <i class="fa-solid fa-gear"></i> <span class="nav-text">시스템 설정</span>
-        </a>
+        <!-- 시스템 관리 그룹 (Admin 역할에게만 표시) -->
+        <div class="nav-group admin-only {% if active_page in ['admin-users', 'permissions', 'activity-log', 'system-config'] %}open{% endif %}" style="display: none;">
+            <div class="nav-item nav-group-header {% if active_page in ['admin-users', 'permissions', 'activity-log', 'system-config'] %}active{% endif %}" onclick="toggleNavGroup(this)">
+                <i class="fa-solid fa-gear"></i>
+                <span class="nav-text">시스템 관리</span>
+                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            </div>
+            <div class="nav-group-items {% if active_page in ['admin-users', 'permissions', 'activity-log', 'system-config'] %}expanded{% endif %}">
+                <a href="/admin/users" class="nav-item nav-sub-item {% if active_page == 'admin-users' %}active{% endif %}">
+                    <i class="fa-solid fa-users-gear"></i> <span class="nav-text">사용자 관리</span>
+                </a>
+                <a href="/admin/permissions" class="nav-item nav-sub-item {% if active_page == 'permissions' %}active{% endif %}">
+                    <i class="fa-solid fa-shield-halved"></i> <span class="nav-text">권한 관리</span>
+                </a>
+                <a href="/admin/activity-log" class="nav-item nav-sub-item {% if active_page == 'activity-log' %}active{% endif %}">
+                    <i class="fa-solid fa-clock-rotate-left"></i> <span class="nav-text">활동 이력</span>
+                </a>
+                <a href="/admin/system-config" class="nav-item nav-sub-item {% if active_page == 'system-config' %}active{% endif %}">
+                    <i class="fa-solid fa-gear"></i> <span class="nav-text">시스템 설정</span>
+                </a>
+            </div>
+        </div>
     </div>
 
     <!-- User Info at Bottom -->
