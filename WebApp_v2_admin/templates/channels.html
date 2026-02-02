@@ -63,12 +63,6 @@
                 style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
                 <div style="display:flex;align-items:center;gap:8px;">
                     <h2 class="card-title" style="margin:0;white-space:nowrap;">채널 목록</h2>
-                    <select id="limitSelector" onchange="changeLimit()" class="form-select"
-                        style="padding:8px;font-size:13px;width:auto;">
-                        <option value="20" selected>20개씩</option>
-                        <option value="50">50개씩</option>
-                        <option value="100">100개씩</option>
-                    </select>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="btn btn-success btn-sm" onclick="showIntegratedAddModal()">
@@ -95,14 +89,7 @@
         <div class="table-container">
             <table class="table" id="channelTable">
                 <thead>
-                    <tr>
-                        <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-                        <th>ID</th>
-                        <th>채널명</th>
-                        <th>그룹</th>
-                        <th>유형</th>
-                        <th>계약유형</th>
-                    </tr>
+                    <tr></tr>
                 </thead>
                 <tbody id="channelTableBody">
                 </tbody>

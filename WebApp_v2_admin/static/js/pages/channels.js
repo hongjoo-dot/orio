@@ -1,75 +1,64 @@
-let currentPage = 1;
-let limit = 20;
+let masterTableManager, paginationManager;
 let currentFilters = {};
-let selectedIds = new Set();
-let selectedDetailIds = new Set();
 let currentChannelId = null;
-let detailPage = 1;
-let detailLimit = 20;
 let currentSortBy = null;
 let currentSortDir = null;
+let detailPage = 1;
+let detailLimit = 20;
+let selectedDetailIds = new Set();
 
-// 마스터 테이블 정렬용 컬럼 정의
-const masterSortColumns = [
-    { header: 'ID', sortKey: 'ChannelID' },
-    { header: '채널명', sortKey: 'Name' },
-    { header: '그룹', sortKey: 'Group' },
-    { header: '유형', sortKey: 'Type' },
-    { header: '계약유형', sortKey: 'ContractType' }
+// 마스터 테이블 컬럼 정의
+const masterColumns = [
+    { key: 'ChannelID', header: 'ID', sortKey: 'ChannelID', render: (row) => row.ChannelID || '' },
+    { key: 'Name', header: '채널명', sortKey: 'Name', render: (row) => row.Name || '' },
+    { key: 'Group', header: '그룹', sortKey: 'Group', render: (row) => row.Group || '' },
+    { key: 'Type', header: '유형', sortKey: 'Type', render: (row) => row.Type || '' },
+    { key: 'ContractType', header: '계약유형', sortKey: 'ContractType', render: (row) => row.ContractType || '' }
 ];
 
 document.addEventListener('DOMContentLoaded', async function () {
-    renderSortableHeader();
-    await loadChannels();
+    // 테이블 매니저 초기화
+    masterTableManager = new TableManager('channelTable', {
+        selectable: true,
+        idKey: 'ChannelID',
+        onSelectionChange: (selectedIds) => updateBulkButtons(selectedIds),
+        onRowClick: (row, tr) => selectChannel(row, tr),
+        onSort: (sortKey, sortDir) => {
+            currentSortBy = sortKey;
+            currentSortDir = sortDir;
+            loadChannels(1, paginationManager.getLimit());
+        },
+        emptyMessage: '데이터가 없습니다'
+    });
+    masterTableManager.renderHeader(masterColumns);
+
+    // 페이지네이션 매니저 초기화
+    paginationManager = new PaginationManager('pagination', {
+        onPageChange: (page, limit) => loadChannels(page, limit),
+        onLimitChange: (page, limit) => loadChannels(page, limit)
+    });
+
     await loadMetadata();
-});
+    loadChannels(1, 20);
 
-function renderSortableHeader() {
-    const thead = document.querySelector('#channelTable thead tr');
-    if (!thead) return;
-
-    // 체크박스 th 유지, 나머지 교체
-    const checkboxTh = thead.querySelector('th:first-child');
-    thead.innerHTML = '';
-    thead.appendChild(checkboxTh);
-
-    masterSortColumns.forEach(col => {
-        const th = document.createElement('th');
-        th.textContent = col.header;
-        if (col.sortKey) {
-            th.setAttribute('data-sortable', col.sortKey);
-            if (currentSortBy === col.sortKey) {
-                th.classList.add(currentSortDir === 'ASC' ? 'sort-asc' : 'sort-desc');
-            }
-            th.addEventListener('click', () => {
-                if (currentSortBy === col.sortKey) {
-                    currentSortDir = currentSortDir === 'DESC' ? 'ASC' : 'DESC';
-                } else {
-                    currentSortBy = col.sortKey;
-                    currentSortDir = 'DESC';
-                }
-                renderSortableHeader();
-                currentPage = 1;
-                loadChannels();
+    // 엔터키 검색 지원
+    ['filterName', 'filterDetailName', 'filterGroup'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('keypress', e => {
+                if (e.key === 'Enter') applyFilters();
             });
         }
-        thead.appendChild(th);
     });
-}
+});
 
-async function loadChannels() {
+async function loadChannels(page = 1, limit = 20) {
     try {
-        const filterParams = { ...currentFilters };
-        if (currentSortBy) filterParams.sort_by = currentSortBy;
-        if (currentSortDir) filterParams.sort_dir = currentSortDir;
+        masterTableManager.showLoading(masterColumns.length);
 
-        const params = new URLSearchParams({
-            page: currentPage,
-            limit: limit,
-            ...filterParams
-        });
-
-        const res = await api.get(`/api/channels?${params}`);
+        const params = { page, limit, sort_by: currentSortBy, sort_dir: currentSortDir, ...currentFilters };
+        const queryString = api.buildQueryString(params);
+        const res = await api.get(`/api/channels${queryString}`);
 
         const isFiltered = Object.keys(currentFilters).length > 0;
         if (isFiltered) {
@@ -80,48 +69,28 @@ async function loadChannels() {
             document.getElementById('filteredCount').textContent = '';
         }
 
-        const tbody = document.getElementById('channelTableBody');
-        tbody.innerHTML = '';
+        masterTableManager.render(res.data, masterColumns);
 
-        if (res.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted);">데이터가 없습니다</td></tr>';
-        } else {
-            res.data.forEach(c => {
-                const tr = document.createElement('tr');
-                if (selectedIds.has(c.ChannelID)) tr.classList.add('selected');
+        paginationManager.render({
+            page: page,
+            limit: limit,
+            total: res.total,
+            total_pages: Math.ceil(res.total / limit)
+        });
 
-                tr.innerHTML = `
-                    <td><input type="checkbox" ${selectedIds.has(c.ChannelID) ? 'checked' : ''} onchange="toggleSelect(${c.ChannelID}, event)"></td>
-                    <td>${c.ChannelID || ''}</td>
-                    <td>${c.Name || ''}</td>
-                    <td>${c.Group || ''}</td>
-                    <td>${c.Type || ''}</td>
-                    <td>${c.ContractType || ''}</td>
-                `;
-
-                tr.style.cursor = 'pointer';
-                tr.onclick = (e) => selectChannel(c.ChannelID, e);
-                tbody.appendChild(tr);
-            });
-        }
-
-        renderPagination(res.total, res.page, res.limit);
-        updateBulkButtons();
     } catch (e) {
         showAlert('채널 로드 실패: ' + e.message, 'error');
+        masterTableManager.render([], masterColumns);
     }
 }
 
-function selectChannel(channelId, event) {
-    if (event.target.type === 'checkbox' || event.target.tagName === 'BUTTON' || event.target.tagName === 'I') return;
-
-    currentChannelId = channelId;
-
+function selectChannel(row, tr) {
     const rows = document.querySelectorAll('#channelTable tbody tr');
-    rows.forEach(r => r.style.background = '');
-    event.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
+    rows.forEach(r => r.classList.remove('selected'));
+    tr.classList.add('selected');
 
-    loadDetails(channelId);
+    currentChannelId = row.ChannelID;
+    loadDetails(currentChannelId);
 }
 
 async function loadDetails(channelId, resetPage = true) {
@@ -136,7 +105,6 @@ async function loadDetails(channelId, resetPage = true) {
             limit: detailLimit
         });
 
-        // Add detail_name filter if present
         const detailNameFilter = document.getElementById('filterDetailName').value.trim();
         if (detailNameFilter) {
             params.append('detail_name', detailNameFilter);
@@ -229,12 +197,6 @@ function changeDetailPage(page) {
     }
 }
 
-function changeLimit() {
-    limit = parseInt(document.getElementById('limitSelector').value);
-    currentPage = 1;
-    loadChannels();
-}
-
 function applyFilters() {
     currentFilters = {};
     const name = document.getElementById('filterName').value.trim();
@@ -249,8 +211,7 @@ function applyFilters() {
     if (type) currentFilters.type = type;
     if (contractType) currentFilters.contract_type = contractType;
 
-    currentPage = 1;
-    loadChannels();
+    loadChannels(1, paginationManager.getLimit());
 }
 
 function resetFilters() {
@@ -260,10 +221,9 @@ function resetFilters() {
     document.getElementById('filterType').value = '';
     document.getElementById('filterContractType').value = '';
     currentFilters = {};
-    currentPage = 1;
 
     // 디테일 영역 초기화
-    currentChannelID = null;
+    currentChannelId = null;
     selectedDetailIds.clear();
     const placeholder = document.getElementById('detailPlaceholder');
     placeholder.style.display = 'block';
@@ -271,86 +231,18 @@ function resetFilters() {
     document.getElementById('detailTableContainer').style.display = 'none';
     document.getElementById('detailActionButtons').style.display = 'none';
 
-    loadChannels();
+    loadChannels(1, paginationManager.getLimit());
 }
 
-function renderPagination(total, page, limit) {
-    const totalPages = Math.ceil(total / limit);
-    const paginationDiv = document.getElementById('pagination');
-    paginationDiv.innerHTML = '';
+function updateBulkButtons(selectedIds) {
+    const hasSelection = selectedIds && selectedIds.length > 0;
+    const editBtn = document.getElementById('editButton');
+    const deleteBtn = document.getElementById('deleteButton');
 
-    const prevBtn = document.createElement('button');
-    prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
-    prevBtn.className = 'btn btn-sm btn-secondary';
-    prevBtn.disabled = page === 1;
-    prevBtn.onclick = () => changePage(page - 1);
-    paginationDiv.appendChild(prevBtn);
-
-    const startPage = Math.max(1, page - 2);
-    const endPage = Math.min(totalPages, page + 2);
-
-    for (let i = startPage; i <= endPage; i++) {
-        const btn = document.createElement('button');
-        btn.textContent = i;
-        btn.className = i === page ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-secondary';
-        btn.onclick = () => changePage(i);
-        paginationDiv.appendChild(btn);
-    }
-
-    const nextBtn = document.createElement('button');
-    nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
-    nextBtn.className = 'btn btn-sm btn-secondary';
-    nextBtn.disabled = page === totalPages || totalPages === 0;
-    nextBtn.onclick = () => changePage(page + 1);
-    paginationDiv.appendChild(nextBtn);
-}
-
-function changePage(page) {
-    currentPage = page;
-    loadChannels();
-}
-
-function toggleSelect(id, event) {
-    event.stopPropagation();
-    if (selectedIds.has(id)) {
-        selectedIds.delete(id);
-    } else {
-        selectedIds.add(id);
-    }
-    updateBulkButtons();
-
-    const row = Array.from(document.querySelectorAll('#channelTable tbody tr')).find(r =>
-        r.querySelector('td:nth-child(2)').textContent == id
-    );
-    if (row) {
-        row.classList.toggle('selected', selectedIds.has(id));
-    }
-
-    const allRows = document.querySelectorAll('#channelTable tbody tr');
-    document.getElementById('selectAll').checked = selectedIds.size > 0 && selectedIds.size === allRows.length;
-}
-
-function toggleSelectAll() {
-    const checked = document.getElementById('selectAll').checked;
-    const rows = document.querySelectorAll('#channelTable tbody tr');
-
-    rows.forEach(r => {
-        const checkbox = r.querySelector('input[type="checkbox"]');
-        if (checkbox) {
-            const id = parseInt(r.querySelector('td:nth-child(2)').textContent);
-            if (checked) {
-                selectedIds.add(id);
-                r.classList.add('selected');
-                checkbox.checked = true;
-            } else {
-                selectedIds.delete(id);
-                r.classList.remove('selected');
-                checkbox.checked = false;
-            }
-        }
-    });
-
-    updateBulkButtons();
+    editBtn.disabled = !hasSelection;
+    deleteBtn.disabled = !hasSelection;
+    editBtn.classList.toggle('btn-disabled', !hasSelection);
+    deleteBtn.classList.toggle('btn-disabled', !hasSelection);
 }
 
 async function selectAllData() {
@@ -363,37 +255,28 @@ async function selectAllData() {
 
             const res = await api.get(`/api/channels?${params}`);
 
-            selectedIds.clear();
-            res.data.forEach(c => selectedIds.add(c.ChannelID));
+            // TableManager의 selectedRows에 직접 추가
+            masterTableManager.selectedRows.clear();
+            res.data.forEach(c => masterTableManager.selectedRows.add(String(c.ChannelID)));
 
-            document.querySelectorAll('#channelTable tbody tr').forEach(r => {
-                const id = parseInt(r.querySelector('td:nth-child(2)').textContent);
-                if (selectedIds.has(id)) {
-                    r.classList.add('selected');
-                    const checkbox = r.querySelector('input[type="checkbox"]');
-                    if (checkbox) checkbox.checked = true;
+            // 현재 보이는 행의 체크박스 체크
+            const checkboxes = document.querySelectorAll('#channelTable tbody .row-checkbox');
+            checkboxes.forEach(cb => {
+                if (masterTableManager.selectedRows.has(cb.dataset.id)) {
+                    cb.checked = true;
                 }
             });
 
-            document.getElementById('selectAll').checked = true;
-            updateBulkButtons();
+            if (masterTableManager._selectAllCheckbox) {
+                masterTableManager._selectAllCheckbox.checked = true;
+            }
 
-            showAlert(`${selectedIds.size}개의 채널이 선택되었습니다.`, 'success');
+            updateBulkButtons(masterTableManager.getSelectedRows());
+            showAlert(`${masterTableManager.selectedRows.size}개의 채널이 선택되었습니다.`, 'success');
         } catch (e) {
             showAlert('전체 선택 실패: ' + e.message, 'error');
         }
     });
-}
-
-function updateBulkButtons() {
-    const hasSelection = selectedIds.size > 0;
-    const editBtn = document.getElementById('editButton');
-    const deleteBtn = document.getElementById('deleteButton');
-
-    editBtn.disabled = !hasSelection;
-    deleteBtn.disabled = !hasSelection;
-    editBtn.classList.toggle('btn-disabled', !hasSelection);
-    deleteBtn.classList.toggle('btn-disabled', !hasSelection);
 }
 
 function showIntegratedAddModal() {
@@ -439,7 +322,6 @@ async function saveIntegrated() {
     };
 
     try {
-        // 통합 엔드포인트 사용 (채널명 중복 허용)
         await api.post('/api/channels/integrated', {
             channel: channelData,
             details: [detailData]
@@ -447,7 +329,7 @@ async function saveIntegrated() {
 
         showAlert('채널과 상세정보가 추가되었습니다.', 'success');
         closeIntegratedAddModal();
-        loadChannels();
+        loadChannels(paginationManager.getCurrentPage(), paginationManager.getLimit());
     } catch (e) {
         showAlert('저장 실패: ' + e.message, 'error');
     }
@@ -550,21 +432,17 @@ function updateDetailBulkButtons() {
 async function bulkEditDetails() {
     if (selectedDetailIds.size === 0) return;
 
-    // 첫 번째 선택된 항목의 데이터를 가져와서 현재 값 표시
     const firstId = Array.from(selectedDetailIds)[0];
     try {
         const detail = await api.get(`/api/channeldetails/${firstId}`);
 
-        // 모달에 선택 개수와 현재 값 표시
         document.getElementById('bulkEditCount').textContent = selectedDetailIds.size;
         document.getElementById('currentBizNumber').textContent = detail.BizNumber || '(없음)';
         document.getElementById('currentDetailName').textContent = detail.DetailName || '(없음)';
 
-        // 입력 필드 초기화
         document.getElementById('bulkBizNumber').value = '';
         document.getElementById('bulkDetailName').value = '';
 
-        // 모달 열기
         document.getElementById('bulkEditModal').classList.add('show');
     } catch (e) {
         showAlert('데이터 로드 실패: ' + e.message, 'error');
@@ -579,7 +457,6 @@ async function saveBulkEdit() {
     const newBizNumber = document.getElementById('bulkBizNumber').value.trim();
     const newDetailName = document.getElementById('bulkDetailName').value.trim();
 
-    // 변경할 값이 없으면 경고
     if (!newBizNumber && !newDetailName) {
         showAlert('변경할 값을 입력하세요.', 'warning');
         return;
@@ -600,7 +477,7 @@ async function saveBulkEdit() {
         showAlert(`${selectedDetailIds.size}개 상세정보가 수정되었습니다.`, 'success');
         closeBulkEditModal();
         selectedDetailIds.clear();
-        loadDetails(currentChannelID);
+        loadDetails(currentChannelId);
     } catch (e) {
         showAlert('일괄 수정 실패: ' + e.message, 'error');
     }
@@ -622,15 +499,14 @@ async function bulkDeleteDetails() {
 }
 
 async function bulkEdit() {
-    if (selectedIds.size === 0) return;
+    const selectedIds = masterTableManager.getSelectedRows();
+    if (selectedIds.length === 0) return;
 
-    // 첫 번째 선택된 항목의 데이터를 가져와서 현재 값 표시
-    const firstId = Array.from(selectedIds)[0];
+    const firstId = selectedIds[0];
     try {
         const channel = await api.get(`/api/channels/${firstId}`);
 
-        // 모달에 선택 개수와 현재 값 표시
-        document.getElementById('bulkEditChannelCount').textContent = selectedIds.size;
+        document.getElementById('bulkEditChannelCount').textContent = selectedIds.length;
         document.getElementById('currentName').textContent = channel.Name || '(없음)';
         document.getElementById('currentGroup').textContent = channel.Group || '(없음)';
         document.getElementById('currentType').textContent = channel.Type || '(없음)';
@@ -639,7 +515,6 @@ async function bulkEdit() {
         document.getElementById('currentLiveSource').textContent = channel.LiveSource || '(없음)';
         document.getElementById('currentSabangnetMallID').textContent = channel.SabangnetMallID || '(없음)';
 
-        // 입력 필드 초기화
         document.getElementById('bulkName').value = '';
         document.getElementById('bulkGroup').value = '';
         document.getElementById('bulkType').value = '';
@@ -648,7 +523,6 @@ async function bulkEdit() {
         document.getElementById('bulkLiveSource').value = '';
         document.getElementById('bulkSabangnetMallID').value = '';
 
-        // 모달 열기
         document.getElementById('bulkEditChannelModal').classList.add('show');
     } catch (e) {
         showAlert('데이터 로드 실패: ' + e.message, 'error');
@@ -660,6 +534,7 @@ function closeBulkEditChannelModal() {
 }
 
 async function saveBulkEditChannel() {
+    const selectedIds = masterTableManager.getSelectedRows();
     const newName = document.getElementById('bulkName').value.trim();
     const newGroup = document.getElementById('bulkGroup').value.trim();
     const newType = document.getElementById('bulkType').value;
@@ -668,14 +543,13 @@ async function saveBulkEditChannel() {
     const newLiveSource = document.getElementById('bulkLiveSource').value.trim();
     const newSabangnetMallID = document.getElementById('bulkSabangnetMallID').value.trim();
 
-    // 변경할 값이 없으면 경고
     if (!newName && !newGroup && !newType && !newContractType && !newOwner && !newLiveSource && !newSabangnetMallID) {
         showAlert('변경할 값을 입력하세요.', 'warning');
         return;
     }
 
     try {
-        const promises = Array.from(selectedIds).map(async id => {
+        const promises = selectedIds.map(async id => {
             const channel = await api.get(`/api/channels/${id}`);
             const updateData = {
                 Name: newName || channel.Name,
@@ -690,30 +564,32 @@ async function saveBulkEditChannel() {
         });
 
         await Promise.all(promises);
-        showAlert(`${selectedIds.size}개 채널이 수정되었습니다.`, 'success');
+        showAlert(`${selectedIds.length}개 채널이 수정되었습니다.`, 'success');
         closeBulkEditChannelModal();
-        selectedIds.clear();
-        loadChannels();
+        masterTableManager.clearSelection();
+        loadChannels(paginationManager.getCurrentPage(), paginationManager.getLimit());
     } catch (e) {
         showAlert('일괄 수정 실패: ' + e.message, 'error');
     }
 }
 
 async function bulkDelete() {
-    if (selectedIds.size === 0) return;
+    const selectedIds = masterTableManager.getSelectedRows();
+    if (selectedIds.length === 0) return;
 
-    showConfirm(`선택한 ${selectedIds.size}개의 채널을 삭제하시겠습니까?`, async () => {
+    showConfirm(`선택한 ${selectedIds.length}개의 채널을 삭제하시겠습니까?`, async () => {
         try {
-            await api.post('/api/channels/bulk-delete', { ids: Array.from(selectedIds) });
+            await api.post('/api/channels/bulk-delete', { ids: selectedIds.map(id => parseInt(id)) });
             showAlert('채널이 삭제되었습니다.', 'success');
-            selectedIds.clear();
-            loadChannels();
 
-            if (selectedIds.has(currentChannelId)) {
+            if (selectedIds.includes(String(currentChannelId))) {
                 currentChannelId = null;
                 document.getElementById('detailPlaceholder').style.display = 'block';
                 document.getElementById('detailTableContainer').style.display = 'none';
             }
+
+            masterTableManager.clearSelection();
+            loadChannels(paginationManager.getCurrentPage(), paginationManager.getLimit());
         } catch (e) {
             showAlert('삭제 실패: ' + e.message, 'error');
         }
@@ -724,49 +600,34 @@ async function loadMetadata() {
     try {
         const res = await api.get('/api/channels/metadata');
 
-        // Name 리스트
         const nameOptions = res.names.map(name => `<option value="${name}">`).join('');
         document.getElementById('nameList').innerHTML = nameOptions;
 
-        // Group 리스트
         const groupOptions = res.groups.map(g => `<option value="${g}">`).join('');
         document.getElementById('groupList').innerHTML = groupOptions;
 
-        // Type 드롭다운
         const typeOptions = res.types.map(t => `<option value="${t}">${t}</option>`).join('');
         document.getElementById('filterType').innerHTML = '<option value="">전체</option>' + typeOptions;
         document.getElementById('intType').innerHTML = '<option value="">선택</option>' + typeOptions;
         document.getElementById('bulkType').innerHTML = '<option value="">변경하지 않음</option>' + typeOptions;
 
-        // ContractType 드롭다운
         const contractTypeOptions = res.contract_types.map(ct => `<option value="${ct}">${ct}</option>`).join('');
         document.getElementById('filterContractType').innerHTML = '<option value="">전체</option>' + contractTypeOptions;
         document.getElementById('intContractType').innerHTML = '<option value="">선택</option>' + contractTypeOptions;
         document.getElementById('bulkContractType').innerHTML = '<option value="">변경하지 않음</option>' + contractTypeOptions;
 
-        // Owner 리스트 (담당자)
         const ownerOptions = res.owners.map(o => `<option value="${o}">`).join('');
         document.getElementById('ownerList').innerHTML = ownerOptions;
 
-        // LiveSource 리스트 (실시간 데이터소스)
         const liveSourceOptions = res.live_sources.map(ls => `<option value="${ls}">`).join('');
         document.getElementById('liveSourceList').innerHTML = liveSourceOptions;
 
-        // SabangnetMallID 리스트
         const sabangnetMallIDOptions = res.sabangnet_mall_ids.map(sm => `<option value="${sm}">`).join('');
         document.getElementById('sabangnetMallIDList').innerHTML = sabangnetMallIDOptions;
 
-        // DetailName 리스트
         const detailNameOptions = res.detail_names.map(dn => `<option value="${dn}">`).join('');
         document.getElementById('detailNameList').innerHTML = detailNameOptions;
     } catch (e) {
         console.error('메타데이터 로드 실패:', e);
     }
 }
-
-// Enter key support for filters
-['filterName', 'filterDetailName', 'filterGroup'].forEach(id => {
-    document.getElementById(id).addEventListener('keypress', e => {
-        if (e.key === 'Enter') applyFilters();
-    });
-});

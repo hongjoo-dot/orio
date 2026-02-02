@@ -365,14 +365,30 @@ function updateActionButtons(selectedIds) {
     }
 }
 
-function selectAllData() {
-    masterTableManager.selectAll();
+async function selectAllData() {
+    try {
+        let params = `page=1&limit=100000`;
+        for (const [key, value] of Object.entries(currentFilters)) {
+            params += `&${key}=${encodeURIComponent(value)}`;
+        }
+        const result = await api.get(`/api/withdrawals?${params}`);
+        const data = result.data || [];
+        const allIds = data.map(row => row.PlanID);
+
+        masterTableManager.selectedRows = new Set(allIds);
+        document.querySelectorAll('#master-table tbody input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+        });
+        updateActionButtons(allIds);
+    } catch (e) {
+        console.error('전체 선택 실패:', e);
+    }
 }
 
 // ========== 삭제 ==========
 
 function bulkDelete() {
-    const selectedIds = masterTableManager.getSelectedIds();
+    const selectedIds = masterTableManager.getSelectedRows();
     if (selectedIds.length === 0) {
         showAlertModal('삭제할 항목을 선택해주세요.');
         return;
@@ -463,7 +479,7 @@ async function downloadExcel() {
         }
 
         // 선택된 ID가 있으면 해당 데이터만
-        const selectedIds = masterTableManager.getSelectedIds();
+        const selectedIds = masterTableManager.getSelectedRows();
         if (selectedIds.length > 0) {
             parts.push(`ids=${selectedIds.join(',')}`);
         }
@@ -499,7 +515,7 @@ function showUploadModal() {
     document.getElementById('fileInfo').style.display = 'none';
     document.getElementById('uploadProgress').style.display = 'none';
     document.getElementById('uploadButton').disabled = true;
-    uploadModal.open();
+    uploadModal.show();
 }
 
 function handleFileSelect(event) {
@@ -540,7 +556,7 @@ async function uploadFile() {
 
         const result = await response.json();
 
-        uploadModal.close();
+        uploadModal.hide();
 
         if (response.ok) {
             // 성공
@@ -559,16 +575,16 @@ async function uploadFile() {
             document.getElementById('uploadErrorMessage').textContent = result.detail || '알 수 없는 오류';
         }
 
-        uploadResultModal.open();
+        uploadResultModal.show();
         loadData(currentPage, currentLimit);
 
     } catch (e) {
-        uploadModal.close();
+        uploadModal.hide();
         document.getElementById('uploadSuccessSection').style.display = 'none';
         document.getElementById('uploadErrorSection').style.display = 'block';
         document.getElementById('uploadResultTitle').textContent = '업로드 실패';
         document.getElementById('uploadErrorMessage').textContent = e.message;
-        uploadResultModal.open();
+        uploadResultModal.show();
     } finally {
         uploadButton.disabled = false;
         uploadButton.innerHTML = '<i class="fa-solid fa-upload"></i> 업로드';
@@ -590,7 +606,7 @@ function showAlertModal(message, type = 'info') {
         icon.style.color = 'var(--accent)';
     }
     document.getElementById('alertMessage').textContent = message;
-    alertModal.open();
+    alertModal.show();
 }
 
 function showConfirmModal(message, onConfirm, showRejectReason = false) {
@@ -605,9 +621,9 @@ function showConfirmModal(message, onConfirm, showRejectReason = false) {
     okBtn.parentNode.replaceChild(newBtn, okBtn);
 
     newBtn.addEventListener('click', async () => {
-        confirmModal.close();
+        confirmModal.hide();
         if (onConfirm) await onConfirm();
     });
 
-    confirmModal.open();
+    confirmModal.show();
 }

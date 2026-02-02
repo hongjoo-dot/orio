@@ -64,6 +64,7 @@ class TableManager {
         // 데이터 컬럼
         columns.forEach(col => {
             const th = document.createElement('th');
+            th.style.position = 'relative';
             th.textContent = col.header;
 
             if (col.align === 'right') {
@@ -78,8 +79,18 @@ class TableManager {
                     th.classList.add(this.currentSortDir === 'ASC' ? 'sort-asc' : 'sort-desc');
                 }
 
-                th.addEventListener('click', () => this._handleSortClick(col.sortKey));
+                th.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('resize-handle')) {
+                        this._handleSortClick(col.sortKey);
+                    }
+                });
             }
+
+            // 리사이즈 핸들
+            const handle = document.createElement('div');
+            handle.className = 'resize-handle';
+            handle.addEventListener('mousedown', (e) => this._startResize(e, th));
+            th.appendChild(handle);
 
             headerRow.appendChild(th);
         });
@@ -110,6 +121,47 @@ class TableManager {
         if (this.options.onSort) {
             this.options.onSort(this.currentSortKey, this.currentSortDir);
         }
+    }
+
+    /**
+     * 칼럼 리사이즈 시작
+     */
+    _startResize(e, th) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // table-layout: fixed 적용 (최초 리사이즈 시)
+        if (!this._layoutFixed) {
+            const ths = this.table.querySelectorAll('thead th');
+            ths.forEach(t => {
+                t.style.width = t.offsetWidth + 'px';
+            });
+            this.table.style.tableLayout = 'fixed';
+            this._layoutFixed = true;
+        }
+
+        const startX = e.pageX;
+        const startWidth = th.offsetWidth;
+        const handle = e.target;
+        handle.classList.add('resizing');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+
+        const onMouseMove = (moveEvent) => {
+            const newWidth = Math.max(40, startWidth + (moveEvent.pageX - startX));
+            th.style.width = newWidth + 'px';
+        };
+
+        const onMouseUp = () => {
+            handle.classList.remove('resizing');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
     }
 
     /**

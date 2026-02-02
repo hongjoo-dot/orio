@@ -298,6 +298,23 @@
     color: var(--accent);
 }
 
+/* Column Resize Handle */
+.resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 1;
+}
+
+.resize-handle:hover,
+.resize-handle.resizing {
+    background: var(--accent);
+}
+
 /* ==================== Pagination ==================== */
 .pagination {
     display: flex;

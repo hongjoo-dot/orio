@@ -246,7 +246,7 @@ async def download_withdrawals(
             ['', ''],
             ['■ 컬럼 설명', ''],
             ['계획ID (빨간색)', '수정할 계획 식별용 (비워두면 신규 등록)'],
-            ['상품명', '상품명 선택 (드롭다운, BaseBarcode가 있는 상품만)'],
+            ['상품명', '상품명 선택 (드롭다운, Status=YES이고 바코드가 있는 상품만)'],
             ['수량', '숫자'],
             ['배송방식', '택배 등'],
             ['주문자이름', '주문자 이름'],
@@ -267,11 +267,12 @@ async def download_withdrawals(
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
 
-        # 드롭다운용 상품명 목록 (BaseBarcode IS NOT NULL)
+        # 드롭다운용 상품명 목록 (Status=YES, BaseBarcode 존재)
         with get_db_cursor(commit=False) as cursor:
             cursor.execute("""
                 SELECT Name FROM [dbo].[Product]
-                WHERE BaseBarcode IS NOT NULL AND BaseBarcode != ''
+                WHERE Status = 'YES'
+                  AND BaseBarcode IS NOT NULL AND BaseBarcode != ''
                 ORDER BY Name
             """)
             product_names = [row[0] for row in cursor.fetchall()]
@@ -434,7 +435,7 @@ async def upload_withdrawals(
                 df[col] = df[col].astype(str).str.strip()
                 df[col] = df[col].replace('nan', '')
 
-        # 상품명 → Product 매핑 (BaseBarcode IS NOT NULL)
+        # 상품명 → Product 매핑 (Status=YES, BaseBarcode 존재)
         product_names_unique = df['ProductName'].dropna().unique().tolist()
         product_names_unique = [n for n in product_names_unique if n and n != 'nan' and n != '']
         product_map = {}
@@ -445,7 +446,8 @@ async def upload_withdrawals(
                 cursor.execute("""
                     SELECT Name, BaseBarcode, UniqueCode
                     FROM [dbo].[Product]
-                    WHERE Name = ? AND BaseBarcode IS NOT NULL AND BaseBarcode != ''
+                    WHERE Name = ? AND Status = 'YES'
+                      AND BaseBarcode IS NOT NULL AND BaseBarcode != ''
                 """, (name,))
                 row = cursor.fetchone()
                 if row:
