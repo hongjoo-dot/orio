@@ -113,6 +113,17 @@ async def withdrawals_page(request: Request, redirect = Depends(require_login_fo
     })
 
 
+@router.get("/utilities", response_class=HTMLResponse)
+async def utilities_page(request: Request, redirect = Depends(require_login_for_page)):
+    """유틸리티 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("utilities.html", {
+        "request": request,
+        "active_page": "utilities"
+    })
+
+
 # ========================
 # Admin Pages (Admin only)
 # ========================

@@ -89,6 +89,9 @@ class ProductRepository(BaseRepository):
             "p.BundleType", "p.CategoryMid", "p.CategorySub", "p.Status", "p.ReleaseDate"
         )
 
+        # 기본 필터: 활성 상품만 조회
+        builder.where("p.Status = ?", "YES")
+
         # 필터 적용
         if filters:
             self._apply_filters(builder, filters)

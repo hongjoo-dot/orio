@@ -69,8 +69,16 @@ class ProductBoxRepository(BaseRepository):
             return self._row_to_dict(row) if row else None
 
     def delete_by_product_id(self, product_id: int) -> int:
-        """특정 Product의 모든 Box 삭제"""
+        """특정 Product의 모든 Box 삭제 (연관 BOM도 함께 삭제)"""
         with get_db_cursor() as cursor:
+            # ProductBOM 삭제 (FK_ProductBOM_Child)
+            cursor.execute("""
+                DELETE FROM [dbo].[ProductBOM]
+                WHERE ParentProductBoxID IN (SELECT BoxID FROM [dbo].[ProductBox] WHERE ProductID = ?)
+                   OR ChildProductBoxID IN (SELECT BoxID FROM [dbo].[ProductBox] WHERE ProductID = ?)
+            """, product_id, product_id)
+
+            # ProductBox 삭제
             cursor.execute("""
                 DELETE FROM [dbo].[ProductBox]
                 WHERE ProductID = ?

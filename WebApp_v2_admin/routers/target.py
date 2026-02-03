@@ -919,6 +919,7 @@ async def download_target_promotion(
             ['정산후보정', ''],
             ['기획상품', ''],
             ['원매가할인', ''],
+            ['공동구매', ''],
             ['', ''],
             ['■ 주의사항', ''],
             ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
@@ -933,7 +934,7 @@ async def download_target_promotion(
         brands = brand_repo.get_all_brands()
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
-        promotion_types = ['에누리', '쿠폰', '판매가+쿠폰', '판매가할인', '정산후보정', '기획상품', '원매가할인']
+        promotion_types = ['에누리', '쿠폰', '판매가+쿠폰', '판매가할인', '정산후보정', '기획상품', '원매가할인', '공동구매']
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:

@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}유틸리티 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-toolbox"></i> 유틸리티
+    </h1>
+    <p class="page-subtitle">데이터 변환 도구 모음</p>
+</div>
+
+<!-- 피벗 해제 도구 -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title" style="margin:0;">
+            <i class="fa-solid fa-table-columns"></i> 피벗 해제 (Unpivot)
+        </div>
+    </div>
+
+    <p style="color:var(--text-muted);margin-bottom:20px;line-height:1.6;">
+        피벗 테이블(크로스탭) 형태의 엑셀 데이터를 DB 업로드용 테이블 형태로 변환합니다.<br>
+        왼쪽의 고정 칼럼(브랜드, 채널 등)과 오른쪽의 피벗 칼럼(월별 데이터 등)을 구분하여 변환합니다.
+    </p>
+
+    <!-- Step 1: 파일 업로드 -->
+    <div class="unpivot-step" id="step1">
+        <h3 class="step-title">
+            <span class="step-badge">1</span> 엑셀 파일 업로드
+        </h3>
+        <div class="upload-zone" id="uploadZone">
+            <i class="fa-solid fa-cloud-arrow-up" style="font-size:40px;color:var(--accent);margin-bottom:12px;"></i>
+            <p style="margin-bottom:8px;">파일을 드래그하거나 클릭하여 업로드</p>
+            <p style="font-size:12px;color:var(--text-muted);">.xlsx, .xls 파일만 가능</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;">
+        </div>
+        <div id="fileInfo" style="display:none;margin-top:12px;">
+            <span id="fileName" style="color:var(--accent);font-weight:500;"></span>
+            <button class="btn btn-secondary btn-sm" onclick="resetUpload()" style="margin-left:12px;">
+                <i class="fa-solid fa-xmark"></i> 제거
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 2: 헤더 확인 & 고정 칼럼 지정 -->
+    <div class="unpivot-step" id="step2" style="display:none;">
+        <h3 class="step-title">
+            <span class="step-badge">2</span> 고정 칼럼 수 지정
+        </h3>
+        <p style="color:var(--text-muted);margin-bottom:12px;">
+            칼럼 헤더를 클릭하여 고정/피벗 경계를 지정하세요. 클릭한 칼럼까지가 고정 칼럼이 됩니다.
+        </p>
+        <div id="headerChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <label class="form-label" style="margin:0;white-space:nowrap;">고정 칼럼 수:</label>
+            <input type="number" id="fixedCount" class="form-input" style="width:80px;" min="1" value="1">
+            <button class="btn btn-primary btn-sm" onclick="requestPreview()">
+                <i class="fa-solid fa-eye"></i> 미리보기
+            </button>
+        </div>
+
+        <!-- 원본 미리보기 -->
+        <div id="originalPreview" style="display:none;margin-bottom:20px;">
+            <h4 style="margin-bottom:8px;color:var(--text-muted);">
+                <i class="fa-solid fa-file-excel"></i> 원본 데이터 (처음 5행)
+            </h4>
+            <div style="overflow-x:auto;">
+                <table class="data-table" id="originalTable">
+                    <thead><tr></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: 변환 미리보기 & 다운로드 -->
+    <div class="unpivot-step" id="step3" style="display:none;">
+        <h3 class="step-title">
+            <span class="step-badge">3</span> 변환 결과 미리보기
+        </h3>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+            <span id="convertInfo" style="color:var(--text-muted);"></span>
+            <button class="btn btn-primary" onclick="downloadResult()">
+                <i class="fa-solid fa-download"></i> 변환 결과 다운로드
+            </button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="data-table" id="convertedTable">
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .unpivot-step {
+        margin-bottom: 28px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--border);
+    }
+    .unpivot-step:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    .step-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    .step-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: white;
+        font-size: 13px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    /* 업로드 영역 */
+    .upload-zone {
+        border: 2px dashed var(--border);
+        border-radius: var(--radius-lg);
+        padding: 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+        border-color: var(--accent);
+        background: rgba(99, 102, 241, 0.05);
+    }
+
+    /* 헤더 칩 */
+    .header-chip {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+        border: 1px solid var(--border);
+        user-select: none;
+    }
+    .header-chip.fixed {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+    }
+    .header-chip.pivot {
+        background: rgba(148, 163, 184, 0.1);
+        color: var(--text-muted);
+        border-color: var(--border);
+    }
+    .header-chip:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    /* 미리보기 테이블 */
+    .data-table th.col-fixed {
+        background: rgba(99, 102, 241, 0.15) !important;
+    }
+    .data-table th.col-pivot {
+        background: rgba(148, 163, 184, 0.1) !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/utilities.js"></script>
+{% endblock %}
