@@ -15,7 +15,7 @@ class TargetBaseRepository(BaseRepository):
         "t.TargetBaseID", "t.[Date]",
         "t.BrandID", "t.BrandName",
         "t.ChannelID", "t.ChannelName",
-        "t.UniqueCode", "t.ProductName",
+        "t.ERPCode", "t.UniqueCode", "t.ProductName",
         "t.TargetAmount", "t.TargetAmountExVAT", "t.TargetQuantity",
         "t.Notes", "t.CreatedDate", "t.UpdatedDate"
     )
@@ -37,14 +37,15 @@ class TargetBaseRepository(BaseRepository):
             "BrandName": row[3],
             "ChannelID": row[4],
             "ChannelName": row[5],
-            "UniqueCode": row[6],
-            "ProductName": row[7],
-            "TargetAmount": float(row[8]) if row[8] else 0,
-            "TargetAmountExVAT": float(row[9]) if row[9] else 0,
-            "TargetQuantity": int(row[10]) if row[10] else 0,
-            "Notes": row[11],
-            "CreatedDate": row[12].strftime('%Y-%m-%d %H:%M:%S') if row[12] else None,
-            "UpdatedDate": row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
+            "ERPCode": row[6],
+            "UniqueCode": row[7],
+            "ProductName": row[8],
+            "TargetAmount": float(row[9]) if row[9] else 0,
+            "TargetAmountExVAT": float(row[10]) if row[10] else 0,
+            "TargetQuantity": int(row[11]) if row[11] else 0,
+            "Notes": row[12],
+            "CreatedDate": row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
+            "UpdatedDate": row[14].strftime('%Y-%m-%d %H:%M:%S') if row[14] else None,
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -146,6 +147,7 @@ class TargetBaseRepository(BaseRepository):
                                 BrandName = ?,
                                 ChannelID = ?,
                                 ChannelName = ?,
+                                ERPCode = ?,
                                 UniqueCode = ?,
                                 ProductName = ?,
                                 TargetAmount = ?,
@@ -161,6 +163,7 @@ class TargetBaseRepository(BaseRepository):
                             record.get('BrandName'),
                             record.get('ChannelID'),
                             record.get('ChannelName'),
+                            record.get('ERPCode'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
                             target_amount,
@@ -177,8 +180,8 @@ class TargetBaseRepository(BaseRepository):
                         insert_query = """
                             INSERT INTO [dbo].[TargetBaseProduct]
                             ([Date], BrandID, BrandName, ChannelID, ChannelName,
-                             UniqueCode, ProductName, TargetAmount, TargetAmountExVAT, TargetQuantity, Notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             ERPCode, UniqueCode, ProductName, TargetAmount, TargetAmountExVAT, TargetQuantity, Notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('Date'),
@@ -186,6 +189,7 @@ class TargetBaseRepository(BaseRepository):
                             record.get('BrandName'),
                             record.get('ChannelID'),
                             record.get('ChannelName'),
+                            record.get('ERPCode'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
                             target_amount,

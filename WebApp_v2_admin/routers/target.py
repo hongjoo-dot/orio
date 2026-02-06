@@ -168,9 +168,9 @@ async def download_target_base(
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '고유코드', '목표금액(+VAT)', '목표수량', '비고']
+        export_columns = ['ID', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '목표금액(+VAT)', '목표수량', '비고']
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 고유코드
+        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -186,7 +186,7 @@ async def download_target_base(
                 'Date': '날짜(YYYY-MM-01)',
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
-                'UniqueCode': '고유코드',
+                'ERPCode': '품목코드',
                 'TargetAmount': '목표금액(+VAT)',
                 'TargetQuantity': '목표수량',
                 'Notes': '비고'
@@ -203,27 +203,27 @@ async def download_target_base(
             ['', ''],
             ['■ 업로드 방식', ''],
             ['ID가 있는 행', 'ID 기준으로 해당 데이터를 수정합니다.'],
-            ['ID가 없는 행', '날짜+채널+고유코드 기준으로 신규 등록 또는 수정합니다.'],
+            ['ID가 없는 행', '날짜+채널+품목코드 기준으로 신규 등록 또는 수정합니다.'],
             ['', ''],
             ['■ 컬럼 설명', ''],
             ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
             ['날짜(YYYY-MM-01)', '목표 날짜 (YYYY-MM-01 형식, 월 단위)'],
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
-            ['고유코드', 'Product 테이블에 등록된 고유코드 (UniqueCode, 드롭다운 선택)'],
+            ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
             ['목표금액(+VAT)', 'VAT 포함 금액 (예: 1000000)'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
             ['수정 가능', '목표금액(+VAT), 목표수량, 비고'],
-            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 고유코드'],
+            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드'],
             ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 주의사항', ''],
             ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
-            ['2. 동일한 날짜+채널+고유코드 조합이 있으면 기존 데이터가 수정됩니다.', ''],
-            ['3. 브랜드명, 채널명, 고유코드는 반드시 DB에 등록된 값이어야 합니다.', ''],
+            ['2. 동일한 날짜+채널+품목코드 조합이 있으면 기존 데이터가 수정됩니다.', ''],
+            ['3. 브랜드명, 채널명, 품목코드는 반드시 DB에 등록된 값이어야 합니다.', ''],
             ['4. 검정색/빨간색 배경 컬럼은 수정해도 반영되지 않습니다.', ''],
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
@@ -234,10 +234,16 @@ async def download_target_base(
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
 
-        # 고유코드 드롭다운용 목록 조회 (Status = 'YES'인 제품만)
+        # 품목코드 드롭다운용 목록 조회 (Status = 'YES'인 제품만)
         with get_db_cursor(commit=False) as cursor:
-            cursor.execute("SELECT UniqueCode FROM Product WHERE Status = 'YES' ORDER BY UniqueCode")
-            unique_codes = [row[0] for row in cursor.fetchall()]
+            cursor.execute("""
+                SELECT DISTINCT pb.ERPCode
+                FROM ProductBox pb
+                INNER JOIN Product p ON pb.ProductID = p.ProductID
+                WHERE p.Status = 'YES'
+                ORDER BY pb.ERPCode
+            """)
+            erp_codes = [row[0] for row in cursor.fetchall()]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -259,8 +265,8 @@ async def download_target_base(
             for i, name in enumerate(brand_names):
                 list_sheet.write(i, 1, name)
 
-            # 고유코드 목록 작성 (C열)
-            for i, code in enumerate(unique_codes):
+            # 품목코드 목록 작성 (C열)
+            for i, code in enumerate(erp_codes):
                 list_sheet.write(i, 2, code)
 
             # 드롭다운 적용 범위 (2행~1000행)
@@ -284,12 +290,12 @@ async def download_target_base(
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 고유코드 드롭다운 (E열, 인덱스 4)
-            if unique_codes:
+            # 품목코드 드롭다운 (E열, 인덱스 4)
+            if erp_codes:
                 worksheet.data_validation(1, 4, max_row, 4, {
                     'validate': 'list',
-                    'source': f'=목록!$C$1:$C${len(unique_codes)}',
-                    'input_message': '고유코드를 선택하세요',
+                    'source': f'=목록!$C$1:$C${len(erp_codes)}',
+                    'input_message': '품목코드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
@@ -536,7 +542,7 @@ async def upload_target_base(
             '날짜(YYYY-MM-01)': 'Date',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
-            '고유코드': 'UniqueCode',
+            '품목코드': 'ERPCode',
             '목표금액(+VAT)': 'TargetAmount',
             '목표수량': 'TargetQuantity',
             '비고': 'Notes'
@@ -544,7 +550,7 @@ async def upload_target_base(
         df = df.rename(columns=column_map)
 
         # 필수 컬럼 확인
-        required_cols = ['Date', 'BrandName', 'ChannelName', 'UniqueCode']
+        required_cols = ['Date', 'BrandName', 'ChannelName', 'ERPCode']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise HTTPException(400, f"필수 컬럼이 없습니다: {missing_cols}")
@@ -562,7 +568,7 @@ async def upload_target_base(
         # 문자열 컬럼 공백 제거 (strip)
         df['BrandName'] = df['BrandName'].astype(str).str.strip()
         df['ChannelName'] = df['ChannelName'].astype(str).str.strip()
-        df['UniqueCode'] = df['UniqueCode'].astype(str).str.strip()
+        df['ERPCode'] = df['ERPCode'].astype(str).str.strip()
 
         # 에러 수집용 딕셔너리
         errors = {
@@ -600,18 +606,23 @@ async def upload_target_base(
                     row_nums = df[df['ChannelName'] == name].index.tolist()
                     errors['channel'][name] = [r + 2 for r in row_nums]
 
-        # 상품코드 → ProductName 매핑 테이블 생성
-        unique_codes = df['UniqueCode'].dropna().unique().tolist()
-        unique_codes = [c for c in unique_codes if c and c != 'nan']
+        # 품목코드(ERPCode) → UniqueCode, ProductName 매핑 테이블 생성
+        erp_codes = df['ERPCode'].dropna().unique().tolist()
+        erp_codes = [c for c in erp_codes if c and c != 'nan']
         product_map = {}
-        for code in unique_codes:
+        for code in erp_codes:
             with get_db_cursor() as cursor:
-                cursor.execute("SELECT UniqueCode, Name FROM Product WHERE UniqueCode = ?", (code,))
+                cursor.execute("""
+                    SELECT pb.ERPCode, p.UniqueCode, p.Name
+                    FROM ProductBox pb
+                    INNER JOIN Product p ON pb.ProductID = p.ProductID
+                    WHERE pb.ERPCode = ?
+                """, (code,))
                 row = cursor.fetchone()
                 if row:
-                    product_map[code] = {'UniqueCode': row[0], 'ProductName': row[1]}
+                    product_map[code] = {'ERPCode': row[0], 'UniqueCode': row[1], 'ProductName': row[2]}
                 else:
-                    row_nums = df[df['UniqueCode'] == code].index.tolist()
+                    row_nums = df[df['ERPCode'] == code].index.tolist()
                     errors['product'][code] = [r + 2 for r in row_nums]
 
         # 에러가 있으면 모두 모아서 반환
@@ -622,7 +633,7 @@ async def upload_target_base(
             for name, rows in errors['channel'].items():
                 error_messages.append(f"존재하지 않는 채널명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             for code, rows in errors['product'].items():
-                error_messages.append(f"존재하지 않는 상품코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
+                error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
         # 레코드 준비
@@ -630,11 +641,11 @@ async def upload_target_base(
         for _, row in df.iterrows():
             brand_name = row['BrandName'] if pd.notna(row['BrandName']) and row['BrandName'] != 'nan' else None
             channel_name = row['ChannelName'] if pd.notna(row['ChannelName']) and row['ChannelName'] != 'nan' else None
-            unique_code = row['UniqueCode'] if pd.notna(row['UniqueCode']) and row['UniqueCode'] != 'nan' else None
+            erp_code = row['ERPCode'] if pd.notna(row['ERPCode']) and row['ERPCode'] != 'nan' else None
 
             brand_info = brand_map.get(brand_name, {})
             channel_info = channel_map.get(channel_name, {})
-            product_info = product_map.get(unique_code, {})
+            product_info = product_map.get(erp_code, {})
 
             # ID가 있으면 포함 (수정 양식인 경우)
             target_id = None
@@ -648,7 +659,8 @@ async def upload_target_base(
                 'BrandName': brand_info.get('BrandName'),
                 'ChannelID': channel_info.get('ChannelID'),
                 'ChannelName': channel_info.get('ChannelName'),
-                'UniqueCode': unique_code,
+                'ERPCode': erp_code,
+                'UniqueCode': product_info.get('UniqueCode'),
                 'ProductName': product_info.get('ProductName'),
                 'TargetAmount': float(row['TargetAmount']) if pd.notna(row.get('TargetAmount')) else 0,
                 'TargetQuantity': int(row['TargetQuantity']) if pd.notna(row.get('TargetQuantity')) else 0,
@@ -864,10 +876,10 @@ async def download_target_promotion(
         # 컬럼 정의
         export_columns = [
             'ID', '행사명', '행사유형', '시작일(YYYY-MM-DD)', '시작시간(HH:MM:SS)', '종료일(YYYY-MM-DD)', '종료시간(HH:MM:SS)',
-            '브랜드명', '채널명', '고유코드', '목표금액(+VAT)', '목표수량', '비고'
+            '브랜드명', '채널명', '품목코드', '목표금액(+VAT)', '목표수량', '비고'
         ]
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [2, 3, 5, 7, 8, 9]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 고유코드
+        readonly_columns = [2, 3, 5, 7, 8, 9]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -886,7 +898,7 @@ async def download_target_promotion(
                 'EndTime': '종료시간(HH:MM:SS)',
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
-                'UniqueCode': '고유코드',
+                'ERPCode': '품목코드',
                 'TargetAmount': '목표금액(+VAT)',
                 'TargetQuantity': '목표수량',
                 'Notes': '비고'
@@ -919,14 +931,14 @@ async def download_target_promotion(
             ['종료시간(HH:MM:SS)', 'HH:MM:SS 형식 (예: 23:59:59, 기본값: 00:00:00)'],
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명 (행사ID 생성에 필요)'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
-            ['고유코드', 'Product 테이블에 등록된 고유코드 (UniqueCode, 드롭다운 선택)'],
+            ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
             ['목표금액(+VAT)', 'VAT 포함 금액 (예: 1000000)'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
             ['수정 가능', '행사명, 시작시간, 종료시간, 목표금액(+VAT), 목표수량, 비고'],
-            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 고유코드'],
+            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드'],
             ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 행사유형 목록', ''],
@@ -942,7 +954,7 @@ async def download_target_promotion(
             ['■ 주의사항', ''],
             ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
             ['2. 행사ID는 자동 생성되며, 같은 조건(브랜드+행사유형+YYMM)에서 순번이 증가합니다.', ''],
-            ['3. 브랜드명, 채널명, 고유코드, 행사유형은 반드시 DB에 등록된 값이어야 합니다.', ''],
+            ['3. 브랜드명, 채널명, 품목코드, 행사유형은 반드시 DB에 등록된 값이어야 합니다.', ''],
             ['4. 검정색/빨간색 배경 컬럼은 수정해도 반영되지 않습니다.', ''],
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
@@ -954,10 +966,16 @@ async def download_target_promotion(
         brand_names = [br['Name'] for br in brands]
         promotion_types = ['에누리', '쿠폰', '판매가+쿠폰', '판매가할인', '정산후보정', '기획상품', '원매가할인', '공동구매']
 
-        # 고유코드 드롭다운용 목록 조회 (Status = 'YES'인 제품만)
+        # 품목코드 드롭다운용 목록 조회 (Status = 'YES'인 제품만)
         with get_db_cursor(commit=False) as cursor:
-            cursor.execute("SELECT UniqueCode FROM Product WHERE Status = 'YES' ORDER BY UniqueCode")
-            unique_codes = [row[0] for row in cursor.fetchall()]
+            cursor.execute("""
+                SELECT DISTINCT pb.ERPCode
+                FROM ProductBox pb
+                INNER JOIN Product p ON pb.ProductID = p.ProductID
+                WHERE p.Status = 'YES'
+                ORDER BY pb.ERPCode
+            """)
+            erp_codes = [row[0] for row in cursor.fetchall()]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -983,8 +1001,8 @@ async def download_target_promotion(
             for i, name in enumerate(promotion_types):
                 list_sheet.write(i, 2, name)
 
-            # 고유코드 목록 작성 (D열)
-            for i, code in enumerate(unique_codes):
+            # 품목코드 목록 작성 (D열)
+            for i, code in enumerate(erp_codes):
                 list_sheet.write(i, 3, code)
 
             # 드롭다운 적용 범위 (2행~1000행)
@@ -1016,12 +1034,12 @@ async def download_target_promotion(
                 'error_message': '목록에서 선택해주세요'
             })
 
-            # 고유코드 드롭다운 (J열, 인덱스 9)
-            if unique_codes:
+            # 품목코드 드롭다운 (J열, 인덱스 9)
+            if erp_codes:
                 worksheet.data_validation(1, 9, max_row, 9, {
                     'validate': 'list',
-                    'source': f'=목록!$D$1:$D${len(unique_codes)}',
-                    'input_message': '고유코드를 선택하세요',
+                    'source': f'=목록!$D$1:$D${len(erp_codes)}',
+                    'input_message': '품목코드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
@@ -1273,7 +1291,7 @@ async def upload_target_promotion(
             '종료시간(HH:MM:SS)': 'EndTime',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
-            '고유코드': 'UniqueCode',
+            '품목코드': 'ERPCode',
             '목표금액(+VAT)': 'TargetAmount',
             '목표수량': 'TargetQuantity',
             '비고': 'Notes'
@@ -1281,7 +1299,7 @@ async def upload_target_promotion(
         df = df.rename(columns=column_map)
 
         # 필수 컬럼 확인 (PromotionID 제거 - 자동 생성됨)
-        required_cols = ['PromotionType', 'StartDate', 'EndDate', 'BrandName', 'ChannelName', 'UniqueCode']
+        required_cols = ['PromotionType', 'StartDate', 'EndDate', 'BrandName', 'ChannelName', 'ERPCode']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise HTTPException(400, f"필수 컬럼이 없습니다: {missing_cols}")
@@ -1323,7 +1341,7 @@ async def upload_target_promotion(
         # 문자열 컬럼 공백 제거 (strip)
         df['BrandName'] = df['BrandName'].astype(str).str.strip()
         df['ChannelName'] = df['ChannelName'].astype(str).str.strip()
-        df['UniqueCode'] = df['UniqueCode'].astype(str).str.strip()
+        df['ERPCode'] = df['ERPCode'].astype(str).str.strip()
 
         # 에러 수집용 딕셔너리
         errors = {
@@ -1370,18 +1388,23 @@ async def upload_target_promotion(
                     row_nums = df[df['ChannelName'] == name].index.tolist()
                     errors['channel'][name] = [r + 2 for r in row_nums]
 
-        # 상품코드 → ProductName 매핑 테이블 생성
-        unique_codes = df['UniqueCode'].dropna().unique().tolist()
-        unique_codes = [c for c in unique_codes if c and c != 'nan']
+        # 품목코드(ERPCode) → UniqueCode, ProductName 매핑 테이블 생성
+        erp_codes = df['ERPCode'].dropna().unique().tolist()
+        erp_codes = [c for c in erp_codes if c and c != 'nan']
         product_map = {}
-        for code in unique_codes:
+        for code in erp_codes:
             with get_db_cursor() as cursor:
-                cursor.execute("SELECT UniqueCode, Name FROM Product WHERE UniqueCode = ?", (code,))
+                cursor.execute("""
+                    SELECT pb.ERPCode, p.UniqueCode, p.Name
+                    FROM ProductBox pb
+                    INNER JOIN Product p ON pb.ProductID = p.ProductID
+                    WHERE pb.ERPCode = ?
+                """, (code,))
                 row = cursor.fetchone()
                 if row:
-                    product_map[code] = {'UniqueCode': row[0], 'ProductName': row[1]}
+                    product_map[code] = {'ERPCode': row[0], 'UniqueCode': row[1], 'ProductName': row[2]}
                 else:
-                    row_nums = df[df['UniqueCode'] == code].index.tolist()
+                    row_nums = df[df['ERPCode'] == code].index.tolist()
                     errors['product'][code] = [r + 2 for r in row_nums]
 
         # 행사유형 검증 및 TypeCode 매핑 (PromotionType 테이블에서 조회)
@@ -1422,7 +1445,7 @@ async def upload_target_promotion(
             for name, rows in errors['channel'].items():
                 error_messages.append(f"존재하지 않는 채널명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             for code, rows in errors['product'].items():
-                error_messages.append(f"존재하지 않는 상품코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
+                error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             for display_name, rows in errors['promotion_type'].items():
                 error_messages.append(f"존재하지 않는 행사유형: {display_name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
@@ -1437,19 +1460,21 @@ async def upload_target_promotion(
             brand_name = str(row['BrandName']).strip() if pd.notna(row['BrandName']) else None
             channel_name = str(row['ChannelName']).strip() if pd.notna(row['ChannelName']) else None
             promo_type = str(row['PromotionType']).strip() if pd.notna(row.get('PromotionType')) else None
-            unique_code = str(row['UniqueCode']).strip() if pd.notna(row['UniqueCode']) else None
+            erp_code = str(row['ERPCode']).strip() if pd.notna(row['ERPCode']) else None
 
-            if brand_name and channel_name and promo_type and unique_code and pd.notna(row['StartDate']):
+            if brand_name and channel_name and promo_type and erp_code and pd.notna(row['StartDate']):
                 brand_info = brand_map.get(brand_name, {})
                 channel_info = channel_map.get(channel_name, {})
                 type_info = promotion_type_map.get(promo_type, {})
+                product_info = product_map.get(erp_code, {})
 
                 brand_id = brand_info.get('BrandID')
                 channel_id_val = channel_info.get('ChannelID')
                 promo_type_val = type_info.get('DisplayName')
+                unique_code = product_info.get('UniqueCode')
                 start_date = row['StartDate'].strftime('%Y-%m-%d') if hasattr(row['StartDate'], 'strftime') else str(row['StartDate'])[:10]
 
-                if brand_id and channel_id_val and promo_type_val:
+                if brand_id and channel_id_val and promo_type_val and unique_code:
                     with get_db_cursor(commit=False) as cursor:
                         cursor.execute("""
                             SELECT 1 FROM [dbo].[TargetPromotionProduct]
@@ -1460,7 +1485,7 @@ async def upload_target_promotion(
                             duplicate_rows.append(idx + 2)  # 엑셀 행 번호
 
         if duplicate_rows:
-            raise HTTPException(400, f"이미 등록된 데이터가 있습니다. 동일 조건(브랜드+채널+행사유형+시작일+상품코드)의 데이터가 존재합니다. (행 {', '.join(map(str, duplicate_rows[:10]))}{'...' if len(duplicate_rows) > 10 else ''})")
+            raise HTTPException(400, f"이미 등록된 데이터가 있습니다. 동일 조건(브랜드+채널+행사유형+시작일+품목코드)의 데이터가 존재합니다. (행 {', '.join(map(str, duplicate_rows[:10]))}{'...' if len(duplicate_rows) > 10 else ''})")
 
         # PromotionID 자동 생성을 위한 접두사별 순번 관리
         # 형식: BrandCode(2) + TypeCode(2) + YYMM(4) + Sequence(2) = 10자리
@@ -1505,11 +1530,11 @@ async def upload_target_promotion(
 
             brand_name = row['BrandName'] if pd.notna(row['BrandName']) and row['BrandName'] != 'nan' else None
             channel_name = row['ChannelName'] if pd.notna(row['ChannelName']) and row['ChannelName'] != 'nan' else None
-            unique_code = row['UniqueCode'] if pd.notna(row['UniqueCode']) and row['UniqueCode'] != 'nan' else None
+            erp_code = row['ERPCode'] if pd.notna(row['ERPCode']) and row['ERPCode'] != 'nan' else None
 
             brand_info = brand_map.get(brand_name, {})
             channel_info = channel_map.get(channel_name, {})
-            product_info = product_map.get(unique_code, {})
+            product_info = product_map.get(erp_code, {})
 
             # ID가 있으면 포함 (수정 양식인 경우)
             target_id = None
@@ -1571,7 +1596,8 @@ async def upload_target_promotion(
                 'BrandName': brand_info.get('BrandName'),
                 'ChannelID': channel_info.get('ChannelID'),
                 'ChannelName': channel_info.get('ChannelName'),
-                'UniqueCode': unique_code,
+                'ERPCode': erp_code,
+                'UniqueCode': product_info.get('UniqueCode'),
                 'ProductName': product_info.get('ProductName'),
                 'TargetAmount': float(row['TargetAmount']) if pd.notna(row.get('TargetAmount')) else 0,
                 'TargetQuantity': int(row['TargetQuantity']) if pd.notna(row.get('TargetQuantity')) else 0,
@@ -1589,7 +1615,7 @@ async def upload_target_promotion(
             error_messages = []
             for dup in duplicates[:10]:
                 error_messages.append(
-                    f"행 {dup['row']}: 중복 데이터 (시작일: {dup['start_date']}, 상품코드: {dup['unique_code']}, 채널: {dup['channel_name']}, 행사유형: {dup['promotion_type']})"
+                    f"행 {dup['row']}: 중복 데이터 (시작일: {dup['start_date']}, 품목코드: {dup.get('erp_code', dup.get('unique_code'))}, 채널: {dup['channel_name']}, 행사유형: {dup['promotion_type']})"
                 )
             if len(duplicates) > 10:
                 error_messages.append(f"... 외 {len(duplicates) - 10}건 더 있음")
