@@ -16,7 +16,7 @@ class TargetBaseRepository(BaseRepository):
         "t.BrandID", "t.BrandName",
         "t.ChannelID", "t.ChannelName",
         "t.UniqueCode", "t.ProductName",
-        "t.TargetAmount", "t.TargetQuantity",
+        "t.TargetAmount", "t.TargetAmountExVAT", "t.TargetQuantity",
         "t.Notes", "t.CreatedDate", "t.UpdatedDate"
     )
 
@@ -40,10 +40,11 @@ class TargetBaseRepository(BaseRepository):
             "UniqueCode": row[6],
             "ProductName": row[7],
             "TargetAmount": float(row[8]) if row[8] else 0,
-            "TargetQuantity": int(row[9]) if row[9] else 0,
-            "Notes": row[10],
-            "CreatedDate": row[11].strftime('%Y-%m-%d %H:%M:%S') if row[11] else None,
-            "UpdatedDate": row[12].strftime('%Y-%m-%d %H:%M:%S') if row[12] else None,
+            "TargetAmountExVAT": float(row[9]) if row[9] else 0,
+            "TargetQuantity": int(row[10]) if row[10] else 0,
+            "Notes": row[11],
+            "CreatedDate": row[12].strftime('%Y-%m-%d %H:%M:%S') if row[12] else None,
+            "UpdatedDate": row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -59,10 +60,10 @@ class TargetBaseRepository(BaseRepository):
             year_month = filters['year_month']
             builder.where("FORMAT(t.[Date], 'yyyy-MM') = ?", year_month)
 
-        if filters.get('brand_id'):
+        if 'brand_id' in filters:
             builder.where_equals("t.BrandID", filters['brand_id'])
 
-        if filters.get('channel_id'):
+        if 'channel_id' in filters:
             builder.where_equals("t.ChannelID", filters['channel_id'])
 
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
@@ -132,6 +133,10 @@ class TargetBaseRepository(BaseRepository):
                 for record in batch:
                     target_id = record.get('TargetBaseID')
 
+                    # TargetAmountExVAT 자동 계산 (VAT 10% 제외)
+                    target_amount = record.get('TargetAmount') or 0
+                    target_amount_ex_vat = round(float(target_amount) / 1.1, 2) if target_amount else 0
+
                     if target_id:
                         # ID 기반 UPDATE
                         update_query = """
@@ -144,6 +149,7 @@ class TargetBaseRepository(BaseRepository):
                                 UniqueCode = ?,
                                 ProductName = ?,
                                 TargetAmount = ?,
+                                TargetAmountExVAT = ?,
                                 TargetQuantity = ?,
                                 Notes = ?,
                                 UpdatedDate = GETDATE()
@@ -157,7 +163,8 @@ class TargetBaseRepository(BaseRepository):
                             record.get('ChannelName'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
-                            record.get('TargetAmount'),
+                            target_amount,
+                            target_amount_ex_vat,
                             record.get('TargetQuantity'),
                             record.get('Notes'),
                             target_id
@@ -170,8 +177,8 @@ class TargetBaseRepository(BaseRepository):
                         insert_query = """
                             INSERT INTO [dbo].[TargetBaseProduct]
                             ([Date], BrandID, BrandName, ChannelID, ChannelName,
-                             UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             UniqueCode, ProductName, TargetAmount, TargetAmountExVAT, TargetQuantity, Notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('Date'),
@@ -181,7 +188,8 @@ class TargetBaseRepository(BaseRepository):
                             record.get('ChannelName'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
-                            record.get('TargetAmount'),
+                            target_amount,
+                            target_amount_ex_vat,
                             record.get('TargetQuantity'),
                             record.get('Notes'),
                         ]

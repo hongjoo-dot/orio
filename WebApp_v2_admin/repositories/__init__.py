@@ -12,7 +12,7 @@ from .target_base_repository import TargetBaseRepository
 from .target_promotion_repository import TargetPromotionRepository
 from .promotion_repository import PromotionRepository
 from .promotion_product_repository import PromotionProductRepository
-from .withdrawal_repository import WithdrawalPlanRepository, WithdrawalPlanItemRepository
+from .withdrawal_plan_repository import WithdrawalPlanRepository
 from .permission_repository import (
     PermissionRepository,
     RolePermissionRepository,
@@ -40,7 +40,6 @@ __all__ = [
     'PromotionRepository',
     'PromotionProductRepository',
     'WithdrawalPlanRepository',
-    'WithdrawalPlanItemRepository',
     'PermissionRepository',
     'RolePermissionRepository',
     'UserPermissionRepository',

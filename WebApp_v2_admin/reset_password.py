@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bcrypt
 from core.database import get_db_cursor
 
-email = 'hongjoo@orio.co.kr'
+email = 'eunji@orio.co.kr'
 
 # 현재 상태 확인
 with get_db_cursor(commit=False) as cursor:

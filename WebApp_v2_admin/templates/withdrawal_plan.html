@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}불출 계획{% endblock %}
+
+{% block extra_css %}
+<style>
+    .master-detail-container {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 24px;
+        height: calc(100vh - 200px);
+        min-height: 500px;
+    }
+
+    .master-panel, .detail-panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .panel-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .panel-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .table-wrapper {
+        flex: 1;
+        overflow: auto;
+    }
+
+    .group-row {
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .group-row:hover {
+        background: rgba(99, 102, 241, 0.1);
+    }
+
+    .group-row.selected {
+        background: rgba(99, 102, 241, 0.15);
+        border-left: 3px solid var(--accent);
+    }
+
+    .group-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .group-title {
+        font-weight: 500;
+        color: var(--text-main);
+    }
+
+    .group-meta {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .detail-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-muted);
+        text-align: center;
+        padding: 40px;
+    }
+
+    .detail-placeholder i {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.3;
+    }
+
+    .group-summary {
+        background: rgba(99, 102, 241, 0.06);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .group-summary-title {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .group-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+
+    .summary-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .summary-label {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .summary-value {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-main);
+    }
+
+    .type-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .type-badge.인플루언서 { background: #ddd6fe; color: #7c3aed; }
+    .type-badge.증정 { background: #d1fae5; color: #059669; }
+    .type-badge.업체샘플 { background: #fef3c7; color: #d97706; }
+    .type-badge.직원복지 { background: #dbeafe; color: #2563eb; }
+    .type-badge.기타 { background: #f3f4f6; color: #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 페이지 헤더 -->
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-clipboard-list"></i> 불출 계획
+    </h1>
+    <p class="page-subtitle">캠페인별 불출 예정 상품 및 수량 관리</p>
+</div>
+
+<!-- 검색 필터 -->
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="card-title" style="margin:0;">
+            <i class="fa-solid fa-filter"></i> 검색 필터
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                <i class="fa-solid fa-rotate-left"></i> 초기화
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="applyFilters()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+        <div class="form-group" style="margin:0;">
+            <label class="form-label">계획월</label>
+            <input type="month" id="filterYearMonth" class="form-input">
+        </div>
+        <div class="form-group" style="margin:0;">
+            <label class="form-label">사용유형</label>
+            <select id="filterType" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin:0;">
+            <label class="form-label">캠페인명</label>
+            <input type="text" id="filterTitle" class="form-input" placeholder="캠페인명 검색">
+        </div>
+    </div>
+</div>
+
+<!-- 마스터-디테일 -->
+<div class="master-detail-container">
+    <!-- 마스터 패널 (캠페인 목록) -->
+    <div class="card master-panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa-solid fa-folder"></i>
+                캠페인 목록
+                <span id="groupCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+            </div>
+            <div class="panel-actions">
+                <button class="btn btn-success btn-sm" onclick="downloadExcel()">
+                    <i class="fa-solid fa-file-excel"></i> 엑셀 양식
+                </button>
+                <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
+                    <i class="fa-solid fa-upload"></i> 엑셀 업로드
+                </button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table class="table" id="master-table" style="table-layout:fixed;">
+                <colgroup>
+                    <col style="width:40px;">
+                    <col style="width:auto;">
+                    <col style="width:100px;">
+                    <col style="width:80px;">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th style="text-align:center;">
+                            <input type="checkbox" id="selectAllGroups" onchange="toggleSelectAll(this)">
+                        </th>
+                        <th>캠페인</th>
+                        <th>유형</th>
+                        <th style="text-align:right;">수량</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 디테일 패널 (상품 목록) -->
+    <div class="card detail-panel">
+        <div id="detailPlaceholder" class="detail-placeholder">
+            <i class="fa-solid fa-hand-pointer"></i>
+            <p>좌측에서 캠페인을 선택하세요</p>
+        </div>
+
+        <div id="detailContainer" style="display:none;height:100%;flex-direction:column;">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-box"></i>
+                    상품 목록
+                    <span id="itemCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                </div>
+                <div class="panel-actions">
+                    <button class="btn btn-danger btn-sm" onclick="deleteGroup()">
+                        <i class="fa-solid fa-trash"></i> 캠페인 삭제
+                    </button>
+                </div>
+            </div>
+
+            <!-- 그룹 요약 -->
+            <div id="groupSummary" class="group-summary"></div>
+
+            <!-- 상품 테이블 -->
+            <div class="table-wrapper">
+                <table class="table" id="detail-table">
+                    <thead>
+                        <tr>
+                            <th>상품명</th>
+                            <th>고유코드</th>
+                            <th>계획일자</th>
+                            <th style="text-align:right;">예정수량</th>
+                            <th>메모</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 업로드 모달 -->
+<div id="uploadModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">불출 계획 업로드</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="upload-zone" onclick="document.getElementById('fileInput').click()"
+                style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:all 0.2s;">
+                <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileSelect(event)"
+                    style="display:none;">
+                <i class="fa-solid fa-cloud-arrow-up"
+                    style="font-size:48px;color:var(--text-muted);margin-bottom:16px;"></i>
+                <p style="font-size:16px;margin-bottom:8px;">파일을 드래그하거나 클릭하여 선택</p>
+                <p style="font-size:13px;color:var(--text-muted);">지원 형식: .xlsx, .xls</p>
+            </div>
+            <div id="fileInfo" style="margin-top:16px;display:none;">
+                <p><strong>선택된 파일:</strong> <span id="fileName"></span></p>
+            </div>
+
+            <div id="uploadProgress" style="margin-top:16px;display:none;">
+                <div style="background:var(--border);border-radius:8px;overflow:hidden;height:8px;">
+                    <div id="progressBar" style="background:var(--success);height:100%;width:0%;transition:width 0.3s;">
+                    </div>
+                </div>
+                <p id="progressText" style="margin-top:8px;font-size:13px;color:var(--text-muted);text-align:center;">0%
+                </p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-primary" id="uploadButton" onclick="uploadFile()" disabled>
+                <i class="fa-solid fa-upload"></i> 업로드
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 업로드 결과 모달 -->
+<div id="uploadResultModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="uploadResultTitle">업로드 결과</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- 성공 시 표시 -->
+            <div id="uploadSuccessSection">
+                <div style="margin-bottom:24px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                        <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--success);"></i>
+                        <div>
+                            <h3 style="font-size:20px;margin-bottom:4px;">업로드 완료</h3>
+                            <p style="color:var(--text-muted);font-size:14px;">데이터가 성공적으로 업로드되었습니다.</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                    <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
+                        <i class="fa-solid fa-chart-bar"></i> 업로드 통계
+                    </h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">총 행 수</div>
+                            <div style="font-size:20px;font-weight:600;" id="uploadTotalRows">0</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">신규 삽입</div>
+                            <div style="font-size:20px;font-weight:600;color:var(--success);" id="resultInserted">0</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">기존 수정</div>
+                            <div style="font-size:20px;font-weight:600;color:#3b82f6;" id="resultUpdated">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 실패 시 표시 -->
+            <div id="uploadErrorSection" style="display:none;">
+                <div style="margin-bottom:24px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                        <i class="fa-solid fa-circle-xmark" style="font-size:48px;color:var(--danger);"></i>
+                        <div>
+                            <h3 style="font-size:20px;margin-bottom:4px;">업로드 실패</h3>
+                            <p style="color:var(--text-muted);font-size:14px;">데이터 업로드 중 오류가 발생했습니다.</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="background:rgba(239,68,68,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                    <h4 style="font-size:15px;margin-bottom:12px;color:var(--danger);">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 오류 내용
+                    </h4>
+                    <p id="uploadErrorMessage" style="font-size:14px;color:var(--text-primary);word-break:break-all;"></p>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" data-modal-close>
+                <i class="fa-solid fa-check"></i> 확인
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 확인 모달 -->
+<div id="confirmModal" class="modal">
+    <div class="modal-content" style="max-width:400px;">
+        <div class="modal-header">
+            <h2 class="modal-title">확인</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="confirmMessage"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-danger" id="confirmOkButton">확인</button>
+        </div>
+    </div>
+</div>
+
+<!-- 알림 모달 -->
+<div id="alertModal" class="modal">
+    <div class="modal-content" style="max-width:350px;">
+        <div class="modal-header">
+            <h2 class="modal-title">알림</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body" style="text-align:center;">
+            <i id="alertIcon" class="fa-solid fa-circle-info" style="font-size:48px;color:var(--accent);margin-bottom:16px;"></i>
+            <p id="alertMessage"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" data-modal-close>확인</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/withdrawal_plan.js"></script>
+{% endblock %}

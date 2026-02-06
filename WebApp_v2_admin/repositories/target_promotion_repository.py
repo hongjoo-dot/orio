@@ -18,7 +18,7 @@ class TargetPromotionRepository(BaseRepository):
         "t.BrandID", "t.BrandName",
         "t.ChannelID", "t.ChannelName",
         "t.UniqueCode", "t.ProductName",
-        "t.TargetAmount", "t.TargetQuantity",
+        "t.TargetAmount", "t.TargetAmountExVAT", "t.TargetQuantity",
         "t.Notes", "t.PromotionType",
         "t.CreatedDate", "t.UpdatedDate"
     )
@@ -48,11 +48,12 @@ class TargetPromotionRepository(BaseRepository):
             "UniqueCode": row[11],
             "ProductName": row[12],
             "TargetAmount": float(row[13]) if row[13] else 0,
-            "TargetQuantity": int(row[14]) if row[14] else 0,
-            "Notes": row[15],
-            "PromotionType": row[16],
-            "CreatedDate": row[17].strftime('%Y-%m-%d %H:%M:%S') if row[17] else None,
-            "UpdatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None,
+            "TargetAmountExVAT": float(row[14]) if row[14] else 0,
+            "TargetQuantity": int(row[15]) if row[15] else 0,
+            "Notes": row[16],
+            "PromotionType": row[17],
+            "CreatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None,
+            "UpdatedDate": row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else None,
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -69,10 +70,10 @@ class TargetPromotionRepository(BaseRepository):
             year_month = filters['year_month']
             builder.where("FORMAT(t.StartDate, 'yyyy-MM') = ?", year_month)
 
-        if filters.get('brand_id'):
+        if 'brand_id' in filters:
             builder.where_equals("t.BrandID", filters['brand_id'])
 
-        if filters.get('channel_id'):
+        if 'channel_id' in filters:
             builder.where_equals("t.ChannelID", filters['channel_id'])
 
         if filters.get('promotion_type'):
@@ -150,6 +151,10 @@ class TargetPromotionRepository(BaseRepository):
                 for record in batch:
                     target_id = record.get('TargetPromotionID')
 
+                    # TargetAmountExVAT 자동 계산 (VAT 10% 제외)
+                    target_amount = record.get('TargetAmount') or 0
+                    target_amount_ex_vat = round(float(target_amount) / 1.1, 2) if target_amount else 0
+
                     if target_id:
                         # ID 기반 UPDATE (PromotionID는 변경 불가)
                         update_query = """
@@ -158,6 +163,7 @@ class TargetPromotionRepository(BaseRepository):
                                 StartTime = ?,
                                 EndTime = ?,
                                 TargetAmount = ?,
+                                TargetAmountExVAT = ?,
                                 TargetQuantity = ?,
                                 Notes = ?,
                                 UpdatedDate = GETDATE()
@@ -167,7 +173,8 @@ class TargetPromotionRepository(BaseRepository):
                             record.get('PromotionName'),
                             record.get('StartTime', '00:00:00'),
                             record.get('EndTime', '23:59:59'),
-                            record.get('TargetAmount'),
+                            target_amount,
+                            target_amount_ex_vat,
                             record.get('TargetQuantity'),
                             record.get('Notes'),
                             target_id
@@ -181,8 +188,8 @@ class TargetPromotionRepository(BaseRepository):
                             INSERT INTO [dbo].[TargetPromotionProduct]
                                 (PromotionID, PromotionName, StartDate, StartTime, EndDate, EndTime,
                                  BrandID, BrandName, ChannelID, ChannelName,
-                                 UniqueCode, ProductName, TargetAmount, TargetQuantity, Notes, PromotionType)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 UniqueCode, ProductName, TargetAmount, TargetAmountExVAT, TargetQuantity, Notes, PromotionType)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('PromotionID'),
@@ -197,7 +204,8 @@ class TargetPromotionRepository(BaseRepository):
                             record.get('ChannelName'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
-                            record.get('TargetAmount'),
+                            target_amount,
+                            target_amount_ex_vat,
                             record.get('TargetQuantity'),
                             record.get('Notes'),
                             record.get('PromotionType'),

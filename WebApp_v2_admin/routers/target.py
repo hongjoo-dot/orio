@@ -111,9 +111,9 @@ async def get_target_base_list(
         filters = {}
         if year_month:
             filters['year_month'] = year_month
-        if brand_id:
+        if brand_id is not None:
             filters['brand_id'] = brand_id
-        if channel_id:
+        if channel_id is not None:
             filters['channel_id'] = channel_id
 
         result = target_base_repo.get_list(
@@ -154,23 +154,23 @@ async def download_target_base(
         if ids:
             id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
             data = target_base_repo.get_by_ids(id_list)
-        elif year_month or brand_id or channel_id:
+        elif year_month or brand_id is not None or channel_id is not None:
             # 필터 조건이 있으면 해당 조건으로 조회
             filters = {}
             if year_month:
                 filters['year_month'] = year_month
-            if brand_id:
+            if brand_id is not None:
                 filters['brand_id'] = brand_id
-            if channel_id:
+            if channel_id is not None:
                 filters['channel_id'] = channel_id
 
             result = target_base_repo.get_list(page=1, limit=100000, filters=filters)
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID', '날짜', '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고']
+        export_columns = ['ID', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '고유코드', '목표금액(+VAT)', '목표수량', '비고']
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 상품코드
+        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 고유코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -183,11 +183,11 @@ async def download_target_base(
             # 컬럼 순서 및 이름 변경
             column_map = {
                 'TargetBaseID': 'ID',
-                'Date': '날짜',
+                'Date': '날짜(YYYY-MM-01)',
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
-                'UniqueCode': '상품코드',
-                'TargetAmount': '목표금액',
+                'UniqueCode': '고유코드',
+                'TargetAmount': '목표금액(+VAT)',
                 'TargetQuantity': '목표수량',
                 'Notes': '비고'
             }
@@ -203,27 +203,27 @@ async def download_target_base(
             ['', ''],
             ['■ 업로드 방식', ''],
             ['ID가 있는 행', 'ID 기준으로 해당 데이터를 수정합니다.'],
-            ['ID가 없는 행', '날짜+채널+상품코드 기준으로 신규 등록 또는 수정합니다.'],
+            ['ID가 없는 행', '날짜+채널+고유코드 기준으로 신규 등록 또는 수정합니다.'],
             ['', ''],
             ['■ 컬럼 설명', ''],
             ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
-            ['날짜', '목표 날짜 (YYYY-MM-DD 형식)'],
+            ['날짜(YYYY-MM-01)', '목표 날짜 (YYYY-MM-01 형식, 월 단위)'],
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
-            ['상품코드', 'Product 테이블에 등록된 상품코드 (UniqueCode)'],
-            ['목표금액', '숫자 (예: 1000000)'],
+            ['고유코드', 'Product 테이블에 등록된 고유코드 (UniqueCode, 드롭다운 선택)'],
+            ['목표금액(+VAT)', 'VAT 포함 금액 (예: 1000000)'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '목표금액, 목표수량, 비고'],
-            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 상품코드'],
+            ['수정 가능', '목표금액(+VAT), 목표수량, 비고'],
+            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 고유코드'],
             ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 주의사항', ''],
             ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
-            ['2. 동일한 날짜+채널+상품코드 조합이 있으면 기존 데이터가 수정됩니다.', ''],
-            ['3. 브랜드명, 채널명, 상품코드는 반드시 DB에 등록된 값이어야 합니다.', ''],
+            ['2. 동일한 날짜+채널+고유코드 조합이 있으면 기존 데이터가 수정됩니다.', ''],
+            ['3. 브랜드명, 채널명, 고유코드는 반드시 DB에 등록된 값이어야 합니다.', ''],
             ['4. 검정색/빨간색 배경 컬럼은 수정해도 반영되지 않습니다.', ''],
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
@@ -233,6 +233,11 @@ async def download_target_base(
         brands = brand_repo.get_all_brands()
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
+
+        # 고유코드 드롭다운용 목록 조회 (Status = 'YES'인 제품만)
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("SELECT UniqueCode FROM Product WHERE Status = 'YES' ORDER BY UniqueCode")
+            unique_codes = [row[0] for row in cursor.fetchall()]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -254,6 +259,10 @@ async def download_target_base(
             for i, name in enumerate(brand_names):
                 list_sheet.write(i, 1, name)
 
+            # 고유코드 목록 작성 (C열)
+            for i, code in enumerate(unique_codes):
+                list_sheet.write(i, 2, code)
+
             # 드롭다운 적용 범위 (2행~1000행)
             max_row = max(len(df) + 100, 1000)  # 데이터 + 여유분
 
@@ -272,6 +281,15 @@ async def download_target_base(
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
+                    'error_message': '목록에서 선택해주세요'
+                })
+
+            # 고유코드 드롭다운 (E열, 인덱스 4)
+            if unique_codes:
+                worksheet.data_validation(1, 4, max_row, 4, {
+                    'validate': 'list',
+                    'source': f'=목록!$C$1:$C${len(unique_codes)}',
+                    'input_message': '고유코드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
@@ -515,11 +533,11 @@ async def upload_target_base(
         # 컬럼 매핑 (엑셀 컬럼명 → 내부 컬럼명)
         column_map = {
             'ID': 'TargetBaseID',
-            '날짜': 'Date',
+            '날짜(YYYY-MM-01)': 'Date',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
-            '상품코드': 'UniqueCode',
-            '목표금액': 'TargetAmount',
+            '고유코드': 'UniqueCode',
+            '목표금액(+VAT)': 'TargetAmount',
             '목표수량': 'TargetQuantity',
             '비고': 'Notes'
         }
@@ -772,9 +790,9 @@ async def get_target_promotion_list(
         filters = {}
         if year_month:
             filters['year_month'] = year_month
-        if brand_id:
+        if brand_id is not None:
             filters['brand_id'] = brand_id
-        if channel_id:
+        if channel_id is not None:
             filters['channel_id'] = channel_id
         if promotion_type:
             filters['promotion_type'] = promotion_type
@@ -828,14 +846,14 @@ async def download_target_promotion(
         if ids:
             id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
             data = target_promotion_repo.get_by_ids(id_list)
-        elif year_month or brand_id or channel_id or promotion_type:
+        elif year_month or brand_id is not None or channel_id is not None or promotion_type:
             # 필터 조건이 있으면 해당 조건으로 조회
             filters = {}
             if year_month:
                 filters['year_month'] = year_month
-            if brand_id:
+            if brand_id is not None:
                 filters['brand_id'] = brand_id
-            if channel_id:
+            if channel_id is not None:
                 filters['channel_id'] = channel_id
             if promotion_type:
                 filters['promotion_type'] = promotion_type
@@ -845,11 +863,11 @@ async def download_target_promotion(
 
         # 컬럼 정의
         export_columns = [
-            'ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
-            '브랜드명', '채널명', '상품코드', '목표금액', '목표수량', '비고'
+            'ID', '행사명', '행사유형', '시작일(YYYY-MM-DD)', '시작시간(HH:MM:SS)', '종료일(YYYY-MM-DD)', '종료시간(HH:MM:SS)',
+            '브랜드명', '채널명', '고유코드', '목표금액(+VAT)', '목표수량', '비고'
         ]
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [2, 3, 5, 7, 8, 9]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 상품코드
+        readonly_columns = [2, 3, 5, 7, 8, 9]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 고유코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -862,14 +880,14 @@ async def download_target_promotion(
                 'TargetPromotionID': 'ID',
                 'PromotionName': '행사명',
                 'PromotionType': '행사유형',
-                'StartDate': '시작일',
-                'StartTime': '시작시간',
-                'EndDate': '종료일',
-                'EndTime': '종료시간',
+                'StartDate': '시작일(YYYY-MM-DD)',
+                'StartTime': '시작시간(HH:MM:SS)',
+                'EndDate': '종료일(YYYY-MM-DD)',
+                'EndTime': '종료시간(HH:MM:SS)',
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
-                'UniqueCode': '상품코드',
-                'TargetAmount': '목표금액',
+                'UniqueCode': '고유코드',
+                'TargetAmount': '목표금액(+VAT)',
                 'TargetQuantity': '목표수량',
                 'Notes': '비고'
             }
@@ -895,20 +913,20 @@ async def download_target_promotion(
             ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
             ['행사명', '행사 이름'],
             ['행사유형', '아래 행사유형 목록 참조 (행사ID 생성에 필요)'],
-            ['시작일', '행사 시작 날짜 (YYYY-MM-DD 형식)'],
-            ['시작시간', 'HH:MM:SS 형식 (예: 09:00:00, 기본값: 00:00:00)'],
-            ['종료일', '행사 종료 날짜 (YYYY-MM-DD 형식)'],
-            ['종료시간', 'HH:MM:SS 형식 (예: 23:59:59, 기본값: 00:00:00)'],
+            ['시작일(YYYY-MM-DD)', '행사 시작 날짜 (YYYY-MM-DD 형식)'],
+            ['시작시간(HH:MM:SS)', 'HH:MM:SS 형식 (예: 09:00:00, 기본값: 00:00:00)'],
+            ['종료일(YYYY-MM-DD)', '행사 종료 날짜 (YYYY-MM-DD 형식)'],
+            ['종료시간(HH:MM:SS)', 'HH:MM:SS 형식 (예: 23:59:59, 기본값: 00:00:00)'],
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명 (행사ID 생성에 필요)'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
-            ['상품코드', 'Product 테이블에 등록된 상품코드 (UniqueCode)'],
-            ['목표금액', '숫자 (예: 1000000)'],
+            ['고유코드', 'Product 테이블에 등록된 고유코드 (UniqueCode, 드롭다운 선택)'],
+            ['목표금액(+VAT)', 'VAT 포함 금액 (예: 1000000)'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '행사명, 시작시간, 종료시간, 목표금액, 목표수량, 비고'],
-            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 상품코드'],
+            ['수정 가능', '행사명, 시작시간, 종료시간, 목표금액(+VAT), 목표수량, 비고'],
+            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 고유코드'],
             ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 행사유형 목록', ''],
@@ -924,7 +942,7 @@ async def download_target_promotion(
             ['■ 주의사항', ''],
             ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
             ['2. 행사ID는 자동 생성되며, 같은 조건(브랜드+행사유형+YYMM)에서 순번이 증가합니다.', ''],
-            ['3. 브랜드명, 채널명, 상품코드, 행사유형은 반드시 DB에 등록된 값이어야 합니다.', ''],
+            ['3. 브랜드명, 채널명, 고유코드, 행사유형은 반드시 DB에 등록된 값이어야 합니다.', ''],
             ['4. 검정색/빨간색 배경 컬럼은 수정해도 반영되지 않습니다.', ''],
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
@@ -935,6 +953,11 @@ async def download_target_promotion(
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
         promotion_types = ['에누리', '쿠폰', '판매가+쿠폰', '판매가할인', '정산후보정', '기획상품', '원매가할인', '공동구매']
+
+        # 고유코드 드롭다운용 목록 조회 (Status = 'YES'인 제품만)
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("SELECT UniqueCode FROM Product WHERE Status = 'YES' ORDER BY UniqueCode")
+            unique_codes = [row[0] for row in cursor.fetchall()]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -959,6 +982,10 @@ async def download_target_promotion(
             # 행사유형 목록 작성 (C열)
             for i, name in enumerate(promotion_types):
                 list_sheet.write(i, 2, name)
+
+            # 고유코드 목록 작성 (D열)
+            for i, code in enumerate(unique_codes):
+                list_sheet.write(i, 3, code)
 
             # 드롭다운 적용 범위 (2행~1000행)
             max_row = max(len(df) + 100, 1000)  # 데이터 + 여유분
@@ -988,6 +1015,15 @@ async def download_target_promotion(
                 'input_message': '행사유형을 선택하세요',
                 'error_message': '목록에서 선택해주세요'
             })
+
+            # 고유코드 드롭다운 (J열, 인덱스 9)
+            if unique_codes:
+                worksheet.data_validation(1, 9, max_row, 9, {
+                    'validate': 'list',
+                    'source': f'=목록!$D$1:$D${len(unique_codes)}',
+                    'input_message': '고유코드를 선택하세요',
+                    'error_message': '목록에서 선택해주세요'
+                })
 
             # ID 컬럼 헤더 서식 (빨간색 배경 + 흰 글자)
             id_header_format = workbook.add_format({
@@ -1231,14 +1267,14 @@ async def upload_target_promotion(
             '행사ID': 'PromotionID',
             '행사명': 'PromotionName',
             '행사유형': 'PromotionType',
-            '시작일': 'StartDate',
-            '시작시간': 'StartTime',
-            '종료일': 'EndDate',
-            '종료시간': 'EndTime',
+            '시작일(YYYY-MM-DD)': 'StartDate',
+            '시작시간(HH:MM:SS)': 'StartTime',
+            '종료일(YYYY-MM-DD)': 'EndDate',
+            '종료시간(HH:MM:SS)': 'EndTime',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
-            '상품코드': 'UniqueCode',
-            '목표금액': 'TargetAmount',
+            '고유코드': 'UniqueCode',
+            '목표금액(+VAT)': 'TargetAmount',
             '목표수량': 'TargetQuantity',
             '비고': 'Notes'
         }
