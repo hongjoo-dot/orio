@@ -20,7 +20,7 @@
 
     <p style="color:var(--text-muted);margin-bottom:20px;line-height:1.6;">
         피벗 테이블(크로스탭) 형태의 엑셀 데이터를 DB 업로드용 테이블 형태로 변환합니다.<br>
-        왼쪽의 고정 칼럼(브랜드, 채널 등)과 오른쪽의 피벗 칼럼(월별 데이터 등)을 구분하여 변환합니다.
+        헤더 행 수(위쪽 피벗)와 고정 칼럼 수(왼쪽 피벗)를 지정하여 변환합니다.
     </p>
 
     <!-- Step 1: 파일 업로드 -->
@@ -42,25 +42,51 @@
         </div>
     </div>
 
-    <!-- Step 2: 헤더 확인 & 고정 칼럼 지정 -->
+    <!-- Step 2: 헤더 행 수 & 고정 칼럼 수 지정 -->
     <div class="unpivot-step" id="step2" style="display:none;">
         <h3 class="step-title">
-            <span class="step-badge">2</span> 고정 칼럼 수 지정
+            <span class="step-badge">2</span> 피벗 설정
         </h3>
-        <p style="color:var(--text-muted);margin-bottom:12px;">
-            칼럼 헤더를 클릭하여 고정/피벗 경계를 지정하세요. 클릭한 칼럼까지가 고정 칼럼이 됩니다.
-        </p>
-        <div id="headerChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-            <label class="form-label" style="margin:0;white-space:nowrap;">고정 칼럼 수:</label>
-            <input type="number" id="fixedCount" class="form-input" style="width:80px;" min="1" value="1">
-            <button class="btn btn-primary btn-sm" onclick="requestPreview()">
-                <i class="fa-solid fa-eye"></i> 미리보기
-            </button>
+
+        <div class="setting-group">
+            <div class="setting-row">
+                <div class="setting-item">
+                    <label class="form-label">헤더 행 수 (위쪽 피벗)</label>
+                    <div class="setting-input-group">
+                        <input type="number" id="headerRows" class="form-input" style="width:80px;" min="1" value="1">
+                        <span class="setting-hint">멀티 레벨 헤더인 경우 2 이상</span>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label class="form-label">고정 칼럼 수 (왼쪽 피벗)</label>
+                    <div class="setting-input-group">
+                        <input type="number" id="fixedCount" class="form-input" style="width:80px;" min="1" value="1">
+                        <span class="setting-hint">브랜드, 채널 등 고정 항목 개수</span>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label class="form-label">병합 셀 처리</label>
+                    <div class="setting-input-group">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="fillMerged">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="setting-hint">병합된 빈 셀을 앞 값으로 채움</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="requestPreview()">
+                    <i class="fa-solid fa-eye"></i> 미리보기
+                </button>
+            </div>
         </div>
 
+        <p style="color:var(--text-muted);margin:16px 0 12px 0;font-size:13px;">
+            칼럼 헤더를 클릭하여 고정/피벗 경계를 지정할 수 있습니다.
+        </p>
+        <div id="headerChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
+
         <!-- 원본 미리보기 -->
-        <div id="originalPreview" style="display:none;margin-bottom:20px;">
+        <div id="originalPreview" style="display:none;margin-top:20px;">
             <h4 style="margin-bottom:8px;color:var(--text-muted);">
                 <i class="fa-solid fa-file-excel"></i> 원본 데이터 (처음 5행)
             </h4>
@@ -142,6 +168,33 @@
         background: rgba(99, 102, 241, 0.05);
     }
 
+    /* 설정 그룹 */
+    .setting-group {
+        background: rgba(148, 163, 184, 0.05);
+        border-radius: var(--radius-md);
+        padding: 16px 20px;
+    }
+    .setting-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 24px;
+        flex-wrap: wrap;
+    }
+    .setting-item {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .setting-input-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .setting-hint {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
     /* 헤더 칩 */
     .header-chip {
         padding: 8px 16px;
@@ -174,6 +227,47 @@
     }
     .data-table th.col-pivot {
         background: rgba(148, 163, 184, 0.1) !important;
+    }
+
+    /* 토글 스위치 */
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+    }
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--border);
+        transition: 0.2s;
+        border-radius: 24px;
+    }
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.2s;
+        border-radius: 50%;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+        background-color: var(--accent);
+    }
+    .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(20px);
     }
 </style>
 {% endblock %}

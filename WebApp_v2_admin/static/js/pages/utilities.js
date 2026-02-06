@@ -11,6 +11,7 @@ let currentHeaders = [];
 // ========================
 document.addEventListener('DOMContentLoaded', () => {
     initUploadZone();
+    initInputListeners();
 });
 
 // ========================
@@ -44,6 +45,33 @@ function initUploadZone() {
     });
 }
 
+function initInputListeners() {
+    // fixedCount 입력 변경 시 칩 업데이트
+    document.getElementById('fixedCount').addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        if (val >= 1 && val < currentHeaders.length) {
+            renderHeaderChips(val);
+        }
+    });
+
+    // headerRows 변경 시 미리보기 초기화
+    document.getElementById('headerRows').addEventListener('change', () => {
+        resetPreview();
+    });
+
+    // fillMerged 변경 시 미리보기 초기화
+    document.getElementById('fillMerged').addEventListener('change', () => {
+        resetPreview();
+    });
+}
+
+function resetPreview() {
+    document.getElementById('headerChips').innerHTML = '';
+    document.getElementById('originalPreview').style.display = 'none';
+    document.getElementById('step3').style.display = 'none';
+    currentHeaders = [];
+}
+
 function handleFile(file) {
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
         showAlert('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다', 'error');
@@ -56,7 +84,10 @@ function handleFile(file) {
     document.getElementById('fileInfo').style.display = 'block';
     document.getElementById('fileName').textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
 
-    // 헤더 미리 읽기 (고정칼럼 1로 미리보기 요청)
+    // Step 2 표시
+    document.getElementById('step2').style.display = 'block';
+
+    // 헤더 미리 읽기
     loadHeaders();
 }
 
@@ -67,6 +98,9 @@ function resetUpload() {
     document.getElementById('fileInfo').style.display = 'none';
     document.getElementById('step2').style.display = 'none';
     document.getElementById('step3').style.display = 'none';
+    document.getElementById('headerRows').value = '1';
+    document.getElementById('fixedCount').value = '1';
+    document.getElementById('fillMerged').checked = false;
 }
 
 // ========================
@@ -75,9 +109,15 @@ function resetUpload() {
 async function loadHeaders() {
     if (!uploadedFile) return;
 
+    const headerRows = parseInt(document.getElementById('headerRows').value) || 1;
+    const fixedCount = parseInt(document.getElementById('fixedCount').value) || 1;
+    const fillMerged = document.getElementById('fillMerged').checked;
+
     const formData = new FormData();
     formData.append('file', uploadedFile);
-    formData.append('fixed_count', '1');
+    formData.append('fixed_count', fixedCount.toString());
+    formData.append('header_rows', headerRows.toString());
+    formData.append('fill_merged', fillMerged.toString());
 
     try {
         const token = localStorage.getItem('access_token');
@@ -95,11 +135,10 @@ async function loadHeaders() {
         const data = await res.json();
         currentHeaders = data.original.headers;
 
-        // Step 2 표시
-        document.getElementById('step2').style.display = 'block';
+        // 고정칼럼 max 설정
         document.getElementById('fixedCount').max = currentHeaders.length - 1;
 
-        renderHeaderChips(1);
+        renderHeaderChips(fixedCount);
     } catch (e) {
         showAlert(e.message, 'error');
     }
@@ -108,6 +147,8 @@ async function loadHeaders() {
 function renderHeaderChips(fixedCount) {
     const container = document.getElementById('headerChips');
     container.innerHTML = '';
+
+    if (currentHeaders.length === 0) return;
 
     currentHeaders.forEach((header, index) => {
         const chip = document.createElement('span');
@@ -129,16 +170,6 @@ function renderHeaderChips(fixedCount) {
     });
 }
 
-// fixedCount 입력 변경 시 칩 업데이트
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('fixedCount').addEventListener('input', (e) => {
-        const val = parseInt(e.target.value);
-        if (val >= 1 && val < currentHeaders.length) {
-            renderHeaderChips(val);
-        }
-    });
-});
-
 // ========================
 // 미리보기
 // ========================
@@ -148,7 +179,14 @@ async function requestPreview() {
         return;
     }
 
+    const headerRows = parseInt(document.getElementById('headerRows').value);
     const fixedCount = parseInt(document.getElementById('fixedCount').value);
+    const fillMerged = document.getElementById('fillMerged').checked;
+
+    if (isNaN(headerRows) || headerRows < 1) {
+        showAlert('헤더 행 수를 1 이상으로 지정해주세요', 'warning');
+        return;
+    }
     if (isNaN(fixedCount) || fixedCount < 1) {
         showAlert('고정 칼럼 수를 1 이상으로 지정해주세요', 'warning');
         return;
@@ -157,6 +195,8 @@ async function requestPreview() {
     const formData = new FormData();
     formData.append('file', uploadedFile);
     formData.append('fixed_count', fixedCount.toString());
+    formData.append('header_rows', headerRows.toString());
+    formData.append('fill_merged', fillMerged.toString());
 
     try {
         const token = localStorage.getItem('access_token');
@@ -172,6 +212,10 @@ async function requestPreview() {
         }
 
         const data = await res.json();
+
+        // 헤더 업데이트
+        currentHeaders = data.original.headers;
+        document.getElementById('fixedCount').max = currentHeaders.length - 1;
 
         // 원본 미리보기
         renderPreviewTable('originalTable', data.original.headers, data.original.preview, fixedCount);
@@ -243,11 +287,15 @@ async function downloadResult() {
         return;
     }
 
+    const headerRows = parseInt(document.getElementById('headerRows').value);
     const fixedCount = parseInt(document.getElementById('fixedCount').value);
+    const fillMerged = document.getElementById('fillMerged').checked;
 
     const formData = new FormData();
     formData.append('file', uploadedFile);
     formData.append('fixed_count', fixedCount.toString());
+    formData.append('header_rows', headerRows.toString());
+    formData.append('fill_merged', fillMerged.toString());
 
     try {
         const token = localStorage.getItem('access_token');
