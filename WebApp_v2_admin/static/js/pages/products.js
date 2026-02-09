@@ -1,9 +1,10 @@
 let masterTableManager, detailTableManager, paginationManager;
-let integratedAddModal, addBoxModal, bulkEditProductModal, bulkEditBoxModal;
+let integratedAddModal, addBoxModal, bulkEditProductModal, bulkEditBoxModal, bomAfterCreateModal;
 let currentFilters = {};
 let currentProductId = null;
 let currentSortBy = null;
 let currentSortDir = null;
+let bomChildRowCounter = 0;
 
 // 마스터 테이블 컬럼
 const masterColumns = [
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     addBoxModal = new ModalManager('addBoxModal');
     bulkEditProductModal = new ModalManager('bulkEditProductModal');
     bulkEditBoxModal = new ModalManager('bulkEditBoxModal');
+    bomAfterCreateModal = new ModalManager('bomAfterCreateModal');
 
     // 테이블 매니저 초기화
     masterTableManager = new TableManager('master-table', {
@@ -389,11 +391,18 @@ async function saveIntegrated() {
         QuantityInBox: parseInt(document.getElementById('intQuantityInBox').value) || 1
     };
 
+    const bundleType = document.getElementById('intBundleType').value;
+
     try {
         await api.post('/api/products/integrated', { product: productData, box: boxData });
-        showAlert('제품과 박스가 추가되었습니다.', 'success');
         closeIntegratedAddModal();
-        loadProducts(1, paginationManager.getLimit());
+
+        if (bundleType === 'SET') {
+            await showBOMAfterCreateModal(erpCode);
+        } else {
+            showAlert('제품과 박스가 추가되었습니다.', 'success');
+            loadProducts(1, paginationManager.getLimit());
+        }
     } catch (e) {
         showAlert('저장 실패: ' + e.message, 'error');
     }
@@ -587,4 +596,114 @@ function downloadExcel() {
     const downloadUrl = `/api/products/download/excel${queryString}`;
     window.location.href = downloadUrl;
     showAlert('엑셀 파일 다운로드를 시작합니다.', 'success');
+}
+
+// ========== BOM 연계 함수들 (SET 상품 등록 후) ==========
+
+async function showBOMAfterCreateModal(parentERPCode) {
+    document.getElementById('bomParentERPCode').value = parentERPCode;
+    document.getElementById('bomChildRowsContainer').innerHTML = '';
+    bomChildRowCounter = 0;
+
+    // 구성품 품목코드 자동완성 로드
+    try {
+        const res = await api.get('/api/bom/metadata');
+        const items = res.child_erp_codes || [];
+        document.getElementById('bomChildERPList').innerHTML = items.map(v => `<option value="${v}">`).join('');
+    } catch (e) {
+        console.error('BOM 메타데이터 로드 실패:', e);
+    }
+
+    addBOMChildRow();
+    bomAfterCreateModal.show();
+}
+
+function addBOMChildRow() {
+    const container = document.getElementById('bomChildRowsContainer');
+    const rowId = `bomChildRow_${bomChildRowCounter++}`;
+
+    const rowDiv = document.createElement('div');
+    rowDiv.id = rowId;
+    rowDiv.className = 'form-group';
+    rowDiv.style.cssText = 'display:grid;grid-template-columns:1fr 120px 40px;gap:12px;align-items:end;padding:12px;background:rgba(0,0,0,0.02);border-radius:8px;margin-bottom:12px;';
+
+    rowDiv.innerHTML = `
+        <div>
+            <label class="form-label required">구성품 품목코드</label>
+            <input type="text" class="form-input bom-child-erp" list="bomChildERPList" placeholder="예: PART-001" required>
+        </div>
+        <div>
+            <label class="form-label">소요수량</label>
+            <input type="number" class="form-input bom-child-quantity" value="1" step="0.01" min="0.01">
+        </div>
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeBOMChildRow('${rowId}')" style="height:38px;">
+            <i class="fa-solid fa-trash"></i>
+        </button>
+    `;
+
+    container.appendChild(rowDiv);
+}
+
+window.addBOMChildRow = addBOMChildRow;
+window.removeBOMChildRow = function (rowId) {
+    const row = document.getElementById(rowId);
+    if (row) row.remove();
+    const container = document.getElementById('bomChildRowsContainer');
+    if (container.children.length === 0) addBOMChildRow();
+};
+
+async function saveBOMAfterCreate() {
+    const parentERP = document.getElementById('bomParentERPCode').value.trim();
+    const childERPs = document.querySelectorAll('.bom-child-erp');
+    const childQuantities = document.querySelectorAll('.bom-child-quantity');
+    const children = [];
+
+    for (let i = 0; i < childERPs.length; i++) {
+        const childERP = childERPs[i].value.trim();
+        const quantity = parseFloat(childQuantities[i].value) || 1;
+
+        if (!childERP) {
+            showAlert(`${i + 1}번째 구성품의 품목코드를 입력하세요.`, 'error');
+            return;
+        }
+
+        children.push({
+            ParentERPCode: parentERP,
+            ChildERPCode: childERP,
+            QuantityRequired: quantity
+        });
+    }
+
+    if (children.length === 0) {
+        showAlert('최소 1개 이상의 구성품이 필요합니다.', 'error');
+        return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (const child of children) {
+        try {
+            await api.post('/api/bom', child);
+            successCount++;
+        } catch (e) {
+            failCount++;
+            errors.push(`${child.ChildERPCode}: ${e.message}`);
+        }
+    }
+
+    if (successCount > 0) {
+        showAlert(`BOM이 추가되었습니다. (성공: ${successCount}개, 실패: ${failCount}개)`, failCount > 0 ? 'warning' : 'success');
+    } else {
+        showAlert(`BOM 추가 실패:\n${errors.join('\n')}`, 'error');
+    }
+
+    bomAfterCreateModal.hide();
+    loadProducts(1, paginationManager.getLimit());
+}
+
+function skipBOMAfterCreate() {
+    bomAfterCreateModal.hide();
+    loadProducts(1, paginationManager.getLimit());
 }
