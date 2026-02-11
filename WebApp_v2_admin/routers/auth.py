@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Response, Request
 from pydantic import BaseModel, EmailStr
 
 from core.security import verify_password, create_access_token, hash_password
-from core.dependencies import get_current_user, CurrentUser
+from core.dependencies import get_current_user, CurrentUser, get_client_ip
 from repositories.user_repository import user_repo
 from repositories.activity_log_repository import activity_log_repo, ActivityLogRepository
 
@@ -40,18 +40,6 @@ class UserInfo(BaseModel):
     email: str
     name: str
     role: str
-
-
-# ========================
-# Helper Functions
-# ========================
-
-def get_client_ip(request: Request) -> str:
-    """클라이언트 IP 주소 추출"""
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
 
 
 # ========================

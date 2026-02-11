@@ -67,3 +67,39 @@ function showConfirm(message, onConfirm) {
         onConfirm();
     }
 }
+
+/**
+ * HTML 특수문자 이스케이프
+ * @param {string} str - 이스케이프할 문자열
+ * @returns {string} 이스케이프된 문자열
+ */
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * 배열 정렬 (오름차순/내림차순)
+ * @param {Array} arr - 정렬할 배열
+ * @param {string} sortKey - 정렬 기준 키
+ * @param {string} sortDir - 정렬 방향 ('ASC' | 'DESC')
+ */
+function sortArray(arr, sortKey, sortDir) {
+    arr.sort((a, b) => {
+        let valA = a[sortKey];
+        let valB = b[sortKey];
+
+        if (valA == null) valA = '';
+        if (valB == null) valB = '';
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return sortDir === 'ASC' ? valA - valB : valB - valA;
+        }
+
+        const strA = String(valA).toLowerCase();
+        const strB = String(valB).toLowerCase();
+        if (strA < strB) return sortDir === 'ASC' ? -1 : 1;
+        if (strA > strB) return sortDir === 'ASC' ? 1 : -1;
+        return 0;
+    });
+}

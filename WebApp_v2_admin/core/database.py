@@ -5,6 +5,7 @@
 """
 
 import os
+import time
 import pyodbc
 from contextlib import contextmanager
 from dotenv import load_dotenv
@@ -38,14 +39,35 @@ def get_connection_string() -> str:
     )
 
 
-def get_db_connection():
+def get_db_connection(max_retries: int = 3, retry_delay: float = 2.0):
     """
-    기본 DB 연결 반환 (하위 호환성)
+    DB 연결 반환 (Azure Serverless 자동 일시 중지 대응 재시도 포함)
+
+    Args:
+        max_retries: 최대 재시도 횟수
+        retry_delay: 재시도 간 대기 시간(초), 매 재시도마다 2배 증가
 
     Returns:
         pyodbc.Connection: 데이터베이스 연결 객체
     """
-    return pyodbc.connect(get_connection_string(), timeout=600)  # 대용량 처리를 위해 타임아웃 600초(10분)로 증가
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            return pyodbc.connect(get_connection_string(), timeout=600)
+        except pyodbc.Error as e:
+            last_error = e
+            error_code = e.args[0] if e.args else ''
+            # 40613: DB not available (auto-pause resume 중)
+            # 40197: 서비스 오류
+            # 40501: 서비스 사용 중
+            if error_code in ('HY000',) or '40613' in str(e) or '40197' in str(e) or '40501' in str(e):
+                if attempt < max_retries - 1:
+                    wait = retry_delay * (2 ** attempt)
+                    print(f"[DB] 연결 재시도 ({attempt + 1}/{max_retries}), {wait}초 후 재시도...")
+                    time.sleep(wait)
+                    continue
+            raise
+    raise last_error
 
 
 @contextmanager

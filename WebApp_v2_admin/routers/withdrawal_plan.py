@@ -7,7 +7,7 @@ WithdrawalPlan (불출 계획) Router
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List, Any
+from typing import Optional, List
 import pandas as pd
 import io
 from datetime import datetime
@@ -355,7 +355,7 @@ async def download_withdrawal_plans(
 async def upload_withdrawal_plans(
     file: UploadFile = File(...),
     request: Request = None,
-    user: CurrentUser = Depends(require_permission("WithdrawalPlan", "IMPORT"))
+    user: CurrentUser = Depends(require_permission("WithdrawalPlan", "UPLOAD"))
 ):
     """불출 계획 엑셀 업로드"""
     try:

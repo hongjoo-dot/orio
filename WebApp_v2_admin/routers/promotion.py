@@ -7,7 +7,7 @@ Promotion (행사 관리) Router
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List, Any
+from typing import Optional, List
 import pandas as pd
 import io
 from datetime import datetime
