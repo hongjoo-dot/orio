@@ -420,13 +420,18 @@ function changeLimit() {
  */
 function updateActionButtons(selectedIds) {
     const deleteBtn = document.getElementById('deleteButton');
+    const editDownloadBtn = document.getElementById('editDownloadButton');
 
     if (selectedIds.length > 0) {
         deleteBtn.classList.remove('btn-disabled');
         deleteBtn.disabled = false;
+        editDownloadBtn.classList.remove('btn-disabled');
+        editDownloadBtn.disabled = false;
     } else {
         deleteBtn.classList.add('btn-disabled');
         deleteBtn.disabled = true;
+        editDownloadBtn.classList.add('btn-disabled');
+        editDownloadBtn.disabled = true;
     }
 }
 
@@ -561,20 +566,26 @@ async function bulkDeleteDetail() {
 }
 
 /**
- * 엑셀 양식 다운로드
+ * 엑셀 양식 다운로드 (빈 양식 - 신규 등록용)
  */
-function downloadExcel() {
-    const endpoint = '/api/promotions/download';
+function downloadTemplate() {
+    window.location.href = '/api/promotions/download';
+}
 
+/**
+ * 수정 양식 다운로드 (선택된 데이터 포함)
+ */
+function downloadEditForm() {
     const selectedIds = masterTableManager.getSelectedRows();
-    const params = { ...currentFilters };
 
-    if (selectedIds.length > 0) {
-        params.ids = selectedIds.join(',');
+    if (selectedIds.length === 0) {
+        showAlertModal('수정할 항목을 선택해주세요.', 'warning');
+        return;
     }
 
+    const params = { ids: selectedIds.join(',') };
     const queryString = api.buildQueryString(params);
-    window.location.href = `${endpoint}${queryString}`;
+    window.location.href = `/api/promotions/download${queryString}`;
 }
 
 /**

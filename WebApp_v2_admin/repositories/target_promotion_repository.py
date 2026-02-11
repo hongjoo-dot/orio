@@ -5,6 +5,7 @@ TargetPromotionProduct Repository
 
 from typing import Dict, Any, Optional, List
 from core import BaseRepository, QueryBuilder, get_db_cursor
+from utils.helpers import calculate_amount_ex_vat
 
 
 class TargetPromotionRepository(BaseRepository):
@@ -154,7 +155,7 @@ class TargetPromotionRepository(BaseRepository):
 
                     # TargetAmountExVAT 자동 계산 (VAT 10% 제외)
                     target_amount = record.get('TargetAmount') or 0
-                    target_amount_ex_vat = round(float(target_amount) / 1.1, 2) if target_amount else 0
+                    target_amount_ex_vat = calculate_amount_ex_vat(target_amount)
 
                     if target_id:
                         # ID 기반 UPDATE (PromotionID는 변경 불가)

@@ -16,6 +16,7 @@ from repositories import SalesRepository, ActivityLogRepository
 from core import get_db_cursor
 from core.dependencies import get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete, require_permission
+from core.models import BulkDeleteRequest
 from utils import send_sync_notification, send_erpsales_upload_notification
 from utils.excel import SalesExcelHandler
 
@@ -69,10 +70,6 @@ class SalesUpdate(BaseModel):
     WarehouseID: Optional[int] = None
     WarehouseName: Optional[str] = None
     TransactionType: Optional[str] = None
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: List[int]
 
 
 class BulkUpdateRequest(BaseModel):

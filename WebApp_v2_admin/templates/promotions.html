@@ -78,8 +78,11 @@
                 <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton" disabled>
                     <i class="fa-solid fa-trash"></i> 선택 삭제
                 </button>
-                <button class="btn btn-success btn-sm" onclick="downloadExcel()">
+                <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
                     <i class="fa-solid fa-file-excel"></i> 엑셀 양식
+                </button>
+                <button class="btn btn-sm btn-disabled" onclick="downloadEditForm()" id="editDownloadButton" disabled style="background:#3b82f6;color:white;">
+                    <i class="fa-solid fa-pen-to-square"></i> 수정 양식
                 </button>
                 <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
                     <i class="fa-solid fa-upload"></i> 엑셀 업로드

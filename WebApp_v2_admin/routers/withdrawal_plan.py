@@ -16,6 +16,7 @@ from repositories import ProductRepository, ActivityLogRepository
 from core import get_db_cursor
 from core.dependencies import get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete, require_permission
+from core.models import BulkDeleteAnyRequest as BulkDeleteRequest
 
 
 # ========== Repository 인스턴스 ==========
@@ -42,10 +43,6 @@ class WithdrawalPlanUpdate(BaseModel):
     UniqueCode: Optional[str] = None
     PlannedQty: Optional[int] = None
     Notes: Optional[str] = None
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: List[Any]
 
 
 class GroupDeleteRequest(BaseModel):

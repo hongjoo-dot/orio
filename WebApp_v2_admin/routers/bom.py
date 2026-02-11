@@ -12,6 +12,7 @@ from typing import Optional, List
 from repositories import BOMRepository
 from core.dependencies import get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete, require_permission
+from core.models import BulkDeleteRequest
 
 router = APIRouter(prefix="/api/bom", tags=["BOM"])
 
@@ -37,10 +38,6 @@ class BOMUpdate(BaseModel):
     ParentProductBoxID: Optional[int] = None
     ChildProductBoxID: Optional[int] = None
     QuantityRequired: Optional[float] = None
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: List[int]
 
 
 # ========== BOM 조회 엔드포인트 ==========

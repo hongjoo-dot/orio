@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
 from pydantic import BaseModel, EmailStr
 
 from core.security import hash_password
-from core.dependencies import get_current_user, require_admin, CurrentUser
+from core.dependencies import get_current_user, require_admin, CurrentUser, get_client_ip
 from core import log_activity, log_delete
 from repositories.user_repository import user_repo, role_repo
 from repositories.activity_log_repository import activity_log_repo, ActivityLogRepository
@@ -56,18 +56,6 @@ class UserPermissionUpdate(BaseModel):
     """사용자 개별 권한 업데이트"""
     grants: List[int] = []   # 추가 권한 ID 목록
     denies: List[int] = []   # 제외 권한 ID 목록
-
-
-# ========================
-# Helper Functions
-# ========================
-
-def get_client_ip(request: Request) -> str:
-    """클라이언트 IP 주소 추출"""
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
 
 
 # ========================

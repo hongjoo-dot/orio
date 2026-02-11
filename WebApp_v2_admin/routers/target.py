@@ -17,20 +17,8 @@ from repositories import BrandRepository, ChannelRepository, ProductRepository, 
 from core import get_db_cursor
 from core.dependencies import get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete, require_permission
-
-
-def _format_time_value(value, default: str = '00:00:00') -> str:
-    """시간 값을 HH:MM:SS 형식으로 변환"""
-    if pd.isna(value):
-        return default
-    if hasattr(value, 'strftime'):
-        return value.strftime('%H:%M:%S')
-    time_str = str(value).strip()
-    if len(time_str) == 5:  # HH:MM
-        return time_str + ':00'
-    elif len(time_str) >= 8:  # HH:MM:SS
-        return time_str[:8]
-    return default
+from core.models import BulkDeleteRequest
+from utils.helpers import format_time_value
 
 
 # ========== 정기 목표 Router ==========
@@ -69,10 +57,6 @@ class TargetBaseUpdate(BaseModel):
     TargetAmount: Optional[float] = None
     TargetQuantity: Optional[int] = None
     Notes: Optional[str] = None
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: List[int]
 
 
 class FilterDeleteRequest(BaseModel):
@@ -1525,8 +1509,8 @@ async def upload_target_promotion(
         records = []
         for idx, row in df.iterrows():
             # 시간 포맷 처리 (HH:MM:SS)
-            start_time_val = _format_time_value(row.get('StartTime', '00:00:00'))
-            end_time_val = _format_time_value(row.get('EndTime', '23:59:59'))
+            start_time_val = format_time_value(row.get('StartTime', '00:00:00'))
+            end_time_val = format_time_value(row.get('EndTime', '23:59:59'))
 
             brand_name = row['BrandName'] if pd.notna(row['BrandName']) and row['BrandName'] != 'nan' else None
             channel_name = row['ChannelName'] if pd.notna(row['ChannelName']) and row['ChannelName'] != 'nan' else None

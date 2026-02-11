@@ -17,20 +17,8 @@ from repositories import BrandRepository, ChannelRepository, ProductRepository, 
 from core import get_db_cursor
 from core.dependencies import get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete, require_permission
-
-
-def _format_time_value(value, default: str = '00:00:00') -> str:
-    """시간 값을 HH:MM:SS 형식으로 변환"""
-    if pd.isna(value):
-        return default
-    if hasattr(value, 'strftime'):
-        return value.strftime('%H:%M:%S')
-    time_str = str(value).strip()
-    if len(time_str) == 5:  # HH:MM
-        return time_str + ':00'
-    elif len(time_str) >= 8:  # HH:MM:SS
-        return time_str[:8]
-    return default
+from core.models import BulkDeleteAnyRequest as BulkDeleteRequest
+from utils.helpers import format_time_value
 
 
 # ========== Repository 인스턴스 ==========
@@ -115,12 +103,6 @@ class PromotionProductUpdate(BaseModel):
     ExpectedSalesAmount: Optional[float] = None
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
-
-
-# ========== Pydantic Models — 공통 ==========
-
-class BulkDeleteRequest(BaseModel):
-    ids: List[Any]
 
 
 # ==========================================================
@@ -922,8 +904,8 @@ async def upload_promotions(
             channel_info = channel_map.get(channel_name, {})
             type_info = promotion_type_map.get(promo_type, {})
 
-            start_time_val = _format_time_value(first_row.get('StartTime', '00:00:00'))
-            end_time_val = _format_time_value(first_row.get('EndTime', '23:59:59'))
+            start_time_val = format_time_value(first_row.get('StartTime', '00:00:00'))
+            end_time_val = format_time_value(first_row.get('EndTime', '23:59:59'))
 
             # 상품 레벨 예상매출/예상수량 합산 → 행사 레벨 자동 계산
             sum_sales = 0.0

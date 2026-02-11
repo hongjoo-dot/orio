@@ -11,6 +11,7 @@ from typing import Optional, List
 from repositories import ChannelRepository, ChannelDetailRepository
 from core.dependencies import get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete, require_permission
+from core.models import BulkDeleteRequest
 
 router = APIRouter(prefix="/api/channels", tags=["Channel"])
 
@@ -55,10 +56,6 @@ class ChannelIntegratedCreate(BaseModel):
     """Channel과 ChannelDetails 통합 생성"""
     channel: ChannelCreate
     details: List[ChannelDetailCreate]
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: List[int]
 
 
 # ========== Channel CRUD 엔드포인트 ==========

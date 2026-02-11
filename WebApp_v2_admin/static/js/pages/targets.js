@@ -371,13 +371,18 @@ function changeLimit() {
  */
 function updateActionButtons(selectedIds) {
     const deleteBtn = document.getElementById('deleteButton');
+    const editDownloadBtn = document.getElementById('editDownloadButton');
 
     if (selectedIds.length > 0) {
         deleteBtn.classList.remove('btn-disabled');
         deleteBtn.disabled = false;
+        editDownloadBtn.classList.remove('btn-disabled');
+        editDownloadBtn.disabled = false;
     } else {
         deleteBtn.classList.add('btn-disabled');
         deleteBtn.disabled = true;
+        editDownloadBtn.classList.add('btn-disabled');
+        editDownloadBtn.disabled = true;
     }
 }
 
@@ -455,11 +460,20 @@ async function bulkDelete() {
 }
 
 /**
- * 엑셀 양식 다운로드 (신규/수정 통합)
- * - 필터나 선택이 없으면: 빈 양식 (신규 등록용)
- * - 필터가 있거나 선택된 항목이 있으면: 해당 데이터 포함 (수정용)
+ * 엑셀 양식 다운로드 (빈 양식 - 신규 등록용)
  */
-function downloadExcel() {
+function downloadTemplate() {
+    const endpoint = currentTab === 'base'
+        ? '/api/targets/base/download'
+        : '/api/targets/promotion/download';
+
+    window.location.href = endpoint;
+}
+
+/**
+ * 수정 양식 다운로드 (선택된 데이터 포함)
+ */
+function downloadEditForm() {
     const endpoint = currentTab === 'base'
         ? '/api/targets/base/download'
         : '/api/targets/promotion/download';
@@ -467,13 +481,12 @@ function downloadExcel() {
     const tableManager = getActiveTableManager();
     const selectedIds = tableManager.getSelectedRows();
 
-    const params = { ...currentFilters };
-
-    // 선택된 항목이 있으면 해당 ID들만 다운로드
-    if (selectedIds.length > 0) {
-        params.ids = selectedIds.join(',');
+    if (selectedIds.length === 0) {
+        showAlert('수정할 항목을 선택해주세요.', 'warning');
+        return;
     }
 
+    const params = { ids: selectedIds.join(',') };
     const queryString = api.buildQueryString(params);
     window.location.href = `${endpoint}${queryString}`;
 }

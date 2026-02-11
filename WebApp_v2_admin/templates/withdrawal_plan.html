@@ -202,8 +202,11 @@
                 <span id="groupCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
             </div>
             <div class="panel-actions">
-                <button class="btn btn-success btn-sm" onclick="downloadExcel()">
+                <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
                     <i class="fa-solid fa-file-excel"></i> 엑셀 양식
+                </button>
+                <button class="btn btn-sm btn-disabled" onclick="downloadEditForm()" id="editDownloadButton" disabled style="background:#3b82f6;color:white;">
+                    <i class="fa-solid fa-pen-to-square"></i> 수정 양식
                 </button>
                 <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
                     <i class="fa-solid fa-upload"></i> 엑셀 업로드

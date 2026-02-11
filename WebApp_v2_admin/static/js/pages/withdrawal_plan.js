@@ -205,6 +205,7 @@ function toggleSelectAll(checkbox) {
             selectedGroupIds.delete(groupId);
         }
     });
+    updateGroupActionButtons();
 }
 
 /**
@@ -221,6 +222,21 @@ function toggleGroupSelection(groupId, checkbox) {
     const allCheckboxes = document.querySelectorAll('.group-checkbox');
     const checkedCount = document.querySelectorAll('.group-checkbox:checked').length;
     document.getElementById('selectAllGroups').checked = (allCheckboxes.length > 0 && checkedCount === allCheckboxes.length);
+    updateGroupActionButtons();
+}
+
+/**
+ * 그룹 선택에 따른 수정 양식 버튼 상태 업데이트
+ */
+function updateGroupActionButtons() {
+    const editDownloadBtn = document.getElementById('editDownloadButton');
+    if (selectedGroupIds.size > 0) {
+        editDownloadBtn.classList.remove('btn-disabled');
+        editDownloadBtn.disabled = false;
+    } else {
+        editDownloadBtn.classList.add('btn-disabled');
+        editDownloadBtn.disabled = true;
+    }
 }
 
 /**
@@ -362,21 +378,47 @@ function resetFilters() {
 
 // ========== 엑셀 다운로드/업로드 ==========
 
-async function downloadExcel() {
+/**
+ * 엑셀 양식 다운로드 (빈 양식 - 신규 등록용)
+ */
+async function downloadTemplate() {
     try {
-        let params = [];
+        const token = localStorage.getItem('access_token');
+        const response = await fetch('/api/withdrawal-plans/download', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-        // 체크박스로 선택된 그룹이 있으면 해당 그룹 데이터 다운로드 (수정용)
-        if (selectedGroupIds.size > 0) {
-            const groupIdsArray = Array.from(selectedGroupIds);
-            params.push(`group_ids=${groupIdsArray.join(',')}`);
-        } else {
-            // 필터만 적용 (빈 양식)
-            if (currentFilters.year_month) params.push(`year_month=${currentFilters.year_month}`);
-            if (currentFilters.type) params.push(`type=${encodeURIComponent(currentFilters.type)}`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '다운로드 실패');
         }
 
-        const queryString = params.length > 0 ? '?' + params.join('&') : '';
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `withdrawal_plan_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (e) {
+        showAlertModal('다운로드 실패: ' + e.message, 'error');
+    }
+}
+
+/**
+ * 수정 양식 다운로드 (선택된 그룹 데이터 포함)
+ */
+async function downloadEditForm() {
+    if (selectedGroupIds.size === 0) {
+        showAlertModal('수정할 캠페인을 선택해주세요.', 'warning');
+        return;
+    }
+
+    try {
+        const groupIdsArray = Array.from(selectedGroupIds);
+        const queryString = `?group_ids=${groupIdsArray.join(',')}`;
 
         const token = localStorage.getItem('access_token');
         const response = await fetch(`/api/withdrawal-plans/download${queryString}`, {

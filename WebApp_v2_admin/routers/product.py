@@ -16,6 +16,7 @@ from urllib.parse import quote
 from repositories import ProductRepository, ProductBoxRepository
 from core.dependencies import get_client_ip, CurrentUser
 from core import log_activity, log_delete, log_bulk_delete, require_permission
+from core.models import BulkDeleteRequest
 from utils.excel import ProductExcelHandler
 
 router = APIRouter(prefix="/api/products", tags=["Product"])
@@ -76,10 +77,6 @@ class ProductIntegratedCreate(BaseModel):
     """Product와 ProductBox 통합 생성"""
     product: ProductCreate
     box: ProductBoxCreate
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: List[int]
 
 
 # ========== CRUD 엔드포인트 ==========
