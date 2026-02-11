@@ -141,48 +141,87 @@
     </div>
 </div>
 
-<!-- 비정기 목표: 플랫 테이블 -->
-<div id="promotionFlatTable" class="card" style="display:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-        <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
-            <h2 class="card-title" style="margin:0;white-space:nowrap;">
-                비정기 목표 목록
-                <span id="promoResultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
-            </h2>
-            <select id="promoLimitSelector" onchange="changeLimit()" class="form-select"
-                style="width:auto;padding:8px 12px;font-size:13px;">
-                <option value="20" selected>20개씩</option>
-                <option value="50">50개씩</option>
-                <option value="100">100개씩</option>
-            </select>
+<!-- 비정기 목표: 마스터-디테일 -->
+<div id="promoMasterDetail" class="master-detail-container" style="display:none;">
+    <!-- 마스터 패널 (그룹 목록) -->
+    <div class="card master-panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa-solid fa-folder"></i>
+                행사 목록
+                <span id="promoGroupCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+            </div>
+            <div class="panel-actions">
+                <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
+                    <i class="fa-solid fa-file-excel"></i> 엑셀 양식
+                </button>
+                <button class="btn btn-sm btn-disabled" onclick="downloadPromoMasterEditForm()" id="promoMasterEditDownloadButton" disabled style="background:#3b82f6;color:white;">
+                    <i class="fa-solid fa-pen-to-square"></i> 수정 양식
+                </button>
+                <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
+                    <i class="fa-solid fa-upload"></i> 엑셀 업로드
+                </button>
+            </div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
-                <i class="fa-solid fa-check-double"></i> 전체 선택
-            </button>
-            <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="promoDeleteButton">
-                <i class="fa-solid fa-trash"></i> 선택 삭제
-            </button>
-            <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
-                <i class="fa-solid fa-file-excel"></i> 엑셀 양식
-            </button>
-            <button class="btn btn-sm btn-disabled" onclick="downloadEditForm()" id="promoEditDownloadButton" disabled style="background:#3b82f6;color:white;">
-                <i class="fa-solid fa-pen-to-square"></i> 수정 양식
-            </button>
-            <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
-                <i class="fa-solid fa-upload"></i> 엑셀 업로드
-            </button>
+        <div class="table-wrapper">
+            <table class="table" id="promo-master-table">
+                <thead>
+                    <tr></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
         </div>
     </div>
 
-    <div class="table-container">
-        <table class="table" id="promotion-table">
-            <thead><tr></tr></thead>
-            <tbody></tbody>
-        </table>
-    </div>
+    <!-- 패널 리사이즈 핸들 -->
+    <div class="panel-resize-handle" id="promoResizeHandle"></div>
 
-    <div id="promoPagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
+    <!-- 디테일 패널 (상품 목록) -->
+    <div class="card detail-panel">
+        <div id="promoDetailPlaceholder" class="detail-placeholder">
+            <i class="fa-solid fa-hand-pointer"></i>
+            <p>좌측에서 행사를 선택하세요</p>
+        </div>
+
+        <div id="promoDetailContainer" style="display:none;height:100%;flex-direction:column;">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-box"></i>
+                    상품 목표
+                    <span id="promoItemCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                </div>
+                <div class="panel-actions">
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeletePromoItems()" id="promoDeleteButton" disabled>
+                        <i class="fa-solid fa-trash"></i> 선택 삭제
+                    </button>
+                    <button class="btn btn-sm btn-disabled" onclick="downloadPromoDetailEditForm()" id="promoEditDownloadButton" disabled style="background:#3b82f6;color:white;">
+                        <i class="fa-solid fa-pen-to-square"></i> 수정 양식
+                    </button>
+                </div>
+            </div>
+
+            <!-- 그룹 요약 -->
+            <div id="promoGroupSummary" class="group-summary"></div>
+
+            <!-- 상품 테이블 -->
+            <div class="table-wrapper">
+                <table class="table" id="promo-detail-table">
+                    <thead>
+                        <tr></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- 저장 바 -->
+            <div id="promoSaveBar" class="save-bar" style="display:none;">
+                <span id="promoDirtyCount">0건 변경됨</span>
+                <button class="btn btn-primary btn-sm" onclick="savePromoChanges()">
+                    <i class="fa-solid fa-floppy-disk"></i> 저장
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Upload Modal -->
@@ -395,16 +434,19 @@
     }
 
     /* Master Table Rows */
-    #base-master-table tbody tr {
+    #base-master-table tbody tr,
+    #promo-master-table tbody tr {
         cursor: pointer;
         transition: background 0.15s;
     }
 
-    #base-master-table tbody tr:hover {
+    #base-master-table tbody tr:hover,
+    #promo-master-table tbody tr:hover {
         background: rgba(99, 102, 241, 0.1);
     }
 
-    #base-master-table tbody tr.selected {
+    #base-master-table tbody tr.selected,
+    #promo-master-table tbody tr.selected {
         background: rgba(99, 102, 241, 0.15);
         border-left: 3px solid var(--accent);
     }

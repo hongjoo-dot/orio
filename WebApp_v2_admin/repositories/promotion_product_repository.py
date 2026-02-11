@@ -298,6 +298,37 @@ class PromotionProductRepository(BaseRepository):
             cursor.execute(query, *promotion_ids)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
+    def bulk_update_products(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """인라인 편집 일괄 저장 (PromotionPrice, ExpectedSalesAmount, ExpectedQuantity, Notes 업데이트)"""
+        total_updated = 0
+
+        with get_db_cursor() as cursor:
+            for record in records:
+                product_id = record.get('PromotionProductID')
+                if not product_id:
+                    continue
+
+                query = """
+                    UPDATE [dbo].[PromotionProduct]
+                    SET PromotionPrice = ?,
+                        ExpectedSalesAmount = ?,
+                        ExpectedQuantity = ?,
+                        Notes = ?,
+                        UpdatedDate = GETDATE()
+                    WHERE PromotionProductID = ?
+                """
+                cursor.execute(query,
+                    float(record.get('PromotionPrice', 0) or 0),
+                    float(record.get('ExpectedSalesAmount', 0) or 0),
+                    int(record.get('ExpectedQuantity', 0) or 0),
+                    record.get('Notes'),
+                    product_id
+                )
+                if cursor.rowcount > 0:
+                    total_updated += 1
+
+        return {"updated": total_updated}
+
     def delete_by_promotion_id(self, promotion_id: str) -> int:
         """특정 행사의 전체 상품 삭제"""
         with get_db_cursor() as cursor:

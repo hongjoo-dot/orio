@@ -352,6 +352,89 @@ class PromotionRepository(BaseRepository):
 
         return total_deleted
 
+    def get_master_summary(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """마스터 패널용 - 비정기 목록 + 상품 수 + 상품 예상매출/수량 합계"""
+        with get_db_cursor(commit=False) as cursor:
+            where_clauses = []
+            params = []
+
+            if filters:
+                if filters.get('year_month'):
+                    where_clauses.append("FORMAT(p.StartDate, 'yyyy-MM') = ?")
+                    params.append(filters['year_month'])
+                if filters.get('brand_id'):
+                    where_clauses.append("p.BrandID = ?")
+                    params.append(filters['brand_id'])
+                if filters.get('channel_id'):
+                    where_clauses.append("p.ChannelID = ?")
+                    params.append(filters['channel_id'])
+                if filters.get('promotion_type'):
+                    where_clauses.append("p.PromotionType = ?")
+                    params.append(filters['promotion_type'])
+                if filters.get('status'):
+                    status_val = filters['status']
+                    if status_val == 'CANCELLED':
+                        where_clauses.append("p.Status = 'CANCELLED'")
+                    elif status_val == 'SCHEDULED':
+                        where_clauses.append("p.Status != 'CANCELLED'")
+                        where_clauses.append("CAST(p.StartDate AS DATETIME) + CAST(ISNULL(p.StartTime, '00:00:00') AS DATETIME) > GETDATE()")
+                    elif status_val == 'ENDED':
+                        where_clauses.append("p.Status != 'CANCELLED'")
+                        where_clauses.append("CAST(p.EndDate AS DATETIME) + CAST(ISNULL(p.EndTime, '23:59:59') AS DATETIME) < GETDATE()")
+                    elif status_val == 'ACTIVE':
+                        where_clauses.append("p.Status != 'CANCELLED'")
+                        where_clauses.append("CAST(p.StartDate AS DATETIME) + CAST(ISNULL(p.StartTime, '00:00:00') AS DATETIME) <= GETDATE()")
+                        where_clauses.append("CAST(p.EndDate AS DATETIME) + CAST(ISNULL(p.EndTime, '23:59:59') AS DATETIME) >= GETDATE()")
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+            status_case = """CASE
+                WHEN p.Status = 'CANCELLED' THEN 'CANCELLED'
+                WHEN CAST(p.StartDate AS DATETIME) + CAST(ISNULL(p.StartTime, '00:00:00') AS DATETIME) > GETDATE() THEN 'SCHEDULED'
+                WHEN CAST(p.EndDate AS DATETIME) + CAST(ISNULL(p.EndTime, '23:59:59') AS DATETIME) < GETDATE() THEN 'ENDED'
+                ELSE 'ACTIVE'
+            END"""
+
+            query = f"""
+                SELECT p.PromotionID, p.PromotionName, p.PromotionType,
+                       p.StartDate, p.EndDate,
+                       p.BrandID, p.BrandName, p.ChannelID, p.ChannelName,
+                       {status_case} AS ComputedStatus,
+                       p.CommissionRate, p.DiscountOwner,
+                       ISNULL(cnt.ProductCount, 0) AS ProductCount,
+                       ISNULL(cnt.TotalSalesAmount, 0) AS TotalSalesAmount,
+                       ISNULL(cnt.TotalQuantity, 0) AS TotalQuantity
+                FROM [dbo].[Promotion] p
+                LEFT JOIN (
+                    SELECT PromotionID,
+                           COUNT(*) AS ProductCount,
+                           SUM(ISNULL(ExpectedSalesAmount, 0)) AS TotalSalesAmount,
+                           SUM(ISNULL(ExpectedQuantity, 0)) AS TotalQuantity
+                    FROM [dbo].[PromotionProduct]
+                    GROUP BY PromotionID
+                ) cnt ON p.PromotionID = cnt.PromotionID
+                WHERE {where_sql}
+                ORDER BY p.StartDate DESC, p.PromotionName ASC
+            """
+            cursor.execute(query, *params)
+            return [{
+                "PromotionID": row[0],
+                "PromotionName": row[1],
+                "PromotionType": row[2],
+                "StartDate": row[3].strftime('%Y-%m-%d') if row[3] else None,
+                "EndDate": row[4].strftime('%Y-%m-%d') if row[4] else None,
+                "BrandID": row[5],
+                "BrandName": row[6],
+                "ChannelID": row[7],
+                "ChannelName": row[8],
+                "Status": row[9],
+                "CommissionRate": float(row[10]) if row[10] else None,
+                "DiscountOwner": row[11],
+                "ProductCount": row[12],
+                "TotalSalesAmount": float(row[13]) if row[13] else 0,
+                "TotalQuantity": int(row[14]) if row[14] else 0,
+            } for row in cursor.fetchall()]
+
     def get_max_sequences_by_prefixes(self, prefixes: List[str]) -> Dict[str, int]:
         """
         여러 접두사에 대한 현재 최대 순번 일괄 조회

@@ -1,157 +1,161 @@
 /**
- * 행사 관리 페이지 JavaScript
- * - 마스터: 행사 목록 (Promotion)
- * - 디테일: 행사 상품 (PromotionProduct) — 행사 클릭 시 표시
+ * 비정기 관리 페이지 JavaScript
+ * - 마스터: 비정기 목록 (Promotion) — 컴팩트 그룹 뷰
+ * - 디테일: 비정기 상품 (PromotionProduct) — 인라인 편집
  */
 
-// 선택된 행사 ID
-let currentPromotionId = null;
-
-// 테이블 및 페이지네이션 매니저
+// ==================== 상태 변수 ====================
 let masterTableManager, detailTableManager;
-let paginationManager;
+let uploadModal, uploadResultModal;
 
-// 모달 매니저
-let uploadModal, uploadResultModal, confirmModal, alertModal;
+// 마스터 데이터
+let currentMasterData = [];          // 정렬용
+let masterDataMap = {};              // {PromotionID: row}
+let currentPromotionId = null;
+let currentPromotionData = null;
 
-// 현재 필터 및 페이지 정보
+// 디테일 데이터
+let currentDetailItems = [];         // 정렬용
+let originalData = {};               // {PromotionProductID: {PromotionPrice, ExpectedSalesAmount, ExpectedQuantity, Notes}}
+let dirtyRows = new Map();           // Map<PromotionProductID, {PromotionPrice, ExpectedSalesAmount, ExpectedQuantity, Notes}>
+
+// 필터
 let currentFilters = {};
-let currentPage = 1;
-let currentLimit = 20;
-let currentSortBy = null;
-let currentSortDir = null;
 
-// 마스터 컬럼 정의 (행사 목록)
+// ==================== 마스터 컬럼 정의 ====================
 const masterColumns = [
-    { key: 'PromotionID', header: '행사ID', sortKey: 'PromotionID', render: (row) => row.PromotionID || '-' },
-    { key: 'PromotionName', header: '행사명', sortKey: 'PromotionName', render: (row) => row.PromotionName || '-' },
-    { key: 'PromotionType', header: '행사유형', sortKey: 'PromotionType', render: (row) => row.PromotionType || '-' },
     {
-        key: 'StartDate',
-        header: '시작일',
-        sortKey: 'StartDate',
+        key: 'PromotionName',
+        header: '비정기',
+        sortKey: 'PromotionName',
         render: (row) => {
-            const date = row.StartDate || '';
-            const time = row.StartTime || '';
-            return time && time !== '00:00:00' ? `${date} ${time}` : date;
+            const statusLabels = { SCHEDULED: '예정', ACTIVE: '진행중', ENDED: '종료', CANCELLED: '취소' };
+            const statusLabel = statusLabels[row.Status] || row.Status;
+            const dateRange = (row.StartDate && row.EndDate) ? `${row.StartDate} ~ ${row.EndDate}` : '';
+            return `<div class="group-info">
+                <span class="group-title">${escapeHtml(row.PromotionName)}</span>
+                <span class="group-meta">
+                    ${escapeHtml(row.ChannelName)} · ${escapeHtml(row.PromotionType)}
+                    <span class="status-badge status-${row.Status}" style="margin-left:4px;">${statusLabel}</span>
+                </span>
+                ${dateRange ? `<span class="group-meta">${dateRange}</span>` : ''}
+            </div>`;
         }
     },
     {
-        key: 'EndDate',
-        header: '종료일',
-        sortKey: 'EndDate',
-        render: (row) => {
-            const date = row.EndDate || '';
-            const time = row.EndTime || '';
-            return time && time !== '00:00:00' ? `${date} ${time}` : date;
-        }
-    },
-    { key: 'BrandName', header: '브랜드', sortKey: 'BrandName', render: (row) => row.BrandName || '-' },
-    { key: 'ChannelName', header: '채널', sortKey: 'ChannelName', render: (row) => row.ChannelName || '-' },
-    {
-        key: 'Status',
-        header: '상태',
-        sortKey: 'Status',
-        render: (row) => {
-            const status = row.Status || '';
-            const labels = { SCHEDULED: '예정', ACTIVE: '진행중', ENDED: '종료', CANCELLED: '취소' };
-            return `<span class="status-badge status-${status}">${labels[status] || status}</span>`;
-        }
+        key: 'TotalSalesAmount',
+        header: '예상매출',
+        sortKey: 'TotalSalesAmount',
+        render: (row) => `<div style="text-align:right;font-size:13px;">${row.TotalSalesAmount.toLocaleString()}</div>`
     },
     {
-        key: 'CommissionRate',
-        header: '수수료율',
-        sortKey: 'CommissionRate',
-        align: 'right',
-        render: (row) => `<div style="text-align:right;">${row.CommissionRate != null ? row.CommissionRate + '%' : '-'}</div>`
+        key: 'ProductCount',
+        header: '상품수',
+        sortKey: 'ProductCount',
+        render: (row) => `<div style="text-align:right;font-size:13px;">${row.ProductCount}</div>`
+    }
+];
+
+// ==================== 디테일 컬럼 정의 ====================
+const detailColumns = [
+    {
+        key: 'UniqueCode',
+        header: '상품코드',
+        sortKey: 'UniqueCode',
+        render: (row) => `<span style="font-size:13px;">${escapeHtml(row.UniqueCode) || '-'}</span>`
     },
-    { key: 'DiscountOwner', header: '할인부담', sortKey: 'DiscountOwner', render: (row) => row.DiscountOwner || '-' },
+    {
+        key: 'ProductName',
+        header: '상품명',
+        sortKey: 'ProductName',
+        render: (row) => `<span style="font-size:13px;">${escapeHtml(row.ProductName) || '-'}</span>`
+    },
+    {
+        key: 'SellingPrice',
+        header: '판매가',
+        sortKey: 'SellingPrice',
+        render: (row) => `<div style="text-align:right;font-size:13px;">${(row.SellingPrice || 0).toLocaleString()}</div>`
+    },
+    {
+        key: 'PromotionPrice',
+        header: '비정기가',
+        sortKey: 'PromotionPrice',
+        render: (row) => {
+            const dirty = dirtyRows.get(row.PromotionProductID);
+            const val = dirty && dirty.PromotionPrice !== undefined ? dirty.PromotionPrice : (row.PromotionPrice || 0);
+            const orig = originalData[row.PromotionProductID];
+            const isDirty = orig && val !== orig.PromotionPrice;
+            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
+                data-id="${row.PromotionProductID}" data-field="PromotionPrice"
+                value="${val.toLocaleString()}"
+                onfocus="onInlineFocus(this)" onblur="onAmountBlur(this)">`;
+        }
+    },
     {
         key: 'ExpectedSalesAmount',
         header: '예상매출',
         sortKey: 'ExpectedSalesAmount',
-        align: 'right',
-        render: (row) => `<div style="text-align:right;">${(row.ExpectedSalesAmount || 0).toLocaleString()}</div>`
+        render: (row) => {
+            const dirty = dirtyRows.get(row.PromotionProductID);
+            const val = dirty && dirty.ExpectedSalesAmount !== undefined ? dirty.ExpectedSalesAmount : (row.ExpectedSalesAmount || 0);
+            const orig = originalData[row.PromotionProductID];
+            const isDirty = orig && val !== orig.ExpectedSalesAmount;
+            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
+                data-id="${row.PromotionProductID}" data-field="ExpectedSalesAmount"
+                value="${val.toLocaleString()}"
+                onfocus="onInlineFocus(this)" onblur="onAmountBlur(this)">`;
+        }
     },
     {
         key: 'ExpectedQuantity',
         header: '예상수량',
         sortKey: 'ExpectedQuantity',
-        align: 'right',
-        render: (row) => `<div style="text-align:right;">${(row.ExpectedQuantity || 0).toLocaleString()}</div>`
+        render: (row) => {
+            const dirty = dirtyRows.get(row.PromotionProductID);
+            const val = dirty && dirty.ExpectedQuantity !== undefined ? dirty.ExpectedQuantity : (row.ExpectedQuantity || 0);
+            const orig = originalData[row.PromotionProductID];
+            const isDirty = orig && val !== orig.ExpectedQuantity;
+            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
+                data-id="${row.PromotionProductID}" data-field="ExpectedQuantity"
+                value="${val.toLocaleString()}"
+                onfocus="onInlineFocus(this)" onblur="onQuantityBlur(this)">`;
+        }
+    },
+    {
+        key: 'Notes',
+        header: '비고',
+        render: (row) => {
+            const dirty = dirtyRows.get(row.PromotionProductID);
+            const val = dirty && dirty.Notes !== undefined ? dirty.Notes : (row.Notes || '');
+            const orig = originalData[row.PromotionProductID];
+            const isDirty = orig && val !== (orig.Notes || '');
+            return `<input type="text" class="inline-input${isDirty ? ' dirty' : ''}"
+                data-id="${row.PromotionProductID}" data-field="Notes"
+                value="${escapeHtml(val)}"
+                oninput="onNotesInput(this)">`;
+        }
     }
 ];
 
-// 디테일 컬럼 정의 (행사 상품 — 상품 고유 정보만)
-const detailColumns = [
-    { key: 'UniqueCode', header: '상품코드', render: (row) => row.UniqueCode || '-' },
-    { key: 'ProductName', header: '상품명', render: (row) => row.ProductName || '-' },
-    {
-        key: 'SellingPrice',
-        header: '판매가',
-        render: (row) => `<div style="text-align:right;">${(row.SellingPrice || 0).toLocaleString()}</div>`
-    },
-    {
-        key: 'PromotionPrice',
-        header: '행사가',
-        render: (row) => `<div style="text-align:right;">${(row.PromotionPrice || 0).toLocaleString()}</div>`
-    },
-    {
-        key: 'SupplyPrice',
-        header: '공급가',
-        render: (row) => `<div style="text-align:right;">${(row.SupplyPrice || 0).toLocaleString()}</div>`
-    },
-    {
-        key: 'CouponDiscountRate',
-        header: '쿠폰할인율',
-        render: (row) => `<div style="text-align:right;">${row.CouponDiscountRate != null ? row.CouponDiscountRate + '%' : '-'}</div>`
-    },
-    {
-        key: 'UnitCost',
-        header: '원가',
-        render: (row) => `<div style="text-align:right;">${(row.UnitCost || 0).toLocaleString()}</div>`
-    },
-    {
-        key: 'LogisticsCost',
-        header: '물류비',
-        render: (row) => `<div style="text-align:right;">${(row.LogisticsCost || 0).toLocaleString()}</div>`
-    },
-    {
-        key: 'ExpectedSalesAmount',
-        header: '예상매출',
-        render: (row) => `<div style="text-align:right;">${(row.ExpectedSalesAmount || 0).toLocaleString()}</div>`
-    },
-    {
-        key: 'ExpectedQuantity',
-        header: '예상수량',
-        render: (row) => `<div style="text-align:right;">${(row.ExpectedQuantity || 0).toLocaleString()}</div>`
-    }
-];
-
-/**
- * 페이지 초기화
- */
-document.addEventListener('DOMContentLoaded', function () {
-    // 모달 초기화
+// ==================== 초기화 ====================
+document.addEventListener('DOMContentLoaded', async function () {
     uploadModal = new ModalManager('uploadModal');
     uploadResultModal = new ModalManager('uploadResultModal');
-    confirmModal = new ModalManager('confirmModal');
-    alertModal = new ModalManager('alertModal');
 
     // 마스터 테이블 매니저
     masterTableManager = new TableManager('master-table', {
         selectable: true,
         idKey: 'PromotionID',
+        onRowClick: (row, tr) => {
+            selectPromotion(row.PromotionID, tr);
+        },
         onSelectionChange: (selectedIds) => {
-            updateActionButtons(selectedIds);
+            updateMasterActionButtons(selectedIds);
         },
-        onRowClick: (row, tr) => selectPromotion(row, tr),
         onSort: (sortKey, sortDir) => {
-            currentSortBy = sortKey;
-            currentSortDir = sortDir;
-            loadData(1, currentLimit);
+            sortAndRenderMaster(sortKey, sortDir);
         },
-        emptyMessage: '행사 데이터가 없습니다.'
+        emptyMessage: '비정기 데이터가 없습니다.'
     });
     masterTableManager.renderHeader(masterColumns);
 
@@ -162,80 +166,486 @@ document.addEventListener('DOMContentLoaded', function () {
         onSelectionChange: (selectedIds) => {
             updateDetailActionButtons(selectedIds);
         },
-        emptyMessage: '행사 상품 데이터가 없습니다.'
+        onSort: (sortKey, sortDir) => {
+            if (dirtyRows.size > 0) {
+                showConfirm('저장하지 않은 변경사항이 있습니다. 정렬하시겠습니까?', () => {
+                    dirtyRows.clear();
+                    updateSaveBar();
+                    sortAndRenderDetail(sortKey, sortDir);
+                });
+                return;
+            }
+            sortAndRenderDetail(sortKey, sortDir);
+        },
+        emptyMessage: '비정기 상품이 없습니다.'
     });
+    detailTableManager.renderHeader(detailColumns);
 
-    // 페이지네이션 초기화
-    paginationManager = new PaginationManager('pagination', {
-        onPageChange: (page, limit) => loadData(page, limit),
-        onLimitChange: (page, limit) => loadData(page, limit)
-    });
+    // 패널 리사이즈 초기화
+    initPanelResize('promoMasterDetail', 'panelResizeHandle');
 
-    // 초기 데이터 로드
+    // 공통 데이터 로드
     loadBrands();
     loadChannels();
-    loadYearMonths();
     loadPromotionTypes();
     loadStatuses();
-    loadData(1, 20);
+    await loadYearMonths();
+
+    // 마스터 로드
+    loadMasterData();
 });
 
-/**
- * 행사 선택 (마스터 행 클릭)
- */
-function selectPromotion(row, tr) {
-    // 이전 선택 행 하이라이트 제거
-    document.querySelectorAll('#master-table tbody tr').forEach(r => r.classList.remove('selected'));
-    // 현재 행 하이라이트
-    tr.classList.add('selected');
+// ==================== 패널 리사이즈 ====================
+function initPanelResize(containerId, handleId) {
+    const container = document.getElementById(containerId);
+    const handle = document.getElementById(handleId);
+    if (!container || !handle) return;
 
-    currentPromotionId = row.PromotionID;
-    loadDetail(currentPromotionId);
+    let isResizing = false;
+    let startX, startMasterWidth;
+
+    handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isResizing = true;
+        startX = e.clientX;
+        startMasterWidth = container.querySelector('.master-panel').offsetWidth;
+        handle.classList.add('active');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const containerWidth = container.offsetWidth;
+        const delta = e.clientX - startX;
+        const newMasterWidth = Math.max(200, Math.min(containerWidth - 350, startMasterWidth + delta));
+        container.style.gridTemplateColumns = `${newMasterWidth}px 0px 1fr`;
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isResizing) return;
+        isResizing = false;
+        handle.classList.remove('active');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+    });
 }
 
-/**
- * 디테일 데이터 로드 (행사 상품)
- */
-async function loadDetail(promotionId) {
+// ==================== 마스터 패널 ====================
+async function loadMasterData() {
     try {
-        // 플레이스홀더 숨기고 디테일 표시
-        document.getElementById('detailPlaceholder').style.display = 'none';
-        document.getElementById('detailContainer').style.display = 'block';
-        document.getElementById('detailActions').style.display = 'flex';
-        document.getElementById('detailCount').style.display = 'inline';
+        masterTableManager.showLoading(masterColumns.length);
 
-        detailTableManager.showLoading(detailColumns.length);
+        const params = { ...currentFilters };
+        const queryString = api.buildQueryString(params);
 
-        const result = await api.get(`/api/promotions/products?promotion_id=${promotionId}&page=1&limit=1000`);
+        const result = await api.get(`/api/promotions/master-summary${queryString}`);
         const data = result.data || [];
 
-        detailTableManager.render(data, detailColumns);
-        document.getElementById('detailCount').textContent = `(${data.length}개)`;
+        currentMasterData = data;
+        masterDataMap = {};
+        data.forEach(row => masterDataMap[row.PromotionID] = row);
+
+        document.getElementById('masterCount').textContent = `(${data.length}개)`;
+
+        masterTableManager.render(data, masterColumns);
+        applyMasterSelection();
+
+        if (currentPromotionId && !masterDataMap[currentPromotionId]) {
+            resetDetail();
+        }
 
     } catch (e) {
-        console.error('행사 상품 로드 실패:', e);
-        showAlertModal('행사 상품 로드 실패: ' + e.message, 'error');
-        detailTableManager.render([], detailColumns);
-        document.getElementById('detailCount').textContent = '(0개)';
+        console.error('비정기 목록 로드 실패:', e);
+        showAlert('비정기 목록 로드 실패: ' + e.message, 'error');
     }
 }
 
-/**
- * 디테일 패널 초기화 (플레이스홀더로 복귀)
- */
-function resetDetail() {
-    currentPromotionId = null;
-    document.getElementById('detailPlaceholder').style.display = 'block';
-    document.getElementById('detailContainer').style.display = 'none';
-    document.getElementById('detailActions').style.display = 'none';
-    document.getElementById('detailCount').style.display = 'none';
-    detailTableManager.render([], detailColumns);
-    updateDetailActionButtons([]);
+function sortAndRenderMaster(sortKey, sortDir) {
+    sortArray(currentMasterData, sortKey, sortDir);
+    masterTableManager.render(currentMasterData, masterColumns);
+    applyMasterSelection();
 }
 
-/**
- * 브랜드 목록 로드
- */
+function applyMasterSelection() {
+    if (!currentPromotionId) return;
+    document.querySelectorAll('#master-table tbody tr').forEach(tr => {
+        if (tr.dataset.id === currentPromotionId) {
+            tr.classList.add('selected');
+        }
+    });
+}
+
+// ==================== 비정기 선택 (마스터 행 클릭) ====================
+function selectPromotion(promotionId, tr) {
+    if (dirtyRows.size > 0 && promotionId !== currentPromotionId) {
+        showConfirm('저장하지 않은 변경사항이 있습니다. 비정기를 전환하시겠습니까?', () => {
+            dirtyRows.clear();
+            updateSaveBar();
+            doSelectPromotion(promotionId, tr);
+        });
+        return;
+    }
+    doSelectPromotion(promotionId, tr);
+}
+
+function doSelectPromotion(promotionId, tr) {
+    document.querySelectorAll('#master-table tbody tr').forEach(r => r.classList.remove('selected'));
+    if (tr) tr.classList.add('selected');
+
+    currentPromotionId = promotionId;
+    currentPromotionData = masterDataMap[promotionId];
+
+    loadDetailData(currentPromotionData);
+}
+
+// ==================== 디테일 패널 ====================
+async function loadDetailData(promo) {
+    try {
+        document.getElementById('detailPlaceholder').style.display = 'none';
+        document.getElementById('detailContainer').style.display = 'flex';
+
+        detailTableManager.showLoading(detailColumns.length);
+
+        const result = await api.get(`/api/promotions/products?promotion_id=${promo.PromotionID}&page=1&limit=10000`);
+        const items = result.data || [];
+
+        currentDetailItems = items;
+        document.getElementById('detailItemCount').textContent = `(${items.length}개)`;
+
+        renderPromoSummary(promo);
+
+        // 원본 데이터 저장
+        originalData = {};
+        items.forEach(item => {
+            originalData[item.PromotionProductID] = {
+                PromotionPrice: item.PromotionPrice || 0,
+                ExpectedSalesAmount: item.ExpectedSalesAmount || 0,
+                ExpectedQuantity: item.ExpectedQuantity || 0,
+                Notes: item.Notes || ''
+            };
+        });
+
+        dirtyRows.clear();
+        updateSaveBar();
+        detailTableManager.clearSelection();
+        updateDetailActionButtons([]);
+
+        detailTableManager.render(items, detailColumns);
+
+    } catch (e) {
+        console.error('비정기 상품 로드 실패:', e);
+        showAlert('비정기 상품 로드 실패: ' + e.message, 'error');
+    }
+}
+
+function sortAndRenderDetail(sortKey, sortDir) {
+    sortArray(currentDetailItems, sortKey, sortDir);
+    detailTableManager.clearSelection();
+    updateDetailActionButtons([]);
+    detailTableManager.render(currentDetailItems, detailColumns);
+}
+
+function renderPromoSummary(promo) {
+    const statusLabels = { SCHEDULED: '예정', ACTIVE: '진행중', ENDED: '종료', CANCELLED: '취소' };
+    const statusLabel = statusLabels[promo.Status] || promo.Status;
+    const dateRange = (promo.StartDate && promo.EndDate) ? `${promo.StartDate} ~ ${promo.EndDate}` : '-';
+
+    document.getElementById('promoSummary').innerHTML = `
+        <div class="group-summary-title">
+            <i class="fa-solid fa-chart-bar" style="color:var(--accent);"></i>
+            ${escapeHtml(promo.PromotionName)} 요약
+        </div>
+        <div class="group-summary-grid">
+            <div class="summary-item">
+                <span class="summary-label">채널</span>
+                <span class="summary-value">${escapeHtml(promo.ChannelName)}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">유형</span>
+                <span class="summary-value">${escapeHtml(promo.PromotionType)}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">상태</span>
+                <span class="summary-value"><span class="status-badge status-${promo.Status}">${statusLabel}</span></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">기간</span>
+                <span class="summary-value">${dateRange}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">상품수</span>
+                <span class="summary-value">${promo.ProductCount}개</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">예상매출 합계</span>
+                <span class="summary-value">${promo.TotalSalesAmount.toLocaleString()}원</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">예상수량 합계</span>
+                <span class="summary-value">${promo.TotalQuantity.toLocaleString()}개</span>
+            </div>
+        </div>
+    `;
+}
+
+function resetDetail() {
+    currentPromotionId = null;
+    currentPromotionData = null;
+    originalData = {};
+    dirtyRows.clear();
+    currentDetailItems = [];
+
+    document.getElementById('detailPlaceholder').style.display = 'flex';
+    document.getElementById('detailContainer').style.display = 'none';
+    document.getElementById('promoSummary').innerHTML = '';
+    detailTableManager.clearSelection();
+    updateDetailActionButtons([]);
+    updateSaveBar();
+}
+
+// ==================== 인라인 편집 ====================
+function onInlineFocus(input) {
+    const raw = input.value.replace(/,/g, '');
+    input.value = raw;
+    input.select();
+}
+
+function onAmountBlur(input) {
+    let val = parseFloat(input.value.replace(/,/g, '')) || 0;
+    input.value = val.toLocaleString();
+    checkDirty(input);
+}
+
+function onQuantityBlur(input) {
+    let val = parseInt(input.value.replace(/,/g, '')) || 0;
+    input.value = val.toLocaleString();
+    checkDirty(input);
+}
+
+function onNotesInput(input) {
+    checkDirty(input);
+}
+
+function checkDirty(input) {
+    const id = parseInt(input.dataset.id);
+    const field = input.dataset.field;
+
+    const orig = originalData[id];
+    if (!orig) return;
+
+    let currentVal;
+    if (field === 'PromotionPrice' || field === 'ExpectedSalesAmount') {
+        currentVal = parseFloat(input.value.replace(/,/g, '')) || 0;
+    } else if (field === 'ExpectedQuantity') {
+        currentVal = parseInt(input.value.replace(/,/g, '')) || 0;
+    } else {
+        currentVal = input.value;
+    }
+
+    const isDirty = currentVal !== orig[field];
+    input.classList.toggle('dirty', isDirty);
+
+    // 행 단위 dirty 추적
+    const row = input.closest('tr');
+    const rowInputs = row.querySelectorAll('.inline-input');
+    let rowHasDirty = false;
+
+    rowInputs.forEach(inp => {
+        if (inp.classList.contains('dirty')) rowHasDirty = true;
+    });
+
+    if (rowHasDirty) {
+        const rowData = {};
+        rowInputs.forEach(inp => {
+            const f = inp.dataset.field;
+            if (f === 'PromotionPrice' || f === 'ExpectedSalesAmount') {
+                rowData[f] = parseFloat(inp.value.replace(/,/g, '')) || 0;
+            } else if (f === 'ExpectedQuantity') {
+                rowData[f] = parseInt(inp.value.replace(/,/g, '')) || 0;
+            } else {
+                rowData[f] = inp.value;
+            }
+        });
+        dirtyRows.set(id, rowData);
+    } else {
+        dirtyRows.delete(id);
+    }
+
+    updateSaveBar();
+}
+
+// ==================== 저장 ====================
+async function saveChanges() {
+    if (dirtyRows.size === 0) return;
+
+    const items = [];
+    dirtyRows.forEach((data, id) => {
+        items.push({
+            PromotionProductID: id,
+            PromotionPrice: data.PromotionPrice,
+            ExpectedSalesAmount: data.ExpectedSalesAmount,
+            ExpectedQuantity: data.ExpectedQuantity,
+            Notes: data.Notes
+        });
+    });
+
+    try {
+        const result = await api.put('/api/promotions/products/bulk-update', { items });
+        showAlert(`${result.updated}건이 저장되었습니다.`, 'success');
+
+        // 원본 데이터 업데이트
+        items.forEach(item => {
+            originalData[item.PromotionProductID] = {
+                PromotionPrice: item.PromotionPrice,
+                ExpectedSalesAmount: item.ExpectedSalesAmount,
+                ExpectedQuantity: item.ExpectedQuantity,
+                Notes: item.Notes
+            };
+            const detailItem = currentDetailItems.find(d => d.PromotionProductID === item.PromotionProductID);
+            if (detailItem) {
+                detailItem.PromotionPrice = item.PromotionPrice;
+                detailItem.ExpectedSalesAmount = item.ExpectedSalesAmount;
+                detailItem.ExpectedQuantity = item.ExpectedQuantity;
+                detailItem.Notes = item.Notes;
+            }
+        });
+
+        dirtyRows.clear();
+        updateSaveBar();
+        document.querySelectorAll('#detail-table .inline-input.dirty').forEach(inp => {
+            inp.classList.remove('dirty');
+        });
+
+        // 마스터 새로고침 (합계 업데이트)
+        loadMasterData();
+
+    } catch (e) {
+        console.error('저장 실패:', e);
+        showAlert('저장 실패: ' + e.message, 'error');
+    }
+}
+
+function updateSaveBar() {
+    const saveBar = document.getElementById('saveBar');
+    const countEl = document.getElementById('dirtyCount');
+    if (!saveBar) return;
+
+    if (dirtyRows.size > 0) {
+        saveBar.style.display = 'flex';
+        countEl.textContent = `${dirtyRows.size}건 변경됨`;
+    } else {
+        saveBar.style.display = 'none';
+    }
+}
+
+// ==================== 마스터 액션 버튼 ====================
+function updateMasterActionButtons(selectedIds) {
+    const editDownloadBtn = document.getElementById('editDownloadButton');
+    if (!editDownloadBtn) return;
+
+    if (selectedIds.length > 0) {
+        editDownloadBtn.classList.remove('btn-disabled');
+        editDownloadBtn.disabled = false;
+    } else {
+        editDownloadBtn.classList.add('btn-disabled');
+        editDownloadBtn.disabled = true;
+    }
+}
+
+// ==================== 디테일 액션 버튼 ====================
+function updateDetailActionButtons(selectedIds) {
+    const deleteBtn = document.getElementById('detailDeleteButton');
+    const editDownloadBtn = document.getElementById('detailEditDownloadButton');
+
+    if (selectedIds.length > 0) {
+        deleteBtn.classList.remove('btn-disabled');
+        deleteBtn.disabled = false;
+        editDownloadBtn.classList.remove('btn-disabled');
+        editDownloadBtn.disabled = false;
+    } else {
+        deleteBtn.classList.add('btn-disabled');
+        deleteBtn.disabled = true;
+        editDownloadBtn.classList.add('btn-disabled');
+        editDownloadBtn.disabled = true;
+    }
+}
+
+// ==================== 선택 삭제 ====================
+async function bulkDeleteDetail() {
+    const selectedIds = detailTableManager.getSelectedRows().map(Number);
+
+    if (selectedIds.length === 0) {
+        showAlert('삭제할 상품을 선택해주세요.', 'warning');
+        return;
+    }
+
+    showConfirm(`${selectedIds.length}개 상품을 삭제하시겠습니까?`, async () => {
+        try {
+            const result = await api.post('/api/promotions/products/bulk-delete', { ids: selectedIds });
+
+            showAlert(`${result.deleted_count}개 상품이 삭제되었습니다.`, 'success');
+
+            dirtyRows.clear();
+            updateSaveBar();
+            loadMasterData();
+
+            if (currentPromotionData) {
+                loadDetailData(currentPromotionData);
+            }
+
+        } catch (e) {
+            console.error('삭제 실패:', e);
+            showAlert('삭제 실패: ' + e.message, 'error');
+        }
+    });
+}
+
+// ==================== 필터 ====================
+function applyFilters() {
+    if (dirtyRows.size > 0) {
+        showConfirm('저장하지 않은 변경사항이 있습니다. 필터를 적용하시겠습니까?', () => {
+            dirtyRows.clear();
+            updateSaveBar();
+            doApplyFilters();
+        });
+        return;
+    }
+    doApplyFilters();
+}
+
+function doApplyFilters() {
+    currentFilters = {};
+
+    const yearMonth = document.getElementById('searchYearMonth').value;
+    const brandId = document.getElementById('searchBrand').value;
+    const channelId = document.getElementById('searchChannel').value;
+    const promotionType = document.getElementById('searchPromotionType').value;
+    const status = document.getElementById('searchStatus').value;
+
+    if (yearMonth) currentFilters.year_month = yearMonth;
+    if (brandId) currentFilters.brand_id = brandId;
+    if (channelId) currentFilters.channel_id = channelId;
+    if (promotionType) currentFilters.promotion_type = promotionType;
+    if (status) currentFilters.status = status;
+
+    resetDetail();
+    loadMasterData();
+}
+
+function resetFilters() {
+    document.getElementById('searchYearMonth').value = '';
+    document.getElementById('searchBrand').value = '';
+    document.getElementById('searchChannel').value = '';
+    document.getElementById('searchPromotionType').value = '';
+    document.getElementById('searchStatus').value = '';
+
+    currentFilters = {};
+    resetDetail();
+    loadMasterData();
+}
+
+// ==================== 공통 데이터 로드 ====================
 async function loadBrands() {
     try {
         const result = await api.get('/api/brands/all');
@@ -255,9 +665,6 @@ async function loadBrands() {
     }
 }
 
-/**
- * 채널 목록 로드
- */
 async function loadChannels() {
     try {
         const channels = await api.get('/api/channels/list');
@@ -276,9 +683,6 @@ async function loadChannels() {
     }
 }
 
-/**
- * 년월 목록 로드
- */
 async function loadYearMonths() {
     try {
         const result = await api.get('/api/promotions/year-months');
@@ -286,15 +690,13 @@ async function loadYearMonths() {
 
         if (yearMonths.length > 0) {
             document.getElementById('searchYearMonth').value = yearMonths[0];
+            currentFilters.year_month = yearMonths[0];
         }
     } catch (e) {
         console.error('년월 목록 로드 실패:', e);
     }
 }
 
-/**
- * 행사유형 목록 로드
- */
 async function loadPromotionTypes() {
     try {
         const result = await api.get('/api/promotions/promotion-types');
@@ -310,13 +712,10 @@ async function loadPromotionTypes() {
             select.appendChild(option);
         });
     } catch (e) {
-        console.error('행사유형 로드 실패:', e);
+        console.error('비정기유형 로드 실패:', e);
     }
 }
 
-/**
- * 상태 목록 로드
- */
 async function loadStatuses() {
     try {
         const result = await api.get('/api/promotions/statuses');
@@ -337,249 +736,16 @@ async function loadStatuses() {
     }
 }
 
-/**
- * 마스터 데이터 로드 (행사 목록)
- */
-async function loadData(page = 1, limit = 20) {
-    currentPage = page;
-    currentLimit = limit;
-
-    try {
-        masterTableManager.showLoading(masterColumns.length);
-
-        const params = { page, limit, sort_by: currentSortBy, sort_dir: currentSortDir, ...currentFilters };
-        const queryString = api.buildQueryString(params);
-
-        const result = await api.get(`/api/promotions${queryString}`);
-
-        masterTableManager.render(result.data || [], masterColumns);
-
-        document.getElementById('resultCount').textContent = `(${result.total?.toLocaleString() || 0}건)`;
-
-        paginationManager.render({
-            page: result.page,
-            limit: result.limit,
-            total: result.total,
-            total_pages: result.total_pages
-        });
-
-    } catch (e) {
-        console.error('데이터 로드 실패:', e);
-        showAlertModal('데이터 로드 실패: ' + e.message, 'error');
-    }
-}
-
-/**
- * 필터 적용
- */
-function applyFilters() {
-    currentFilters = {};
-
-    const yearMonth = document.getElementById('searchYearMonth').value;
-    const brandId = document.getElementById('searchBrand').value;
-    const channelId = document.getElementById('searchChannel').value;
-    const promotionType = document.getElementById('searchPromotionType').value;
-    const status = document.getElementById('searchStatus').value;
-
-    if (yearMonth) currentFilters.year_month = yearMonth;
-    if (brandId) currentFilters.brand_id = brandId;
-    if (channelId) currentFilters.channel_id = channelId;
-    if (promotionType) currentFilters.promotion_type = promotionType;
-    if (status) currentFilters.status = status;
-
-    // 디테일 패널 초기화
-    resetDetail();
-    loadData(1, currentLimit);
-}
-
-/**
- * 필터 초기화
- */
-function resetFilters() {
-    document.getElementById('searchYearMonth').value = '';
-    document.getElementById('searchBrand').value = '';
-    document.getElementById('searchChannel').value = '';
-    document.getElementById('searchPromotionType').value = '';
-    document.getElementById('searchStatus').value = '';
-
-    currentFilters = {};
-    resetDetail();
-    loadData(1, currentLimit);
-}
-
-/**
- * 페이지 크기 변경
- */
-function changeLimit() {
-    const limit = parseInt(document.getElementById('limitSelector').value);
-    loadData(1, limit);
-}
-
-/**
- * 마스터 액션 버튼 상태 업데이트
- */
-function updateActionButtons(selectedIds) {
-    const deleteBtn = document.getElementById('deleteButton');
-    const editDownloadBtn = document.getElementById('editDownloadButton');
-
-    if (selectedIds.length > 0) {
-        deleteBtn.classList.remove('btn-disabled');
-        deleteBtn.disabled = false;
-        editDownloadBtn.classList.remove('btn-disabled');
-        editDownloadBtn.disabled = false;
-    } else {
-        deleteBtn.classList.add('btn-disabled');
-        deleteBtn.disabled = true;
-        editDownloadBtn.classList.add('btn-disabled');
-        editDownloadBtn.disabled = true;
-    }
-}
-
-/**
- * 디테일 액션 버튼 상태 업데이트
- */
-function updateDetailActionButtons(selectedIds) {
-    const deleteBtn = document.getElementById('detailDeleteButton');
-
-    if (selectedIds.length > 0) {
-        deleteBtn.classList.remove('btn-disabled');
-        deleteBtn.disabled = false;
-    } else {
-        deleteBtn.classList.add('btn-disabled');
-        deleteBtn.disabled = true;
-    }
-}
-
-/**
- * 마스터 전체 선택
- */
-async function selectAllData() {
-    try {
-        const params = { page: 1, limit: 100000, ...currentFilters };
-        const queryString = api.buildQueryString(params);
-
-        const result = await api.get(`/api/promotions${queryString}`);
-        const data = result.data || [];
-
-        const allIds = data.map(row => row.PromotionID);
-
-        masterTableManager.selectedRows = new Set(allIds);
-
-        document.querySelectorAll('#master-table tbody input[type="checkbox"]').forEach(cb => {
-            cb.checked = true;
-        });
-
-        const headerCb = document.querySelector('#master-table thead input[type="checkbox"]');
-        if (headerCb) headerCb.checked = true;
-
-        updateActionButtons(allIds);
-        showAlertModal(`${allIds.length}개 행사가 선택되었습니다.`, 'success');
-
-    } catch (e) {
-        console.error('전체 선택 실패:', e);
-        showAlertModal('전체 선택 실패: ' + e.message, 'error');
-    }
-}
-
-/**
- * 디테일 전체 선택
- */
-function selectAllDetail() {
-    const allIds = detailTableManager.getAllIds ? detailTableManager.getAllIds() : [];
-
-    // 테이블에서 직접 수집
-    const checkboxes = document.querySelectorAll('#detail-table tbody input[type="checkbox"]');
-    const ids = [];
-    checkboxes.forEach(cb => {
-        cb.checked = true;
-        if (cb.value) ids.push(parseInt(cb.value) || cb.value);
-    });
-
-    if (ids.length > 0) {
-        detailTableManager.selectedRows = new Set(ids);
-    }
-
-    const headerCb = document.querySelector('#detail-table thead input[type="checkbox"]');
-    if (headerCb) headerCb.checked = true;
-
-    updateDetailActionButtons(ids);
-    showAlertModal(`${ids.length}개 상품이 선택되었습니다.`, 'success');
-}
-
-/**
- * 마스터 선택 삭제 (행사 삭제)
- */
-async function bulkDelete() {
-    const selectedIds = masterTableManager.getSelectedRows();
-
-    if (selectedIds.length === 0) {
-        showAlertModal('삭제할 행사를 선택해주세요.', 'warning');
-        return;
-    }
-
-    showConfirmModal(`${selectedIds.length}개 행사를 삭제하시겠습니까?\n(해당 행사의 상품도 함께 삭제됩니다)`, async () => {
-        try {
-            const result = await api.post('/api/promotions/bulk-delete', { ids: selectedIds });
-
-            showAlertModal(`${result.deleted_count}개 행사가 삭제되었습니다.`, 'success');
-            masterTableManager.clearSelection();
-            updateActionButtons([]);
-            resetDetail();
-            loadData(currentPage, currentLimit);
-
-        } catch (e) {
-            console.error('삭제 실패:', e);
-            showAlertModal('삭제 실패: ' + e.message, 'error');
-        }
-    });
-}
-
-/**
- * 디테일 선택 삭제 (행사 상품 삭제)
- */
-async function bulkDeleteDetail() {
-    const selectedIds = detailTableManager.getSelectedRows();
-
-    if (selectedIds.length === 0) {
-        showAlertModal('삭제할 상품을 선택해주세요.', 'warning');
-        return;
-    }
-
-    showConfirmModal(`${selectedIds.length}개 상품을 삭제하시겠습니까?`, async () => {
-        try {
-            const result = await api.post('/api/promotions/products/bulk-delete', { ids: selectedIds });
-
-            showAlertModal(`${result.deleted_count}개 상품이 삭제되었습니다.`, 'success');
-            detailTableManager.clearSelection();
-            updateDetailActionButtons([]);
-
-            // 디테일 새로고침
-            if (currentPromotionId) {
-                loadDetail(currentPromotionId);
-            }
-
-        } catch (e) {
-            console.error('삭제 실패:', e);
-            showAlertModal('삭제 실패: ' + e.message, 'error');
-        }
-    });
-}
-
-/**
- * 엑셀 양식 다운로드 (빈 양식 - 신규 등록용)
- */
+// ==================== 엑셀 다운로드 ====================
 function downloadTemplate() {
     window.location.href = '/api/promotions/download';
 }
 
-/**
- * 수정 양식 다운로드 (선택된 데이터 포함)
- */
 function downloadEditForm() {
     const selectedIds = masterTableManager.getSelectedRows();
 
     if (selectedIds.length === 0) {
-        showAlertModal('수정할 항목을 선택해주세요.', 'warning');
+        showAlert('수정할 비정기를 선택해주세요.', 'warning');
         return;
     }
 
@@ -588,9 +754,21 @@ function downloadEditForm() {
     window.location.href = `/api/promotions/download${queryString}`;
 }
 
-/**
- * 업로드 모달 표시
- */
+function downloadDetailEditForm() {
+    const selectedIds = detailTableManager.getSelectedRows();
+
+    if (selectedIds.length === 0) {
+        showAlert('수정할 상품을 선택해주세요.', 'warning');
+        return;
+    }
+
+    // 선택된 상품이 속한 비정기 ID로 다운로드
+    const params = { ids: currentPromotionId };
+    const queryString = api.buildQueryString(params);
+    window.location.href = `/api/promotions/download${queryString}`;
+}
+
+// ==================== 업로드 ====================
 function showUploadModal() {
     document.getElementById('fileInput').value = '';
     document.getElementById('fileInfo').style.display = 'none';
@@ -602,9 +780,6 @@ function showUploadModal() {
     uploadModal.show();
 }
 
-/**
- * 파일 선택 핸들러
- */
 function handleFileSelect(event) {
     const file = event.target.files[0];
     if (file) {
@@ -614,15 +789,12 @@ function handleFileSelect(event) {
     }
 }
 
-/**
- * 파일 업로드
- */
 async function uploadFile() {
     const fileInput = document.getElementById('fileInput');
     const file = fileInput.files[0];
 
     if (!file) {
-        showAlertModal('파일을 선택해주세요.', 'warning');
+        showAlert('파일을 선택해주세요.', 'warning');
         return;
     }
 
@@ -680,9 +852,9 @@ async function uploadFile() {
 
         uploadResultModal.show();
 
-        // 마스터 새로고침 + 디테일 초기화
+        // 데이터 새로고침
         resetDetail();
-        loadData(1, currentLimit);
+        loadMasterData();
 
     } catch (e) {
         console.error('업로드 실패:', e);
@@ -697,63 +869,28 @@ async function uploadFile() {
     }
 }
 
-/**
- * 알림 모달 표시
- */
-function showAlertModal(message, type = 'info') {
-    if (typeof showAlert === 'function') {
-        showAlert(message, type);
-        return;
-    }
-
-    const icons = {
-        success: 'fa-circle-check',
-        error: 'fa-circle-xmark',
-        warning: 'fa-triangle-exclamation',
-        info: 'fa-circle-info'
-    };
-    const colors = {
-        success: 'var(--success)',
-        error: 'var(--danger)',
-        warning: 'var(--warning)',
-        info: 'var(--accent)'
-    };
-
-    const iconEl = document.getElementById('alertIcon');
-    if (iconEl) {
-        iconEl.className = `fa-solid ${icons[type] || icons.info}`;
-        iconEl.style.color = colors[type] || colors.info;
-    }
-
-    const titleEl = document.getElementById('alertTitle');
-    if (titleEl) {
-        const titles = { success: '성공', error: '오류', warning: '경고', info: '알림' };
-        titleEl.textContent = titles[type] || '알림';
-    }
-
-    document.getElementById('alertMessage').textContent = message;
-    alertModal.show();
+// ==================== 유틸리티 ====================
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/**
- * 확인 모달 표시
- */
-function showConfirmModal(message, onConfirm) {
-    if (typeof showConfirm === 'function') {
-        showConfirm(message, onConfirm);
-        return;
-    }
+function sortArray(arr, sortKey, sortDir) {
+    arr.sort((a, b) => {
+        let valA = a[sortKey];
+        let valB = b[sortKey];
 
-    document.getElementById('confirmMessage').textContent = message;
+        if (valA == null) valA = '';
+        if (valB == null) valB = '';
 
-    const okBtn = document.getElementById('confirmOkButton');
-    const newBtn = okBtn.cloneNode(true);
-    okBtn.parentNode.replaceChild(newBtn, okBtn);
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return sortDir === 'ASC' ? valA - valB : valB - valA;
+        }
 
-    newBtn.addEventListener('click', () => {
-        confirmModal.hide();
-        onConfirm();
+        const strA = String(valA).toLowerCase();
+        const strB = String(valB).toLowerCase();
+        if (strA < strB) return sortDir === 'ASC' ? -1 : 1;
+        if (strA > strB) return sortDir === 'ASC' ? 1 : -1;
+        return 0;
     });
-
-    confirmModal.show();
 }

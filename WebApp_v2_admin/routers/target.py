@@ -835,6 +835,17 @@ class PromotionFilterDeleteRequest(BaseModel):
     promotion_type: Optional[str] = None
 
 
+class TargetPromoBulkUpdateItem(BaseModel):
+    TargetPromotionID: int
+    TargetAmount: Optional[float] = None
+    TargetQuantity: Optional[int] = None
+    Notes: Optional[str] = None
+
+
+class TargetPromoBulkUpdateRequest(BaseModel):
+    items: List[TargetPromoBulkUpdateItem]
+
+
 # ========== 비정기 목표 CRUD ==========
 
 @promotion_router.get("")
@@ -907,6 +918,72 @@ async def get_promotion_types(user: CurrentUser = Depends(require_permission("Ta
         raise HTTPException(500, f"행사유형 목록 조회 실패: {str(e)}")
 
 
+@promotion_router.get("/groups")
+async def get_target_promotion_groups(
+    year_month: str,
+    brand_id: Optional[int] = None,
+    channel_id: Optional[int] = None,
+    promotion_type: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Target", "READ"))
+):
+    """그룹별 비정기 목표 요약 조회 (마스터 패널용)"""
+    try:
+        if not year_month:
+            raise HTTPException(400, "년월은 필수입니다")
+        groups = target_promotion_repo.get_groups_summary(year_month, brand_id, channel_id, promotion_type)
+        return {"data": groups, "total": len(groups)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"그룹 요약 조회 실패: {str(e)}")
+
+
+@promotion_router.get("/group-items")
+async def get_target_promotion_group_items(
+    channel_id: int,
+    promotion_name: str,
+    promotion_type: str,
+    year_month: str,
+    brand_id: Optional[int] = None,
+    user: CurrentUser = Depends(require_permission("Target", "READ"))
+):
+    """특정 그룹의 비정기 목표 상품 목록 조회 (디테일 패널용)"""
+    try:
+        if not year_month:
+            raise HTTPException(400, "년월은 필수입니다")
+        items = target_promotion_repo.get_by_group(channel_id, promotion_name, promotion_type, year_month, brand_id)
+        return {"data": items, "total": len(items)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"그룹 상품 목록 조회 실패: {str(e)}")
+
+
+@promotion_router.put("/bulk-update")
+@log_activity("UPDATE", "TargetPromotionProduct")
+async def bulk_update_target_promotion(
+    request_body: TargetPromoBulkUpdateRequest,
+    request: Request,
+    user: CurrentUser = Depends(require_permission("Target", "UPDATE"))
+):
+    """비정기 목표 인라인 편집 일괄 저장"""
+    try:
+        if not request_body.items:
+            raise HTTPException(400, "수정할 데이터가 없습니다")
+
+        records = [item.dict() for item in request_body.items]
+        result = target_promotion_repo.bulk_update_promo_amounts(records)
+
+        return {
+            "message": f"{result['updated']}건 수정 완료",
+            "updated": result['updated']
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"일괄 수정 실패: {str(e)}")
+
+
 @promotion_router.get("/download")
 async def download_target_promotion(
     year_month: Optional[str] = None,
@@ -942,10 +1019,10 @@ async def download_target_promotion(
         # 컬럼 정의
         export_columns = [
             'ID', '행사명', '행사유형', '시작일(YYYY-MM-DD)', '시작시간(HH:MM:SS)', '종료일(YYYY-MM-DD)', '종료시간(HH:MM:SS)',
-            '브랜드명', '채널명', '품목코드', '목표금액(+VAT)', '목표수량', '비고'
+            '브랜드명', '채널명', '품목코드', '목표금액(VAT포함)', '목표금액(VAT제외)', '목표수량', '비고'
         ]
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [2, 3, 5, 7, 8, 9]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드
+        readonly_columns = [2, 3, 5, 7, 8, 9, 11]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드, 목표금액(VAT제외)
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -965,7 +1042,8 @@ async def download_target_promotion(
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
                 'ERPCode': '품목코드',
-                'TargetAmount': '목표금액(+VAT)',
+                'TargetAmount': '목표금액(VAT포함)',
+                'TargetAmountExVAT': '목표금액(VAT제외)',
                 'TargetQuantity': '목표수량',
                 'Notes': '비고'
             }
@@ -998,13 +1076,14 @@ async def download_target_promotion(
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명 (행사ID 생성에 필요)'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
             ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
-            ['목표금액(+VAT)', 'VAT 포함 금액 (예: 1000000)'],
+            ['목표금액(VAT포함)', 'VAT 포함 금액 (예: 1000000)'],
+            ['목표금액(VAT제외)', '자동 계산됨 (수정 불가)'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '행사명, 시작시간, 종료시간, 목표금액(+VAT), 목표수량, 비고'],
-            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드'],
+            ['수정 가능', '행사명, 시작시간, 종료시간, 목표금액(VAT포함), 목표수량, 비고'],
+            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드, 목표금액(VAT제외)'],
             ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 행사유형 목록', ''],

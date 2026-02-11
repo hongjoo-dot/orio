@@ -255,6 +255,123 @@ class TargetPromotionRepository(BaseRepository):
             cursor.execute(query)
             return [row[0] for row in cursor.fetchall()]
 
+    def get_groups_summary(self, year_month: str, brand_id: Optional[int] = None,
+                           channel_id: Optional[int] = None,
+                           promotion_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """그룹별 요약 조회 (채널+행사명+행사유형 기준, 마스터 패널용)"""
+        with get_db_cursor(commit=False) as cursor:
+            where_clauses = ["FORMAT(t.StartDate, 'yyyy-MM') = ?"]
+            params = [year_month]
+
+            if brand_id is not None:
+                where_clauses.append("t.BrandID = ?")
+                params.append(brand_id)
+
+            if channel_id is not None:
+                where_clauses.append("t.ChannelID = ?")
+                params.append(channel_id)
+
+            if promotion_type:
+                where_clauses.append("t.PromotionType = ?")
+                params.append(promotion_type)
+
+            where_sql = " AND ".join(where_clauses)
+
+            query = f"""
+                SELECT t.ChannelID, t.ChannelName, t.PromotionName, t.PromotionType,
+                       COUNT(*) as ProductCount,
+                       ISNULL(SUM(t.TargetAmount), 0) as TotalAmount,
+                       ISNULL(SUM(t.TargetQuantity), 0) as TotalQuantity,
+                       MIN(t.StartDate) as StartDate,
+                       MAX(t.EndDate) as EndDate
+                FROM [dbo].[TargetPromotionProduct] t
+                WHERE {where_sql}
+                GROUP BY t.ChannelID, t.ChannelName, t.PromotionName, t.PromotionType
+                ORDER BY t.ChannelName ASC, t.PromotionName ASC
+            """
+            cursor.execute(query, *params)
+            results = []
+            for row in cursor.fetchall():
+                ch_id = row[0]
+                promo_name = row[2] or ''
+                promo_type = row[3] or ''
+                group_key = f"{ch_id}|{promo_name}|{promo_type}"
+                results.append({
+                    "GroupKey": group_key,
+                    "ChannelID": ch_id,
+                    "ChannelName": row[1],
+                    "PromotionName": promo_name,
+                    "PromotionType": promo_type,
+                    "ProductCount": row[4],
+                    "TotalAmount": float(row[5]) if row[5] else 0,
+                    "TotalQuantity": int(row[6]) if row[6] else 0,
+                    "StartDate": row[7].strftime('%Y-%m-%d') if row[7] else None,
+                    "EndDate": row[8].strftime('%Y-%m-%d') if row[8] else None,
+                })
+            return results
+
+    def get_by_group(self, channel_id: int, promotion_name: str, promotion_type: str,
+                     year_month: str, brand_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """특정 그룹의 상품 목록 조회 (디테일 패널용)"""
+        with get_db_cursor(commit=False) as cursor:
+            columns = ", ".join(self.SELECT_COLUMNS)
+            where_clauses = [
+                "t.ChannelID = ?",
+                "t.PromotionName = ?",
+                "t.PromotionType = ?",
+                "FORMAT(t.StartDate, 'yyyy-MM') = ?"
+            ]
+            params = [channel_id, promotion_name, promotion_type, year_month]
+
+            if brand_id is not None:
+                where_clauses.append("t.BrandID = ?")
+                params.append(brand_id)
+
+            where_sql = " AND ".join(where_clauses)
+
+            query = f"""
+                SELECT {columns}
+                FROM [dbo].[TargetPromotionProduct] t
+                WHERE {where_sql}
+                ORDER BY t.ERPCode ASC
+            """
+            cursor.execute(query, *params)
+            return [self._row_to_dict(row) for row in cursor.fetchall()]
+
+    def bulk_update_promo_amounts(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """인라인 편집 일괄 저장 (TargetAmount, TargetQuantity, Notes만 업데이트)"""
+        total_updated = 0
+
+        with get_db_cursor() as cursor:
+            for record in records:
+                target_id = record.get('TargetPromotionID')
+                if not target_id:
+                    continue
+
+                target_amount = record.get('TargetAmount', 0) or 0
+                target_amount_ex_vat = calculate_amount_ex_vat(target_amount)
+
+                query = """
+                    UPDATE [dbo].[TargetPromotionProduct]
+                    SET TargetAmount = ?,
+                        TargetAmountExVAT = ?,
+                        TargetQuantity = ?,
+                        Notes = ?,
+                        UpdatedDate = GETDATE()
+                    WHERE TargetPromotionID = ?
+                """
+                cursor.execute(query,
+                    float(target_amount),
+                    target_amount_ex_vat,
+                    int(record.get('TargetQuantity', 0) or 0),
+                    record.get('Notes'),
+                    target_id
+                )
+                if cursor.rowcount > 0:
+                    total_updated += 1
+
+        return {"updated": total_updated}
+
     def get_promotion_types(self) -> List[str]:
         """저장된 데이터의 행사유형 목록 조회"""
         with get_db_cursor(commit=False) as cursor:

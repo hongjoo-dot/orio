@@ -105,6 +105,18 @@ class PromotionProductUpdate(BaseModel):
     Notes: Optional[str] = None
 
 
+class PromotionProductBulkUpdateItem(BaseModel):
+    PromotionProductID: int
+    PromotionPrice: Optional[float] = None
+    ExpectedSalesAmount: Optional[float] = None
+    ExpectedQuantity: Optional[int] = None
+    Notes: Optional[str] = None
+
+
+class PromotionProductBulkUpdateRequest(BaseModel):
+    items: List[PromotionProductBulkUpdateItem]
+
+
 # ==========================================================
 #  Promotion Router (행사 목록 CRUD + 통합 엑셀)
 # ==========================================================
@@ -197,6 +209,37 @@ async def get_promotion_statuses(user: CurrentUser = Depends(require_permission(
         return {"statuses": statuses}
     except Exception as e:
         raise HTTPException(500, f"상태 목록 조회 실패: {str(e)}")
+
+
+# ========== 마스터 패널용 요약 목록 ==========
+
+@router.get("/master-summary")
+async def get_promotion_master_summary(
+    year_month: Optional[str] = None,
+    brand_id: Optional[int] = None,
+    channel_id: Optional[int] = None,
+    promotion_type: Optional[str] = None,
+    status: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Promotion", "READ"))
+):
+    """마스터 패널용 비정기 목록 + 상품 수 조회"""
+    try:
+        filters = {}
+        if year_month:
+            filters['year_month'] = year_month
+        if brand_id:
+            filters['brand_id'] = brand_id
+        if channel_id:
+            filters['channel_id'] = channel_id
+        if promotion_type:
+            filters['promotion_type'] = promotion_type
+        if status:
+            filters['status'] = status
+
+        data = promotion_repo.get_master_summary(filters)
+        return {"data": data, "total": len(data)}
+    except Exception as e:
+        raise HTTPException(500, f"비정기 목록 조회 실패: {str(e)}")
 
 
 # ========== 통합 엑셀 다운로드 ==========
@@ -1237,6 +1280,24 @@ async def get_promotion_product_list(
         return result
     except Exception as e:
         raise HTTPException(500, f"행사 상품 조회 실패: {str(e)}")
+
+
+@product_router.put("/bulk-update")
+@log_activity("UPDATE", "PromotionProduct")
+async def bulk_update_promotion_products_inline(
+    data: PromotionProductBulkUpdateRequest,
+    request: Request,
+    user: CurrentUser = Depends(require_permission("Promotion", "UPDATE"))
+):
+    """비정기 상품 인라인 편집 일괄 저장"""
+    try:
+        items = [item.dict() for item in data.items]
+        result = promotion_product_repo.bulk_update_products(items)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"일괄 수정 실패: {str(e)}")
 
 
 @product_router.get("/{product_id}")
