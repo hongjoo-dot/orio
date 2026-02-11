@@ -104,11 +104,12 @@ class CustomerDatabaseUploader:
             self.cursor.execute("""
                 UPDATE Cafe24Customers SET
                     shop_no = ?, group_no = ?,
-                    member_authentication = ?, use_blacklist = ?, blacklist_type = ?,
+                    phone = ?, cellphone = ?,
+                    member_authentication = ?,
                     authentication_method = ?,
                     sms = ?, news_mail = ?,
-                    gender = ?, solar_calendar = ?,
-                    total_points = ?, available_points = ?, used_points = ?, available_credits = ?,
+                    gender = ?,
+                    total_points = ?, available_points = ?, used_points = ?,
                     use_mobile_app = ?, fixed_group = ?,
                     last_login_date = ?, created_date = ?,
                     next_grade = NULL, total_purchase_amount = NULL, total_purchase_count = NULL,
@@ -117,11 +118,12 @@ class CustomerDatabaseUploader:
                 WHERE member_id = ?
             """, (
                 data['shop_no'], data['group_no'],
-                data['member_authentication'], data['use_blacklist'], data['blacklist_type'],
+                data['phone'], data['cellphone'],
+                data['member_authentication'],
                 data['authentication_method'],
                 data['sms'], data['news_mail'],
-                data['gender'], data['solar_calendar'],
-                data['total_points'], data['available_points'], data['used_points'], data['available_credits'],
+                data['gender'],
+                data['total_points'], data['available_points'], data['used_points'],
                 data['use_mobile_app'], data['fixed_group'],
                 data['last_login_date'], data['created_date'],
                 member_id
@@ -132,24 +134,26 @@ class CustomerDatabaseUploader:
             self.cursor.execute("""
                 INSERT INTO Cafe24Customers (
                     member_id, shop_no, group_no,
-                    member_authentication, use_blacklist, blacklist_type, authentication_method,
+                    phone, cellphone,
+                    member_authentication, authentication_method,
                     sms, news_mail,
-                    gender, solar_calendar,
-                    total_points, available_points, used_points, available_credits,
+                    gender,
+                    total_points, available_points, used_points,
                     use_mobile_app, fixed_group,
                     last_login_date, created_date,
                     next_grade, total_purchase_amount, total_purchase_count,
                     required_purchase_amount, required_purchase_count,
                     CollectedDate
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, GETDATE())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, GETDATE())
             """, (
                 member_id,
                 data['shop_no'], data['group_no'],
-                data['member_authentication'], data['use_blacklist'], data['blacklist_type'],
+                data['phone'], data['cellphone'],
+                data['member_authentication'],
                 data['authentication_method'],
                 data['sms'], data['news_mail'],
-                data['gender'], data['solar_calendar'],
-                data['total_points'], data['available_points'], data['used_points'], data['available_credits'],
+                data['gender'],
+                data['total_points'], data['available_points'], data['used_points'],
                 data['use_mobile_app'], data['fixed_group'],
                 data['last_login_date'], data['created_date']
             ))

@@ -49,6 +49,16 @@ class GroupDeleteRequest(BaseModel):
     group_id: int
 
 
+class WithdrawalPlanBulkUpdateItem(BaseModel):
+    PlanID: int
+    PlannedQty: Optional[int] = None
+    Notes: Optional[str] = None
+
+
+class WithdrawalPlanBulkUpdateRequest(BaseModel):
+    items: List[WithdrawalPlanBulkUpdateItem]
+
+
 # ==========================================================
 #  WithdrawalPlan Router
 # ==========================================================
@@ -508,6 +518,26 @@ def _parse_date(value):
     except Exception:
         pass
     return None
+
+
+# ========== 인라인 편집 일괄 저장 ==========
+
+@router.put("/bulk-update")
+@log_activity("UPDATE", "WithdrawalPlan")
+async def bulk_update_withdrawal_plans_inline(
+    data: WithdrawalPlanBulkUpdateRequest,
+    request: Request,
+    user: CurrentUser = Depends(require_permission("WithdrawalPlan", "UPDATE"))
+):
+    """불출 계획 인라인 편집 일괄 저장"""
+    try:
+        items = [item.dict() for item in data.items]
+        result = plan_repo.bulk_update_items(items)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"일괄 수정 실패: {str(e)}")
 
 
 # ========== 단건 CRUD ==========

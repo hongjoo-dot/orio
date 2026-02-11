@@ -1,29 +1,154 @@
 /**
  * 불출 계획 페이지 JavaScript
- * - 마스터: 캠페인 그룹 목록
- * - 디테일: 선택된 캠페인의 상품 목록
+ * - 마스터: 캠페인 그룹 목록 (TableManager)
+ * - 디테일: 선택된 캠페인의 상품 목록 (인라인 편집)
  */
 
+// ==================== 상태 변수 ====================
+let masterTableManager, detailTableManager;
+let uploadModal, uploadResultModal;
+
+// 마스터 데이터
+let currentMasterData = [];
+let masterDataMap = {};              // {GroupID: row}
 let currentGroupId = null;
 let currentGroupData = null;
+
+// 디테일 데이터
+let currentDetailItems = [];
+let originalData = {};               // {PlanID: {PlannedQty, Notes}}
+let dirtyRows = new Map();           // Map<PlanID, {PlannedQty, Notes}>
+
+// 필터
 let currentFilters = {};
-let selectedGroupIds = new Set();  // 선택된 그룹 ID들
 
-let uploadModal, uploadResultModal, confirmModal, alertModal;
+// ==================== 마스터 컬럼 정의 ====================
+const masterColumns = [
+    {
+        key: 'Title',
+        header: '캠페인',
+        sortKey: 'Title',
+        render: (row) => {
+            const dateRange = row.StartDate === row.EndDate
+                ? row.StartDate
+                : `${row.StartDate} ~ ${row.EndDate}`;
+            return `<div class="group-info">
+                <span class="group-title">${escapeHtml(row.Title)}</span>
+                <span class="group-meta">
+                    <span class="type-badge ${escapeHtml(row.Type)}">${escapeHtml(row.Type)}</span>
+                    <span style="margin-left:4px;">${dateRange} · ${row.ItemCount}개 상품</span>
+                </span>
+            </div>`;
+        }
+    },
+    {
+        key: 'TotalQty',
+        header: '총수량',
+        sortKey: 'TotalQty',
+        render: (row) => `<div style="text-align:right;font-size:13px;">${(row.TotalQty || 0).toLocaleString()}</div>`
+    }
+];
 
-/**
- * 페이지 초기화
- */
-document.addEventListener('DOMContentLoaded', function() {
-    // 모달 초기화
+// ==================== 디테일 컬럼 정의 ====================
+const detailColumns = [
+    {
+        key: 'ProductName',
+        header: '상품명',
+        sortKey: 'ProductName',
+        render: (row) => `<span style="font-size:13px;">${escapeHtml(row.ProductName) || '-'}</span>`
+    },
+    {
+        key: 'UniqueCode',
+        header: '고유코드',
+        sortKey: 'UniqueCode',
+        render: (row) => `<code style="font-size:12px;">${escapeHtml(row.UniqueCode) || '-'}</code>`
+    },
+    {
+        key: 'Date',
+        header: '계획일자',
+        sortKey: 'Date',
+        render: (row) => `<span style="font-size:13px;">${row.Date || '-'}</span>`
+    },
+    {
+        key: 'PlannedQty',
+        header: '예정수량',
+        sortKey: 'PlannedQty',
+        render: (row) => {
+            const dirty = dirtyRows.get(row.PlanID);
+            const val = dirty && dirty.PlannedQty !== undefined ? dirty.PlannedQty : (row.PlannedQty || 0);
+            const orig = originalData[row.PlanID];
+            const isDirty = orig && val !== orig.PlannedQty;
+            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
+                data-id="${row.PlanID}" data-field="PlannedQty"
+                value="${val.toLocaleString()}"
+                onfocus="onInlineFocus(this)" onblur="onQuantityBlur(this)">`;
+        }
+    },
+    {
+        key: 'Notes',
+        header: '메모',
+        render: (row) => {
+            const dirty = dirtyRows.get(row.PlanID);
+            const val = dirty && dirty.Notes !== undefined ? dirty.Notes : (row.Notes || '');
+            const orig = originalData[row.PlanID];
+            const isDirty = orig && val !== (orig.Notes || '');
+            return `<input type="text" class="inline-input${isDirty ? ' dirty' : ''}"
+                data-id="${row.PlanID}" data-field="Notes"
+                value="${escapeHtml(val)}"
+                oninput="onNotesInput(this)">`;
+        }
+    }
+];
+
+// ==================== 초기화 ====================
+document.addEventListener('DOMContentLoaded', async function () {
     uploadModal = new ModalManager('uploadModal');
     uploadResultModal = new ModalManager('uploadResultModal');
-    confirmModal = new ModalManager('confirmModal');
-    alertModal = new ModalManager('alertModal');
 
-    // 초기 데이터 로드
+    // 마스터 테이블 매니저
+    masterTableManager = new TableManager('master-table', {
+        selectable: true,
+        idKey: 'GroupID',
+        onRowClick: (row, tr) => {
+            selectGroup(row.GroupID, tr);
+        },
+        onSelectionChange: (selectedIds) => {
+            updateMasterActionButtons(selectedIds);
+        },
+        onSort: (sortKey, sortDir) => {
+            sortAndRenderMaster(sortKey, sortDir);
+        },
+        emptyMessage: '캠페인 데이터가 없습니다.'
+    });
+    masterTableManager.renderHeader(masterColumns);
+
+    // 디테일 테이블 매니저
+    detailTableManager = new TableManager('detail-table', {
+        selectable: false,
+        idKey: 'PlanID',
+        onSort: (sortKey, sortDir) => {
+            if (dirtyRows.size > 0) {
+                showConfirm('저장하지 않은 변경사항이 있습니다. 정렬하시겠습니까?', () => {
+                    dirtyRows.clear();
+                    updateSaveBar();
+                    sortAndRenderDetail(sortKey, sortDir);
+                });
+                return;
+            }
+            sortAndRenderDetail(sortKey, sortDir);
+        },
+        emptyMessage: '상품이 없습니다.'
+    });
+    detailTableManager.renderHeader(detailColumns);
+
+    // 패널 리사이즈 초기화
+    initPanelResize('wpMasterDetail', 'panelResizeHandle');
+
+    // 업로드 존 드래그앤드롭
+    setupUploadZone();
+
+    // 사용유형 로드
     loadTypes();
-    loadGroups();
 
     // Enter 키 검색
     ['filterYearMonth', 'filterType', 'filterTitle'].forEach(id => {
@@ -35,25 +160,54 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 업로드 존 드래그앤드롭 설정
-    setupUploadZone();
+    // 마스터 로드
+    loadMasterData();
 });
 
-/**
- * 업로드 존 드래그앤드롭 설정
- */
+// ==================== 패널 리사이즈 ====================
+function initPanelResize(containerId, handleId) {
+    const container = document.getElementById(containerId);
+    const handle = document.getElementById(handleId);
+    if (!container || !handle) return;
+
+    let isResizing = false;
+    let startX, startMasterWidth;
+
+    handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isResizing = true;
+        startX = e.clientX;
+        startMasterWidth = container.querySelector('.master-panel').offsetWidth;
+        handle.classList.add('active');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const containerWidth = container.offsetWidth;
+        const delta = e.clientX - startX;
+        const newMasterWidth = Math.max(200, Math.min(containerWidth - 350, startMasterWidth + delta));
+        container.style.gridTemplateColumns = `${newMasterWidth}px 0px 1fr`;
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isResizing) return;
+        isResizing = false;
+        handle.classList.remove('active');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+    });
+}
+
+// ==================== 업로드 존 드래그앤드롭 ====================
 function setupUploadZone() {
     const uploadZone = document.querySelector('.upload-zone');
     if (!uploadZone) return;
 
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        uploadZone.addEventListener(eventName, preventDefaults, false);
+        uploadZone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
     });
-
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
 
     ['dragenter', 'dragover'].forEach(eventName => {
         uploadZone.addEventListener(eventName, () => {
@@ -79,9 +233,332 @@ function setupUploadZone() {
     });
 }
 
-/**
- * 사용유형 목록 로드
- */
+// ==================== 마스터 패널 ====================
+async function loadMasterData() {
+    try {
+        masterTableManager.showLoading(masterColumns.length);
+
+        const params = { ...currentFilters };
+        const queryString = api.buildQueryString(params);
+
+        const result = await api.get(`/api/withdrawal-plans/groups${queryString}`);
+        const data = result.data || [];
+
+        currentMasterData = data;
+        masterDataMap = {};
+        data.forEach(row => masterDataMap[row.GroupID] = row);
+
+        document.getElementById('masterCount').textContent = `(${data.length}건)`;
+
+        masterTableManager.render(data, masterColumns);
+        applyMasterSelection();
+
+        if (currentGroupId && !masterDataMap[currentGroupId]) {
+            resetDetail();
+        }
+
+    } catch (e) {
+        console.error('캠페인 목록 로드 실패:', e);
+        showAlert('캠페인 목록 로드 실패: ' + e.message, 'error');
+    }
+}
+
+function sortAndRenderMaster(sortKey, sortDir) {
+    sortArray(currentMasterData, sortKey, sortDir);
+    masterTableManager.render(currentMasterData, masterColumns);
+    applyMasterSelection();
+}
+
+function applyMasterSelection() {
+    if (!currentGroupId) return;
+    document.querySelectorAll('#master-table tbody tr').forEach(tr => {
+        if (tr.dataset.id == currentGroupId) {
+            tr.classList.add('selected');
+        }
+    });
+}
+
+// ==================== 캠페인 선택 (마스터 행 클릭) ====================
+function selectGroup(groupId, tr) {
+    if (dirtyRows.size > 0 && groupId !== currentGroupId) {
+        showConfirm('저장하지 않은 변경사항이 있습니다. 캠페인을 전환하시겠습니까?', () => {
+            dirtyRows.clear();
+            updateSaveBar();
+            doSelectGroup(groupId, tr);
+        });
+        return;
+    }
+    doSelectGroup(groupId, tr);
+}
+
+function doSelectGroup(groupId, tr) {
+    document.querySelectorAll('#master-table tbody tr').forEach(r => r.classList.remove('selected'));
+    if (tr) tr.classList.add('selected');
+
+    currentGroupId = groupId;
+    currentGroupData = masterDataMap[groupId];
+
+    loadDetailData(currentGroupData);
+}
+
+// ==================== 디테일 패널 ====================
+async function loadDetailData(group) {
+    try {
+        document.getElementById('detailPlaceholder').style.display = 'none';
+        document.getElementById('detailContainer').style.display = 'flex';
+
+        detailTableManager.showLoading(detailColumns.length);
+
+        const result = await api.get(`/api/withdrawal-plans/groups/${group.GroupID}/items`);
+        const items = result.data || [];
+
+        currentDetailItems = items;
+        document.getElementById('detailItemCount').textContent = `(${items.length}건)`;
+
+        renderGroupSummary(group);
+
+        // 원본 데이터 저장
+        originalData = {};
+        items.forEach(item => {
+            originalData[item.PlanID] = {
+                PlannedQty: item.PlannedQty || 0,
+                Notes: item.Notes || ''
+            };
+        });
+
+        dirtyRows.clear();
+        updateSaveBar();
+
+        detailTableManager.render(items, detailColumns);
+
+    } catch (e) {
+        console.error('상품 목록 로드 실패:', e);
+        showAlert('상품 목록 로드 실패: ' + e.message, 'error');
+    }
+}
+
+function sortAndRenderDetail(sortKey, sortDir) {
+    sortArray(currentDetailItems, sortKey, sortDir);
+    detailTableManager.render(currentDetailItems, detailColumns);
+}
+
+function renderGroupSummary(group) {
+    const dateRange = group.StartDate === group.EndDate
+        ? group.StartDate
+        : `${group.StartDate} ~ ${group.EndDate}`;
+
+    document.getElementById('groupSummary').innerHTML = `
+        <div class="group-summary-title">
+            <i class="fa-solid fa-chart-bar" style="color:var(--accent);"></i>
+            <span class="type-badge ${escapeHtml(group.Type)}">${escapeHtml(group.Type)}</span>
+            ${escapeHtml(group.Title)} 요약
+        </div>
+        <div class="group-summary-grid">
+            <div class="summary-item">
+                <span class="summary-label">그룹ID</span>
+                <span class="summary-value">${group.GroupID}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">기간</span>
+                <span class="summary-value">${dateRange}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">상품 수</span>
+                <span class="summary-value">${group.ItemCount}개</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">총 수량</span>
+                <span class="summary-value">${(group.TotalQty || 0).toLocaleString()}</span>
+            </div>
+        </div>
+    `;
+}
+
+function resetDetail() {
+    currentGroupId = null;
+    currentGroupData = null;
+    originalData = {};
+    dirtyRows.clear();
+    currentDetailItems = [];
+
+    document.getElementById('detailPlaceholder').style.display = 'flex';
+    document.getElementById('detailContainer').style.display = 'none';
+    document.getElementById('groupSummary').innerHTML = '';
+    updateSaveBar();
+}
+
+// ==================== 인라인 편집 ====================
+function onInlineFocus(input) {
+    const raw = input.value.replace(/,/g, '');
+    input.value = raw;
+    input.select();
+}
+
+function onQuantityBlur(input) {
+    let val = parseInt(input.value.replace(/,/g, '')) || 0;
+    input.value = val.toLocaleString();
+    checkDirty(input);
+}
+
+function onNotesInput(input) {
+    checkDirty(input);
+}
+
+function checkDirty(input) {
+    const id = parseInt(input.dataset.id);
+    const field = input.dataset.field;
+
+    const orig = originalData[id];
+    if (!orig) return;
+
+    let currentVal;
+    if (field === 'PlannedQty') {
+        currentVal = parseInt(input.value.replace(/,/g, '')) || 0;
+    } else {
+        currentVal = input.value;
+    }
+
+    const isDirty = currentVal !== orig[field];
+    input.classList.toggle('dirty', isDirty);
+
+    // 행 단위 dirty 추적
+    const row = input.closest('tr');
+    const rowInputs = row.querySelectorAll('.inline-input');
+    let rowHasDirty = false;
+
+    rowInputs.forEach(inp => {
+        if (inp.classList.contains('dirty')) rowHasDirty = true;
+    });
+
+    if (rowHasDirty) {
+        const rowData = {};
+        rowInputs.forEach(inp => {
+            const f = inp.dataset.field;
+            if (f === 'PlannedQty') {
+                rowData[f] = parseInt(inp.value.replace(/,/g, '')) || 0;
+            } else {
+                rowData[f] = inp.value;
+            }
+        });
+        dirtyRows.set(id, rowData);
+    } else {
+        dirtyRows.delete(id);
+    }
+
+    updateSaveBar();
+}
+
+// ==================== 저장 ====================
+async function saveChanges() {
+    if (dirtyRows.size === 0) return;
+
+    const items = [];
+    dirtyRows.forEach((data, id) => {
+        items.push({
+            PlanID: id,
+            PlannedQty: data.PlannedQty,
+            Notes: data.Notes
+        });
+    });
+
+    try {
+        const result = await api.put('/api/withdrawal-plans/bulk-update', { items });
+        showAlert(`${result.updated}건이 저장되었습니다.`, 'success');
+
+        // 원본 데이터 업데이트
+        items.forEach(item => {
+            originalData[item.PlanID] = {
+                PlannedQty: item.PlannedQty,
+                Notes: item.Notes
+            };
+            const detailItem = currentDetailItems.find(d => d.PlanID === item.PlanID);
+            if (detailItem) {
+                detailItem.PlannedQty = item.PlannedQty;
+                detailItem.Notes = item.Notes;
+            }
+        });
+
+        dirtyRows.clear();
+        updateSaveBar();
+        document.querySelectorAll('#detail-table .inline-input.dirty').forEach(inp => {
+            inp.classList.remove('dirty');
+        });
+
+        // 마스터 새로고침 (합계 업데이트)
+        loadMasterData();
+
+    } catch (e) {
+        console.error('저장 실패:', e);
+        showAlert('저장 실패: ' + e.message, 'error');
+    }
+}
+
+function updateSaveBar() {
+    const saveBar = document.getElementById('saveBar');
+    const countEl = document.getElementById('dirtyCount');
+    if (!saveBar) return;
+
+    if (dirtyRows.size > 0) {
+        saveBar.style.display = 'flex';
+        countEl.textContent = `${dirtyRows.size}건 변경됨`;
+    } else {
+        saveBar.style.display = 'none';
+    }
+}
+
+// ==================== 마스터 액션 버튼 ====================
+function updateMasterActionButtons(selectedIds) {
+    const editDownloadBtn = document.getElementById('editDownloadButton');
+    if (!editDownloadBtn) return;
+
+    if (selectedIds.length > 0) {
+        editDownloadBtn.classList.remove('btn-disabled');
+        editDownloadBtn.disabled = false;
+    } else {
+        editDownloadBtn.classList.add('btn-disabled');
+        editDownloadBtn.disabled = true;
+    }
+}
+
+// ==================== 필터 ====================
+function applyFilters() {
+    if (dirtyRows.size > 0) {
+        showConfirm('저장하지 않은 변경사항이 있습니다. 필터를 적용하시겠습니까?', () => {
+            dirtyRows.clear();
+            updateSaveBar();
+            doApplyFilters();
+        });
+        return;
+    }
+    doApplyFilters();
+}
+
+function doApplyFilters() {
+    currentFilters = {};
+
+    const yearMonth = document.getElementById('filterYearMonth').value;
+    const type = document.getElementById('filterType').value;
+    const title = document.getElementById('filterTitle').value.trim();
+
+    if (yearMonth) currentFilters.year_month = yearMonth;
+    if (type) currentFilters.type = type;
+    if (title) currentFilters.title = title;
+
+    resetDetail();
+    loadMasterData();
+}
+
+function resetFilters() {
+    document.getElementById('filterYearMonth').value = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterTitle').value = '';
+
+    currentFilters = {};
+    resetDetail();
+    loadMasterData();
+}
+
+// ==================== 사용유형 로드 ====================
 async function loadTypes() {
     try {
         const result = await api.get('/api/withdrawal-plans/types');
@@ -99,351 +576,47 @@ async function loadTypes() {
     }
 }
 
-/**
- * 캠페인 그룹 목록 로드 (마스터)
- */
-async function loadGroups() {
-    try {
-        const tbody = document.querySelector('#master-table tbody');
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">
-                    <i class="fa-solid fa-spinner fa-spin"></i> 로딩 중...
-                </td>
-            </tr>
-        `;
-
-        // 선택 초기화
-        selectedGroupIds.clear();
-        document.getElementById('selectAllGroups').checked = false;
-
-        let params = [];
-        if (currentFilters.year_month) params.push(`year_month=${currentFilters.year_month}`);
-        if (currentFilters.type) params.push(`type=${encodeURIComponent(currentFilters.type)}`);
-        if (currentFilters.title) params.push(`title=${encodeURIComponent(currentFilters.title)}`);
-
-        const queryString = params.length > 0 ? '?' + params.join('&') : '';
-        const result = await api.get(`/api/withdrawal-plans/groups${queryString}`);
-        const groups = result.data || [];
-
-        document.getElementById('groupCount').textContent = `(${groups.length}건)`;
-
-        if (groups.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">
-                        <i class="fa-solid fa-inbox" style="font-size:24px;margin-bottom:8px;opacity:0.5;"></i>
-                        <p>데이터가 없습니다</p>
-                    </td>
-                </tr>
-            `;
-            resetDetail();
-            return;
-        }
-
-        tbody.innerHTML = '';
-        groups.forEach(group => {
-            const tr = document.createElement('tr');
-            tr.className = 'group-row';
-            tr.dataset.groupId = group.GroupID;
-
-            const dateRange = group.StartDate === group.EndDate
-                ? group.StartDate
-                : `${group.StartDate} ~ ${group.EndDate}`;
-
-            tr.innerHTML = `
-                <td style="text-align:center;" onclick="event.stopPropagation();">
-                    <input type="checkbox" class="group-checkbox" data-group-id="${group.GroupID}" onchange="toggleGroupSelection(${group.GroupID}, this)">
-                </td>
-                <td>
-                    <div class="group-info">
-                        <span class="group-title">${group.Title || '-'}</span>
-                        <span class="group-meta">${dateRange} · ${group.ItemCount}개 상품</span>
-                    </div>
-                </td>
-                <td><span class="type-badge ${group.Type}">${group.Type || '-'}</span></td>
-                <td style="text-align:right;font-weight:500;">${(group.TotalQty || 0).toLocaleString()}</td>
-            `;
-
-            tr.addEventListener('click', () => selectGroup(group, tr));
-            tbody.appendChild(tr);
-        });
-
-        // 기존 선택 복원 또는 초기화
-        if (currentGroupId) {
-            const existingRow = document.querySelector(`tr[data-group-id="${currentGroupId}"]`);
-            if (existingRow) {
-                existingRow.classList.add('selected');
-            } else {
-                resetDetail();
-            }
-        }
-
-    } catch (e) {
-        console.error('그룹 목록 로드 실패:', e);
-        document.querySelector('#master-table tbody').innerHTML = `
-            <tr>
-                <td colspan="4" style="text-align:center;padding:40px;color:var(--danger);">
-                    로드 실패: ${e.message}
-                </td>
-            </tr>
-        `;
-    }
-}
-
-/**
- * 전체 선택/해제
- */
-function toggleSelectAll(checkbox) {
-    const checkboxes = document.querySelectorAll('.group-checkbox');
-    checkboxes.forEach(cb => {
-        cb.checked = checkbox.checked;
-        const groupId = parseInt(cb.dataset.groupId);
-        if (checkbox.checked) {
-            selectedGroupIds.add(groupId);
-        } else {
-            selectedGroupIds.delete(groupId);
-        }
-    });
-    updateGroupActionButtons();
-}
-
-/**
- * 개별 그룹 선택/해제
- */
-function toggleGroupSelection(groupId, checkbox) {
-    if (checkbox.checked) {
-        selectedGroupIds.add(groupId);
-    } else {
-        selectedGroupIds.delete(groupId);
-    }
-
-    // 전체 선택 체크박스 상태 업데이트
-    const allCheckboxes = document.querySelectorAll('.group-checkbox');
-    const checkedCount = document.querySelectorAll('.group-checkbox:checked').length;
-    document.getElementById('selectAllGroups').checked = (allCheckboxes.length > 0 && checkedCount === allCheckboxes.length);
-    updateGroupActionButtons();
-}
-
-/**
- * 그룹 선택에 따른 수정 양식 버튼 상태 업데이트
- */
-function updateGroupActionButtons() {
-    const editDownloadBtn = document.getElementById('editDownloadButton');
-    if (selectedGroupIds.size > 0) {
-        editDownloadBtn.classList.remove('btn-disabled');
-        editDownloadBtn.disabled = false;
-    } else {
-        editDownloadBtn.classList.add('btn-disabled');
-        editDownloadBtn.disabled = true;
-    }
-}
-
-/**
- * 캠페인 그룹 선택
- */
-function selectGroup(group, tr) {
-    // 기존 선택 해제
-    document.querySelectorAll('#master-table tbody tr').forEach(r => r.classList.remove('selected'));
-    tr.classList.add('selected');
-
-    currentGroupId = group.GroupID;
-    currentGroupData = group;
-
-    loadGroupDetail(group);
-}
-
-/**
- * 그룹 상세 로드 (디테일)
- */
-async function loadGroupDetail(group) {
-    try {
-        document.getElementById('detailPlaceholder').style.display = 'none';
-        document.getElementById('detailContainer').style.display = 'flex';
-
-        // 그룹 요약
-        renderGroupSummary(group);
-
-        // 상품 테이블 로딩
-        const tbody = document.querySelector('#detail-table tbody');
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">
-                    <i class="fa-solid fa-spinner fa-spin"></i> 로딩 중...
-                </td>
-            </tr>
-        `;
-
-        const result = await api.get(`/api/withdrawal-plans/groups/${group.GroupID}/items`);
-        const items = result.data || [];
-
-        document.getElementById('itemCount').textContent = `(${items.length}건)`;
-
-        if (items.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">
-                        상품이 없습니다
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        tbody.innerHTML = '';
-        items.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.ProductName || '-'}</td>
-                <td><code style="font-size:12px;">${item.UniqueCode || '-'}</code></td>
-                <td>${item.Date || '-'}</td>
-                <td style="text-align:right;font-weight:500;">${(item.PlannedQty || 0).toLocaleString()}</td>
-                <td style="color:var(--text-muted);font-size:13px;">${item.Notes || '-'}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-    } catch (e) {
-        console.error('그룹 상세 로드 실패:', e);
-        showAlertModal('상품 목록 로드 실패: ' + e.message, 'error');
-    }
-}
-
-/**
- * 그룹 요약 렌더링
- */
-function renderGroupSummary(group) {
-    const html = `
-        <div class="group-summary-title">
-            <span class="type-badge ${group.Type}">${group.Type}</span>
-            ${group.Title}
-        </div>
-        <div class="group-summary-grid">
-            <div class="summary-item">
-                <span class="summary-label">그룹ID</span>
-                <span class="summary-value">${group.GroupID}</span>
-            </div>
-            <div class="summary-item">
-                <span class="summary-label">기간</span>
-                <span class="summary-value">${group.StartDate === group.EndDate ? group.StartDate : group.StartDate + ' ~ ' + group.EndDate}</span>
-            </div>
-            <div class="summary-item">
-                <span class="summary-label">상품 수</span>
-                <span class="summary-value">${group.ItemCount}개</span>
-            </div>
-            <div class="summary-item">
-                <span class="summary-label">총 수량</span>
-                <span class="summary-value">${(group.TotalQty || 0).toLocaleString()}</span>
-            </div>
-        </div>
-    `;
-    document.getElementById('groupSummary').innerHTML = html;
-}
-
-/**
- * 디테일 패널 초기화
- */
-function resetDetail() {
-    currentGroupId = null;
-    currentGroupData = null;
-    document.getElementById('detailPlaceholder').style.display = 'flex';
-    document.getElementById('detailContainer').style.display = 'none';
-}
-
-// ========== 필터 ==========
-
-function applyFilters() {
-    currentFilters = {};
-
-    const yearMonth = document.getElementById('filterYearMonth').value;
-    const type = document.getElementById('filterType').value;
-    const title = document.getElementById('filterTitle').value.trim();
-
-    if (yearMonth) currentFilters.year_month = yearMonth;
-    if (type) currentFilters.type = type;
-    if (title) currentFilters.title = title;
-
-    resetDetail();
-    loadGroups();
-}
-
-function resetFilters() {
-    document.getElementById('filterYearMonth').value = '';
-    document.getElementById('filterType').value = '';
-    document.getElementById('filterTitle').value = '';
-    currentFilters = {};
-    resetDetail();
-    loadGroups();
-}
-
-// ========== 엑셀 다운로드/업로드 ==========
-
-/**
- * 엑셀 양식 다운로드 (빈 양식 - 신규 등록용)
- */
-async function downloadTemplate() {
-    try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/withdrawal-plans/download', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || '다운로드 실패');
-        }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `withdrawal_plan_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-    } catch (e) {
-        showAlertModal('다운로드 실패: ' + e.message, 'error');
-    }
-}
-
-/**
- * 수정 양식 다운로드 (선택된 그룹 데이터 포함)
- */
-async function downloadEditForm() {
-    if (selectedGroupIds.size === 0) {
-        showAlertModal('수정할 캠페인을 선택해주세요.', 'warning');
+// ==================== 캠페인 삭제 ====================
+function deleteGroup() {
+    if (!currentGroupId || !currentGroupData) {
+        showAlert('삭제할 캠페인을 선택해주세요.', 'warning');
         return;
     }
 
-    try {
-        const groupIdsArray = Array.from(selectedGroupIds);
-        const queryString = `?group_ids=${groupIdsArray.join(',')}`;
-
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/withdrawal-plans/download${queryString}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || '다운로드 실패');
+    showConfirm(
+        `"${currentGroupData.Title}" 캠페인의 모든 상품(${currentGroupData.ItemCount}건)을 삭제하시겠습니까?`,
+        async () => {
+            try {
+                await api.post('/api/withdrawal-plans/groups/delete', { group_id: currentGroupId });
+                showAlert('삭제 완료', 'success');
+                resetDetail();
+                loadMasterData();
+            } catch (e) {
+                showAlert('삭제 실패: ' + e.message, 'error');
+            }
         }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `withdrawal_plan_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-    } catch (e) {
-        showAlertModal('다운로드 실패: ' + e.message, 'error');
-    }
+    );
 }
 
+// ==================== 엑셀 다운로드 ====================
+function downloadTemplate() {
+    window.location.href = '/api/withdrawal-plans/download';
+}
+
+function downloadEditForm() {
+    const selectedIds = masterTableManager.getSelectedRows();
+
+    if (selectedIds.length === 0) {
+        showAlert('수정할 캠페인을 선택해주세요.', 'warning');
+        return;
+    }
+
+    const params = { group_ids: selectedIds.join(',') };
+    const queryString = api.buildQueryString(params);
+    window.location.href = `/api/withdrawal-plans/download${queryString}`;
+}
+
+// ==================== 업로드 ====================
 function showUploadModal() {
     document.getElementById('fileInput').value = '';
     document.getElementById('fileInfo').style.display = 'none';
@@ -452,7 +625,6 @@ function showUploadModal() {
     document.getElementById('progressText').textContent = '0%';
     document.getElementById('uploadButton').disabled = true;
 
-    // 업로드 존 스타일 초기화
     const uploadZone = document.querySelector('.upload-zone');
     if (uploadZone) {
         uploadZone.style.borderColor = 'var(--border)';
@@ -474,17 +646,25 @@ function handleFileSelect(event) {
 async function uploadFile() {
     const fileInput = document.getElementById('fileInput');
     const file = fileInput.files[0];
-    if (!file) return;
 
-    const uploadButton = document.getElementById('uploadButton');
-    uploadButton.disabled = true;
-    uploadButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 업로드 중...';
-
-    document.getElementById('uploadProgress').style.display = 'block';
-    document.getElementById('progressBar').style.width = '50%';
-    document.getElementById('progressText').textContent = '50%';
+    if (!file) {
+        showAlert('파일을 선택해주세요.', 'warning');
+        return;
+    }
 
     try {
+        document.getElementById('uploadProgress').style.display = 'block';
+        document.getElementById('uploadButton').disabled = true;
+
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += 5;
+            if (progress <= 90) {
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressText').textContent = progress + '%';
+            }
+        }, 100);
+
         const formData = new FormData();
         formData.append('file', file);
 
@@ -495,98 +675,74 @@ async function uploadFile() {
             body: formData
         });
 
+        clearInterval(progressInterval);
         document.getElementById('progressBar').style.width = '100%';
         document.getElementById('progressText').textContent = '100%';
 
-        const result = await response.json();
-
         uploadModal.hide();
 
-        if (response.ok) {
-            document.getElementById('uploadSuccessSection').style.display = 'block';
-            document.getElementById('uploadErrorSection').style.display = 'none';
-            document.getElementById('uploadResultTitle').textContent = '업로드 결과';
-            document.getElementById('uploadTotalRows').textContent = result.total_rows || 0;
-            document.getElementById('resultInserted').textContent = result.inserted || 0;
-            document.getElementById('resultUpdated').textContent = result.updated || 0;
-        } else {
+        if (!response.ok) {
+            const error = await response.json();
             document.getElementById('uploadSuccessSection').style.display = 'none';
             document.getElementById('uploadErrorSection').style.display = 'block';
             document.getElementById('uploadResultTitle').textContent = '업로드 실패';
-            document.getElementById('uploadErrorMessage').textContent = result.detail || '알 수 없는 오류';
+            document.getElementById('uploadErrorMessage').textContent = error.detail || '업로드 중 오류가 발생했습니다.';
+            uploadResultModal.show();
+            return;
         }
 
+        const result = await response.json();
+
+        document.getElementById('uploadSuccessSection').style.display = 'block';
+        document.getElementById('uploadErrorSection').style.display = 'none';
+        document.getElementById('uploadResultTitle').textContent = '업로드 결과';
+        document.getElementById('uploadTotalRows').textContent = result.total_rows || 0;
+        document.getElementById('resultInserted').textContent = result.inserted || 0;
+        document.getElementById('resultUpdated').textContent = result.updated || 0;
+
         uploadResultModal.show();
-        loadGroups();
+
+        // 데이터 새로고침
+        resetDetail();
+        loadMasterData();
 
     } catch (e) {
+        console.error('업로드 실패:', e);
+
         uploadModal.hide();
+
         document.getElementById('uploadSuccessSection').style.display = 'none';
         document.getElementById('uploadErrorSection').style.display = 'block';
         document.getElementById('uploadResultTitle').textContent = '업로드 실패';
-        document.getElementById('uploadErrorMessage').textContent = e.message;
+        document.getElementById('uploadErrorMessage').textContent = e.message || '업로드 중 오류가 발생했습니다.';
         uploadResultModal.show();
     } finally {
-        uploadButton.disabled = false;
-        uploadButton.innerHTML = '<i class="fa-solid fa-upload"></i> 업로드';
+        document.getElementById('uploadButton').disabled = false;
     }
 }
 
-// ========== 삭제 ==========
+// ==================== 유틸리티 ====================
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
-function deleteGroup() {
-    if (!currentGroupId || !currentGroupData) {
-        showAlertModal('삭제할 캠페인을 선택해주세요.', 'warning');
-        return;
-    }
+function sortArray(arr, sortKey, sortDir) {
+    arr.sort((a, b) => {
+        let valA = a[sortKey];
+        let valB = b[sortKey];
 
-    showConfirmModal(
-        `"${currentGroupData.Title}" 캠페인의 모든 상품(${currentGroupData.ItemCount}건)을 삭제하시겠습니까?`,
-        async () => {
-            try {
-                await api.post('/api/withdrawal-plans/groups/delete', { group_id: currentGroupId });
-                showAlertModal('삭제 완료', 'success');
-                resetDetail();
-                loadGroups();
-            } catch (e) {
-                showAlertModal('삭제 실패: ' + e.message, 'error');
-            }
+        if (valA == null) valA = '';
+        if (valB == null) valB = '';
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return sortDir === 'ASC' ? valA - valB : valB - valA;
         }
-    );
-}
 
-// ========== 모달 헬퍼 ==========
-
-function showAlertModal(message, type = 'info') {
-    const icon = document.getElementById('alertIcon');
-    if (type === 'success') {
-        icon.className = 'fa-solid fa-circle-check';
-        icon.style.color = 'var(--success)';
-    } else if (type === 'error') {
-        icon.className = 'fa-solid fa-circle-xmark';
-        icon.style.color = 'var(--danger)';
-    } else if (type === 'warning') {
-        icon.className = 'fa-solid fa-triangle-exclamation';
-        icon.style.color = 'var(--warning)';
-    } else {
-        icon.className = 'fa-solid fa-circle-info';
-        icon.style.color = 'var(--accent)';
-    }
-    document.getElementById('alertMessage').textContent = message;
-    alertModal.show();
-}
-
-function showConfirmModal(message, onConfirm) {
-    document.getElementById('confirmMessage').textContent = message;
-
-    const okBtn = document.getElementById('confirmOkButton');
-    const newBtn = okBtn.cloneNode(true);
-    okBtn.parentNode.replaceChild(newBtn, okBtn);
-
-    newBtn.addEventListener('click', async () => {
-        confirmModal.hide();
-        if (onConfirm) await onConfirm();
+        const strA = String(valA).toLowerCase();
+        const strB = String(valB).toLowerCase();
+        if (strA < strB) return sortDir === 'ASC' ? -1 : 1;
+        if (strA > strB) return sortDir === 'ASC' ? 1 : -1;
+        return 0;
     });
-
-    confirmModal.show();
 }

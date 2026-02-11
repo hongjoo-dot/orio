@@ -254,6 +254,33 @@ class WithdrawalPlanRepository(BaseRepository):
             cursor.execute(query, *ids)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
+    def bulk_update_items(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """인라인 편집 일괄 저장 (PlannedQty, Notes 업데이트)"""
+        total_updated = 0
+
+        with get_db_cursor() as cursor:
+            for record in records:
+                plan_id = record.get('PlanID')
+                if not plan_id:
+                    continue
+
+                query = """
+                    UPDATE [dbo].[WithdrawalPlan]
+                    SET PlannedQty = ?,
+                        Notes = ?,
+                        UpdatedDate = GETDATE()
+                    WHERE PlanID = ?
+                """
+                cursor.execute(query,
+                    int(record.get('PlannedQty', 0) or 0),
+                    record.get('Notes'),
+                    plan_id
+                )
+                if cursor.rowcount > 0:
+                    total_updated += 1
+
+        return {"updated": total_updated}
+
     def delete_by_group_id(self, group_id: int) -> int:
         """그룹 전체 삭제"""
         with get_db_cursor() as cursor:
