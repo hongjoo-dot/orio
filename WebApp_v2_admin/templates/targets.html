@@ -19,7 +19,7 @@
 </div>
 
 <!-- Search Filters -->
-<div class="card">
+<div class="card" style="margin-bottom:24px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 검색 필터</div>
         <div style="display:flex;gap:12px;">
@@ -42,7 +42,7 @@
                 <option value="">전체</option>
             </select>
         </div>
-        <div>
+        <div id="channelFilterWrap" style="display:none;">
             <label class="form-label">채널</label>
             <select id="searchChannel" class="form-select">
                 <option value="">전체</option>
@@ -58,15 +58,98 @@
     </div>
 </div>
 
-<!-- Target Table -->
-<div class="card">
+<!-- 정기 목표: 마스터-디테일 -->
+<div id="baseMasterDetail" class="master-detail-container">
+    <!-- 마스터 패널 (채널 목록) -->
+    <div class="card master-panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa-solid fa-store"></i>
+                채널 목록
+                <span id="channelCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+            </div>
+            <div class="panel-actions">
+                <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
+                    <i class="fa-solid fa-file-excel"></i> 엑셀 양식
+                </button>
+                <button class="btn btn-sm btn-disabled" onclick="downloadMasterEditForm()" id="masterEditDownloadButton" disabled style="background:#3b82f6;color:white;">
+                    <i class="fa-solid fa-pen-to-square"></i> 수정 양식
+                </button>
+                <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
+                    <i class="fa-solid fa-upload"></i> 엑셀 업로드
+                </button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table class="table" id="base-master-table">
+                <thead>
+                    <tr></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 패널 리사이즈 핸들 -->
+    <div class="panel-resize-handle" id="panelResizeHandle"></div>
+
+    <!-- 디테일 패널 (상품 목록) -->
+    <div class="card detail-panel">
+        <div id="baseDetailPlaceholder" class="detail-placeholder">
+            <i class="fa-solid fa-hand-pointer"></i>
+            <p>좌측에서 채널을 선택하세요</p>
+        </div>
+
+        <div id="baseDetailContainer" style="display:none;height:100%;flex-direction:column;">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-box"></i>
+                    상품 목표
+                    <span id="baseItemCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                </div>
+                <div class="panel-actions">
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteBaseItems()" id="baseDeleteButton" disabled>
+                        <i class="fa-solid fa-trash"></i> 선택 삭제
+                    </button>
+                    <button class="btn btn-sm btn-disabled" onclick="downloadChannelEditForm()" id="baseEditDownloadButton" disabled style="background:#3b82f6;color:white;">
+                        <i class="fa-solid fa-pen-to-square"></i> 수정 양식
+                    </button>
+                </div>
+            </div>
+
+            <!-- 채널 요약 -->
+            <div id="baseChannelSummary" class="group-summary"></div>
+
+            <!-- 상품 테이블 -->
+            <div class="table-wrapper">
+                <table class="table" id="base-detail-table">
+                    <thead>
+                        <tr></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- 저장 바 -->
+            <div id="baseSaveBar" class="save-bar" style="display:none;">
+                <span id="baseDirtyCount">0건 변경됨</span>
+                <button class="btn btn-primary btn-sm" onclick="saveChanges()">
+                    <i class="fa-solid fa-floppy-disk"></i> 저장
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 비정기 목표: 플랫 테이블 -->
+<div id="promotionFlatTable" class="card" style="display:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
         <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
             <h2 class="card-title" style="margin:0;white-space:nowrap;">
-                <span id="tableTitle">정기 목표</span> 목록
-                <span id="resultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
+                비정기 목표 목록
+                <span id="promoResultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
             </h2>
-            <select id="limitSelector" onchange="changeLimit()" class="form-select"
+            <select id="promoLimitSelector" onchange="changeLimit()" class="form-select"
                 style="width:auto;padding:8px 12px;font-size:13px;">
                 <option value="20" selected>20개씩</option>
                 <option value="50">50개씩</option>
@@ -77,13 +160,13 @@
             <button class="btn btn-secondary btn-sm" onclick="selectAllData()">
                 <i class="fa-solid fa-check-double"></i> 전체 선택
             </button>
-            <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="deleteButton">
+            <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDelete()" id="promoDeleteButton">
                 <i class="fa-solid fa-trash"></i> 선택 삭제
             </button>
             <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
                 <i class="fa-solid fa-file-excel"></i> 엑셀 양식
             </button>
-            <button class="btn btn-sm btn-disabled" onclick="downloadEditForm()" id="editDownloadButton" disabled style="background:#3b82f6;color:white;">
+            <button class="btn btn-sm btn-disabled" onclick="downloadEditForm()" id="promoEditDownloadButton" disabled style="background:#3b82f6;color:white;">
                 <i class="fa-solid fa-pen-to-square"></i> 수정 양식
             </button>
             <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
@@ -93,24 +176,13 @@
     </div>
 
     <div class="table-container">
-        <!-- 정기 목표 테이블 -->
-        <table class="table" id="base-table">
-            <thead>
-                <tr></tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-
-        <!-- 비정기 목표 테이블 -->
-        <table class="table" id="promotion-table" style="display:none;">
-            <thead>
-                <tr></tr>
-            </thead>
+        <table class="table" id="promotion-table">
+            <thead><tr></tr></thead>
             <tbody></tbody>
         </table>
     </div>
 
-    <div id="pagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
+    <div id="promoPagination" style="margin-top:20px;display:flex;justify-content:center;gap:8px;"></div>
 </div>
 
 <!-- Upload Modal -->
@@ -262,14 +334,197 @@
         font-size: 16px;
     }
 
-    /* Button info color */
-    .btn-info {
-        background: #3b82f6;
-        color: white;
+    /* Master-Detail Layout */
+    .master-detail-container {
+        display: grid;
+        grid-template-columns: 0.8fr 0px 1.2fr;
+        gap: 12px;
+        height: calc(100vh - 280px);
+        min-height: 500px;
     }
 
-    .btn-info:hover {
-        background: #2563eb;
+    .master-panel, .detail-panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* Panel Resize Handle */
+    .panel-resize-handle {
+        width: 6px;
+        margin: 0 -3px;
+        cursor: col-resize;
+        background: transparent;
+        border-radius: 3px;
+        z-index: 10;
+        transition: background 0.15s;
+    }
+
+    .panel-resize-handle:hover,
+    .panel-resize-handle.active {
+        background: var(--accent);
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .panel-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .panel-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .table-wrapper {
+        flex: 1;
+        overflow: auto;
+    }
+
+    /* Master Table Rows */
+    #base-master-table tbody tr {
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    #base-master-table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.1);
+    }
+
+    #base-master-table tbody tr.selected {
+        background: rgba(99, 102, 241, 0.15);
+        border-left: 3px solid var(--accent);
+    }
+
+    .group-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .group-title {
+        font-weight: 500;
+        color: var(--text-main);
+    }
+
+    .group-meta {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    /* Detail Placeholder */
+    .detail-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-muted);
+        text-align: center;
+        padding: 40px;
+    }
+
+    .detail-placeholder i {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.3;
+    }
+
+    /* Group Summary */
+    .group-summary {
+        background: rgba(99, 102, 241, 0.06);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .group-summary-title {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .group-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+
+    .summary-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .summary-label {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .summary-value {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-main);
+    }
+
+    /* Inline Edit Input */
+    .inline-input {
+        width: 100%;
+        padding: 4px 8px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg-card);
+        color: var(--text-main);
+        font-size: 13px;
+        transition: border-color 0.2s;
+    }
+
+    .inline-input:focus {
+        outline: none;
+        border-color: var(--accent);
+    }
+
+    .inline-input.dirty {
+        border-color: var(--warning);
+        background: rgba(245, 158, 11, 0.05);
+    }
+
+    .inline-input.amount {
+        text-align: right;
+    }
+
+    /* Save Bar */
+    .save-bar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 12px 16px;
+        background: rgba(99, 102, 241, 0.06);
+        border-radius: 8px;
+        margin-top: 12px;
+    }
+
+    .save-bar span {
+        font-size: 13px;
+        color: var(--warning);
+        font-weight: 500;
     }
 </style>
 {% endblock %}

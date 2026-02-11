@@ -239,6 +239,93 @@ class TargetBaseRepository(BaseRepository):
             cursor.execute(query)
             return [row[0] for row in cursor.fetchall()]
 
+    def get_channels_summary(self, year_month: str, brand_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """채널별 목표 요약 조회 (마스터 패널용)"""
+        with get_db_cursor(commit=False) as cursor:
+            where_clauses = ["FORMAT(t.[Date], 'yyyy-MM') = ?"]
+            params = [year_month]
+
+            if brand_id is not None:
+                where_clauses.append("t.BrandID = ?")
+                params.append(brand_id)
+
+            where_sql = " AND ".join(where_clauses)
+
+            query = f"""
+                SELECT t.ChannelID, t.ChannelName,
+                       COUNT(*) as ProductCount,
+                       ISNULL(SUM(t.TargetAmount), 0) as TotalAmount,
+                       ISNULL(SUM(t.TargetQuantity), 0) as TotalQuantity
+                FROM [dbo].[TargetBaseProduct] t
+                WHERE {where_sql}
+                GROUP BY t.ChannelID, t.ChannelName
+                ORDER BY t.ChannelName ASC
+            """
+            cursor.execute(query, *params)
+            return [{
+                "ChannelID": row[0],
+                "ChannelName": row[1],
+                "ProductCount": row[2],
+                "TotalAmount": float(row[3]) if row[3] else 0,
+                "TotalQuantity": int(row[4]) if row[4] else 0,
+            } for row in cursor.fetchall()]
+
+    def get_by_channel(self, channel_id: int, year_month: str, brand_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """특정 채널의 목표 상품 목록 조회 (디테일 패널용)"""
+        with get_db_cursor(commit=False) as cursor:
+            columns = ", ".join(self.SELECT_COLUMNS)
+            where_clauses = ["t.ChannelID = ?", "FORMAT(t.[Date], 'yyyy-MM') = ?"]
+            params = [channel_id, year_month]
+
+            if brand_id is not None:
+                where_clauses.append("t.BrandID = ?")
+                params.append(brand_id)
+
+            where_sql = " AND ".join(where_clauses)
+
+            query = f"""
+                SELECT {columns}
+                FROM [dbo].[TargetBaseProduct] t
+                WHERE {where_sql}
+                ORDER BY t.ERPCode ASC
+            """
+            cursor.execute(query, *params)
+            return [self._row_to_dict(row) for row in cursor.fetchall()]
+
+    def bulk_update_amounts(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """인라인 편집 일괄 저장 (TargetAmount, TargetQuantity, Notes만 업데이트)"""
+        total_updated = 0
+
+        with get_db_cursor() as cursor:
+            for record in records:
+                target_id = record.get('TargetBaseID')
+                if not target_id:
+                    continue
+
+                target_amount = record.get('TargetAmount', 0) or 0
+                target_amount_ex_vat = calculate_amount_ex_vat(target_amount)
+
+                query = """
+                    UPDATE [dbo].[TargetBaseProduct]
+                    SET TargetAmount = ?,
+                        TargetAmountExVAT = ?,
+                        TargetQuantity = ?,
+                        Notes = ?,
+                        UpdatedDate = GETDATE()
+                    WHERE TargetBaseID = ?
+                """
+                cursor.execute(query,
+                    float(target_amount),
+                    target_amount_ex_vat,
+                    int(record.get('TargetQuantity', 0) or 0),
+                    record.get('Notes'),
+                    target_id
+                )
+                if cursor.rowcount > 0:
+                    total_updated += 1
+
+        return {"updated": total_updated}
+
     def delete_by_filter(self, year_month: str, brand_id: Optional[int] = None,
                          channel_id: Optional[int] = None) -> int:
         """

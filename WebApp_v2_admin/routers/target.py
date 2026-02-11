@@ -65,6 +65,17 @@ class FilterDeleteRequest(BaseModel):
     channel_id: Optional[int] = None
 
 
+class TargetBaseBulkUpdateItem(BaseModel):
+    TargetBaseID: int
+    TargetAmount: Optional[float] = None
+    TargetQuantity: Optional[int] = None
+    Notes: Optional[str] = None
+
+
+class TargetBaseBulkUpdateRequest(BaseModel):
+    items: List[TargetBaseBulkUpdateItem]
+
+
 # ========== 정기 목표 CRUD ==========
 
 @router.get("")
@@ -122,11 +133,74 @@ async def get_target_base_year_months(user: CurrentUser = Depends(require_permis
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
 
 
+@router.get("/channels")
+async def get_target_base_channels(
+    year_month: str,
+    brand_id: Optional[int] = None,
+    user: CurrentUser = Depends(require_permission("Target", "READ"))
+):
+    """채널별 정기 목표 요약 조회 (마스터 패널용)"""
+    try:
+        if not year_month:
+            raise HTTPException(400, "년월은 필수입니다")
+        channels = target_base_repo.get_channels_summary(year_month, brand_id)
+        return {"data": channels, "total": len(channels)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"채널 요약 조회 실패: {str(e)}")
+
+
+@router.get("/channel/{channel_id}/items")
+async def get_target_base_channel_items(
+    channel_id: int,
+    year_month: str,
+    brand_id: Optional[int] = None,
+    user: CurrentUser = Depends(require_permission("Target", "READ"))
+):
+    """특정 채널의 정기 목표 상품 목록 조회 (디테일 패널용)"""
+    try:
+        if not year_month:
+            raise HTTPException(400, "년월은 필수입니다")
+        items = target_base_repo.get_by_channel(channel_id, year_month, brand_id)
+        return {"data": items, "total": len(items)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"채널 상품 목록 조회 실패: {str(e)}")
+
+
+@router.put("/bulk-update")
+@log_activity("UPDATE", "TargetBaseProduct")
+async def bulk_update_target_base(
+    request_body: TargetBaseBulkUpdateRequest,
+    request: Request,
+    user: CurrentUser = Depends(require_permission("Target", "UPDATE"))
+):
+    """정기 목표 인라인 편집 일괄 저장"""
+    try:
+        if not request_body.items:
+            raise HTTPException(400, "수정할 데이터가 없습니다")
+
+        records = [item.dict() for item in request_body.items]
+        result = target_base_repo.bulk_update_amounts(records)
+
+        return {
+            "message": f"{result['updated']}건 수정 완료",
+            "updated": result['updated']
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"일괄 수정 실패: {str(e)}")
+
+
 @router.get("/download")
 async def download_target_base(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
+    channel_ids: Optional[str] = None,
     ids: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Target", "EXPORT"))
 ):
@@ -138,6 +212,12 @@ async def download_target_base(
         if ids:
             id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
             data = target_base_repo.get_by_ids(id_list)
+        elif channel_ids and year_month:
+            # 다중 채널 선택 시 각 채널의 상품을 합산
+            ch_id_list = [int(c.strip()) for c in channel_ids.split(',') if c.strip()]
+            for ch_id in ch_id_list:
+                items = target_base_repo.get_by_channel(ch_id, year_month, brand_id)
+                data.extend(items)
         elif year_month or brand_id is not None or channel_id is not None:
             # 필터 조건이 있으면 해당 조건으로 조회
             filters = {}
@@ -152,9 +232,9 @@ async def download_target_base(
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '목표금액(+VAT)', '목표수량', '비고']
+        export_columns = ['ID', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '목표금액(VAT포함)', '목표금액(VAT제외)', '목표수량', '비고']
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 품목코드
+        readonly_columns = [1, 2, 3, 4, 6]  # 날짜, 브랜드명, 채널명, 품목코드, 목표금액(VAT제외)
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -171,7 +251,8 @@ async def download_target_base(
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
                 'ERPCode': '품목코드',
-                'TargetAmount': '목표금액(+VAT)',
+                'TargetAmount': '목표금액(VAT포함)',
+                'TargetAmountExVAT': '목표금액(VAT제외)',
                 'TargetQuantity': '목표수량',
                 'Notes': '비고'
             }
@@ -195,13 +276,14 @@ async def download_target_base(
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
             ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
-            ['목표금액(+VAT)', 'VAT 포함 금액 (예: 1000000)'],
+            ['목표금액(VAT포함)', 'VAT 포함 금액 (예: 1000000)'],
+            ['목표금액(VAT제외)', '자동 계산됨 (수정 불가)'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '목표금액(+VAT), 목표수량, 비고'],
-            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드'],
+            ['수정 가능', '목표금액(VAT포함), 목표수량, 비고'],
+            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드, 목표금액(VAT제외)'],
             ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 주의사항', ''],
