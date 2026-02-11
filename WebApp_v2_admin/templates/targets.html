@@ -5,16 +5,16 @@
 {% block content %}
 <div class="page-header">
     <h1 class="page-title">목표 관리</h1>
-    <p class="page-subtitle">기본 목표 및 행사 목표 설정</p>
+    <p class="page-subtitle">정기 목표 및 비정기 목표 설정</p>
 </div>
 
 <!-- Tab Navigation -->
 <div class="tab-container" style="margin-bottom:20px;">
     <button class="tab-btn active" data-tab="base" onclick="switchTab('base')">
-        <i class="fa-solid fa-bullseye"></i> 기본 목표
+        <i class="fa-solid fa-bullseye"></i> 정기 목표
     </button>
     <button class="tab-btn" data-tab="promotion" onclick="switchTab('promotion')">
-        <i class="fa-solid fa-calendar-star"></i> 행사 목표
+        <i class="fa-solid fa-calendar-star"></i> 비정기 목표
     </button>
 </div>
 
@@ -48,7 +48,7 @@
                 <option value="">전체</option>
             </select>
         </div>
-        <!-- 행사 목표 탭에서만 보이는 필터 -->
+        <!-- 비정기 목표 탭에서만 보이는 필터 -->
         <div id="promotionFilterWrap" style="display:none;">
             <label class="form-label">행사유형</label>
             <select id="searchPromotionType" class="form-select">
@@ -63,7 +63,7 @@
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
         <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
             <h2 class="card-title" style="margin:0;white-space:nowrap;">
-                <span id="tableTitle">기본 목표</span> 목록
+                <span id="tableTitle">정기 목표</span> 목록
                 <span id="resultCount" style="font-size:14px;color:var(--text-muted);font-weight:normal;"></span>
             </h2>
             <select id="limitSelector" onchange="changeLimit()" class="form-select"
@@ -90,7 +90,7 @@
     </div>
 
     <div class="table-container">
-        <!-- 기본 목표 테이블 -->
+        <!-- 정기 목표 테이블 -->
         <table class="table" id="base-table">
             <thead>
                 <tr></tr>
@@ -98,7 +98,7 @@
             <tbody></tbody>
         </table>
 
-        <!-- 행사 목표 테이블 -->
+        <!-- 비정기 목표 테이블 -->
         <table class="table" id="promotion-table" style="display:none;">
             <thead>
                 <tr></tr>

@@ -192,14 +192,8 @@ async def download_withdrawal_plans(
             # 특정 그룹
             data = plan_repo.get_by_group_id(group_id)
         else:
-            # 필터 기반 (빈 양식)
-            filters = {}
-            if year_month:
-                filters['year_month'] = year_month
-            if type:
-                filters['type'] = type
-            result = plan_repo.get_list(page=1, limit=100000, filters=filters)
-            data = result.get('data', [])
+            # 선택 없음 → 빈 양식
+            data = []
 
         # 엑셀 컬럼 정의
         export_columns = ['계획ID(수정X)', '캠페인ID(수정X)', '캠페인명', '일자(YYYY-MM-DD)', '사용유형', '고유코드', '예정수량', '메모']

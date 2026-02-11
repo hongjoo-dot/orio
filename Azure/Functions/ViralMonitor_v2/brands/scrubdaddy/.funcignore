@@ -1,0 +1,29 @@
+# Python 가상환경
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# 로그 및 임시 파일
+*.log
+.DS_Store
+
+# GitHub Actions (Azure에서 불필요)
+../.github/
+
+# 기존 storage (Blob 사용)
+../storage/
+
+# 테스트
+tests/
+pytest_cache/

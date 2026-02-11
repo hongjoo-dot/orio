@@ -1,6 +1,6 @@
 """
 TargetBaseProduct Repository
-- 기본 목표 테이블 CRUD 작업
+- 정기 목표 Regular 테이블 CRUD 작업
 """
 
 from typing import Dict, Any, Optional, List

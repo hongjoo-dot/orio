@@ -1,0 +1,6 @@
+azure-functions
+azure-storage-blob==12.19.0
+requests==2.31.0
+pyodbc
+google-generativeai
+beautifulsoup4

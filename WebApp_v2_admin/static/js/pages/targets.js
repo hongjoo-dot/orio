@@ -1,7 +1,7 @@
 /**
  * 목표 관리 페이지 JavaScript
- * - 기본 목표 (TargetBaseProduct)
- * - 행사 목표 (TargetPromotionProduct)
+ * - 정기 목표 Regular (TargetBaseProduct)
+ * - 비정기 목표 Irregular (TargetPromotionProduct)
  */
 
 // 현재 활성 탭
@@ -23,7 +23,7 @@ let currentLimit = 20;
 let currentSortBy = null;
 let currentSortDir = null;
 
-// 기본 목표 컬럼 정의
+// 정기 목표 컬럼 정의
 const baseColumns = [
     { key: 'Date', header: '날짜', sortKey: 'Date', render: (row) => row.Date || '-' },
     { key: 'BrandName', header: '브랜드', sortKey: 'BrandName', render: (row) => row.BrandName || '-' },
@@ -46,7 +46,7 @@ const baseColumns = [
     }
 ];
 
-// 행사 목표 컬럼 정의
+// 비정기 목표 컬럼 정의
 const promotionColumns = [
     { key: 'PromotionName', header: '행사명', sortKey: 'PromotionName', render: (row) => row.PromotionName || '-' },
     { key: 'PromotionType', header: '행사유형', sortKey: 'PromotionType', render: (row) => row.PromotionType || '-' },
@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function () {
     uploadModal = new ModalManager('uploadModal');
     uploadResultModal = new ModalManager('uploadResultModal');
 
-    // 테이블 매니저 초기화 - 기본 목표
+    // 테이블 매니저 초기화 - 정기 목표
     baseTableManager = new TableManager('base-table', {
         selectable: true,
         idKey: 'TargetBaseID',
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     baseTableManager.renderHeader(baseColumns);
 
-    // 테이블 매니저 초기화 - 행사 목표
+    // 테이블 매니저 초기화 - 비정기 목표
     promotionTableManager = new TableManager('promotion-table', {
         selectable: true,
         idKey: 'TargetPromotionID',
@@ -164,13 +164,13 @@ function switchTab(tab) {
     document.getElementById('promotionFilterWrap').style.display = tab === 'promotion' ? '' : 'none';
 
     // 테이블 제목 변경
-    document.getElementById('tableTitle').textContent = tab === 'base' ? '기본 목표' : '행사 목표';
+    document.getElementById('tableTitle').textContent = tab === 'base' ? '정기 목표' : '비정기 목표';
 
     // 업로드 모달 제목 변경
     document.getElementById('uploadModalTitle').textContent =
-        tab === 'base' ? '기본 목표 데이터 업로드' : '행사 목표 데이터 업로드';
+        tab === 'base' ? '정기 목표 데이터 업로드' : '비정기 목표 데이터 업로드';
 
-    // 행사 목표 탭이면 행사유형 목록 로드
+    // 비정기 목표 탭이면 행사유형 목록 로드
     if (tab === 'promotion') {
         loadPromotionTypes();
     }
@@ -257,7 +257,7 @@ async function loadYearMonths() {
 }
 
 /**
- * 행사유형 목록 로드 (행사 목표 탭용)
+ * 행사유형 목록 로드 (비정기 목표 탭용)
  */
 async function loadPromotionTypes() {
     try {
@@ -336,7 +336,7 @@ function applyFilters() {
     if (brandId) currentFilters.brand_id = brandId;
     if (channelId) currentFilters.channel_id = channelId;
 
-    // 행사 목표 탭인 경우 행사유형 필터 추가
+    // 비정기 목표 탭인 경우 행사유형 필터 추가
     if (currentTab === 'promotion') {
         const promotionType = document.getElementById('searchPromotionType').value;
         if (promotionType) currentFilters.promotion_type = promotionType;

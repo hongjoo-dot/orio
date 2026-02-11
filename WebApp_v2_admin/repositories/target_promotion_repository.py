@@ -1,6 +1,6 @@
 """
 TargetPromotionProduct Repository
-- 행사 목표 테이블 CRUD 작업
+- 비정기 목표 Irregular 테이블 CRUD 작업
 """
 
 from typing import Dict, Any, Optional, List

@@ -63,11 +63,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 초기 데이터 로드
     await Promise.all([
         loadBrands(),
-        loadProductTypes(),
-        loadCategories(),
-        loadERPCodes(),
-        loadUniqueCodes(),
-        loadProductNames()
+        loadProductMetadata(),
+        loadERPCodes()
     ]);
 
     loadProducts(1, 20);
@@ -166,12 +163,13 @@ async function loadBrands() {
     }
 }
 
-async function loadProductTypes() {
+async function loadProductMetadata() {
     try {
         const res = await api.get('/api/products?limit=10000');
         const data = res.data || [];
 
-        const setupOptions = (key, elementIds, includeAll = false) => {
+        // Select 옵션 세팅 (TypeERP, TypeDB, BundleType, Status)
+        const setupOptions = (key, elementIds) => {
             const values = [...new Set(data.filter(p => p[key]).map(p => p[key]))].sort();
             const options = values.map(v => `<option value="${v}">${v}</option>`).join('');
 
@@ -189,16 +187,7 @@ async function loadProductTypes() {
         setupOptions('BundleType', ['intBundleType', 'bulkBundleType', 'filterBundleType']);
         setupOptions('Status', ['intStatus', 'bulkStatus']);
 
-    } catch (e) {
-        console.error('제품 타입 로드 실패:', e);
-    }
-}
-
-async function loadCategories() {
-    try {
-        const res = await api.get('/api/products?limit=10000');
-        const data = res.data || [];
-
+        // Datalist 세팅 (CategoryMid, CategorySub, UniqueCode, Name)
         const setupDatalist = (key, listId) => {
             const values = [...new Set(data.filter(p => p[key]).map(p => p[key]))].sort();
             document.getElementById(listId).innerHTML = values.map(v => `<option value="${v}">`).join('');
@@ -206,8 +195,10 @@ async function loadCategories() {
 
         setupDatalist('CategoryMid', 'categoryMidList');
         setupDatalist('CategorySub', 'categorySubList');
+        setupDatalist('UniqueCode', 'uniqueCodeList');
+        setupDatalist('Name', 'nameList');
     } catch (e) {
-        console.error('카테고리 로드 실패:', e);
+        console.error('제품 메타데이터 로드 실패:', e);
     }
 }
 
@@ -218,26 +209,6 @@ async function loadERPCodes() {
         document.getElementById('erpCodeList').innerHTML = values.map(v => `<option value="${v}">`).join('');
     } catch (e) {
         console.error('ERP코드 로드 실패:', e);
-    }
-}
-
-async function loadUniqueCodes() {
-    try {
-        const res = await api.get('/api/products?limit=10000');
-        const values = [...new Set(res.data.filter(p => p.UniqueCode).map(p => p.UniqueCode))].sort();
-        document.getElementById('uniqueCodeList').innerHTML = values.map(v => `<option value="${v}">`).join('');
-    } catch (e) {
-        console.error('고유코드 로드 실패:', e);
-    }
-}
-
-async function loadProductNames() {
-    try {
-        const res = await api.get('/api/products?limit=10000');
-        const values = [...new Set(res.data.filter(p => p.Name).map(p => p.Name))].sort();
-        document.getElementById('nameList').innerHTML = values.map(v => `<option value="${v}">`).join('');
-    } catch (e) {
-        console.error('상품명 로드 실패:', e);
     }
 }
 
@@ -454,24 +425,31 @@ async function bulkEdit() {
 
     const firstId = selectedIds[0];
     try {
-        const product = await api.get(`/api/products/${firstId}`); // ID로 조회하는 엔드포인트 필요 (현재 get_products는 목록 조회)
-        // get_products는 필터링을 사용하므로, ID로 조회하려면 필터에 unique_code 등을 써야 하는데, ID 직접 조회 엔드포인트가 있는지 확인 필요.
-        // product.py에는 @router.get("") 만 있고 ID 조회는 없음.
-        // 하지만 update_product는 /{product_id}를 씀.
-        // 상세 조회 API가 없다면 목록에서 찾아야 함.
-        // 다행히 masterTableManager의 data에 이미 정보가 있음. 하지만 전체 필드가 다 있는지 확인 필요.
-        // masterColumns에는 일부만 있음.
+        const product = await api.get(`/api/products/${firstId}`);
 
-        // 상세 조회 API가 없으면 만들어야 함.
-        // 일단 목록 조회 API를 활용하거나, JS 메모리에 있는 데이터를 써야 함.
-        // 여기서는 일단 기존 로직을 따르되, API가 없으면 에러가 날 것임.
-        // 기존 코드: const product = await api.get(`/api/products/${firstId}`);
-        // product.py에 @router.get("/{product_id}")가 있는지 확인해봐야 함. 아까 100라인까지만 봐서 못 봤을 수도.
-        // 371라인에 put은 있는데 get은?
-
-        // 모달 값 채우기 (기존 로직 유지)
         document.getElementById('bulkEditProductCount').textContent = selectedIds.length;
-        // ... (값 채우기 생략, 너무 길어짐) ...
+
+        // 입력 필드 초기화
+        ['bulkBrand', 'bulkUniqueCode', 'bulkProductName', 'bulkTypeERP', 'bulkTypeDB',
+         'bulkBaseBarcode', 'bulkBarcode2', 'bulkSabangnetCode', 'bulkSabangnetUniqueCode',
+         'bulkBundleType', 'bulkCategoryMid', 'bulkCategorySub', 'bulkStatus', 'bulkReleaseDate'
+        ].forEach(id => { document.getElementById(id).value = ''; });
+
+        // 현재 값 표시 (첫 번째 선택 항목 기준)
+        document.getElementById('currentBrand').textContent = product.BrandName || '(없음)';
+        document.getElementById('currentUniqueCode').textContent = product.UniqueCode || '(없음)';
+        document.getElementById('currentProductName').textContent = product.Name || '(없음)';
+        document.getElementById('currentTypeERP').textContent = product.TypeERP || '(없음)';
+        document.getElementById('currentTypeDB').textContent = product.TypeDB || '(없음)';
+        document.getElementById('currentBaseBarcode').textContent = product.BaseBarcode || '(없음)';
+        document.getElementById('currentBarcode2').textContent = product.Barcode2 || '(없음)';
+        document.getElementById('currentSabangnetCode').textContent = product.SabangnetCode || '(없음)';
+        document.getElementById('currentSabangnetUniqueCode').textContent = product.SabangnetUniqueCode || '(없음)';
+        document.getElementById('currentBundleType').textContent = product.BundleType || '(없음)';
+        document.getElementById('currentCategoryMid').textContent = product.CategoryMid || '(없음)';
+        document.getElementById('currentCategorySub').textContent = product.CategorySub || '(없음)';
+        document.getElementById('currentStatus').textContent = product.Status || '(없음)';
+        document.getElementById('currentReleaseDate').textContent = product.ReleaseDate || '(없음)';
 
         bulkEditProductModal.show();
     } catch (e) {
@@ -484,17 +462,48 @@ function closeBulkEditProductModal() {
 }
 
 async function saveBulkEditProduct() {
-    // ... (기존 로직 유지) ...
     const selectedIds = masterTableManager.getSelectedRows();
-    // ...
+    if (selectedIds.length === 0) return;
+
+    const updateData = {};
+
+    const brandVal = document.getElementById('bulkBrand').value;
+    if (brandVal) updateData.BrandID = parseInt(brandVal);
+
+    const fields = [
+        ['bulkUniqueCode', 'UniqueCode'],
+        ['bulkProductName', 'Name'],
+        ['bulkBaseBarcode', 'BaseBarcode'],
+        ['bulkBarcode2', 'Barcode2'],
+        ['bulkSabangnetCode', 'SabangnetCode'],
+        ['bulkSabangnetUniqueCode', 'SabangnetUniqueCode'],
+        ['bulkCategoryMid', 'CategoryMid'],
+        ['bulkCategorySub', 'CategorySub'],
+        ['bulkReleaseDate', 'ReleaseDate']
+    ];
+    fields.forEach(([elId, key]) => {
+        const val = document.getElementById(elId).value.trim();
+        if (val) updateData[key] = val;
+    });
+
+    const selectFields = [
+        ['bulkTypeERP', 'TypeERP'],
+        ['bulkTypeDB', 'TypeDB'],
+        ['bulkBundleType', 'BundleType'],
+        ['bulkStatus', 'Status']
+    ];
+    selectFields.forEach(([elId, key]) => {
+        const val = document.getElementById(elId).value;
+        if (val) updateData[key] = val;
+    });
+
+    if (Object.keys(updateData).length === 0) {
+        showAlert('변경할 값을 입력하세요.', 'warning');
+        return;
+    }
+
     try {
-        const promises = selectedIds.map(async id => {
-            // ...
-            // 기존 코드: const product = await api.get(`/api/products/${id}`);
-            // 여기서도 개별 조회를 하네... API가 있어야 함.
-            // 일단 API 호출한다고 가정.
-            return api.put(`/api/products/${id}`, updateData);
-        });
+        const promises = selectedIds.map(id => api.put(`/api/products/${id}`, updateData));
         await Promise.all(promises);
         showAlert(`${selectedIds.length}개 제품이 수정되었습니다.`, 'success');
         closeBulkEditProductModal();

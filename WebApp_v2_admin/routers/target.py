@@ -1,7 +1,7 @@
 """
 Target (목표 관리) Router
-- 기본 목표 (TargetBaseProduct) API
-- 행사 목표 (TargetPromotionProduct) API
+- 정기 목표 (TargetBaseProduct) API
+- 비정기 목표 (TargetPromotionProduct) API
 """
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
@@ -33,7 +33,7 @@ def _format_time_value(value, default: str = '00:00:00') -> str:
     return default
 
 
-# ========== 기본 목표 Router ==========
+# ========== 정기 목표 Router ==========
 router = APIRouter(prefix="/api/targets/base", tags=["TargetBase"])
 
 # Repository 인스턴스
@@ -44,7 +44,7 @@ product_repo = ProductRepository()
 activity_log_repo = ActivityLogRepository()
 
 
-# Pydantic Models - 기본 목표
+# Pydantic Models - 정기 목표
 class TargetBaseCreate(BaseModel):
     Date: str
     BrandID: int
@@ -81,7 +81,7 @@ class FilterDeleteRequest(BaseModel):
     channel_id: Optional[int] = None
 
 
-# ========== 기본 목표 CRUD ==========
+# ========== 정기 목표 CRUD ==========
 
 @router.get("")
 async def get_target_base_list(
@@ -94,7 +94,7 @@ async def get_target_base_list(
     sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Target", "READ"))
 ):
-    """기본 목표 목록 조회"""
+    """정기 목표 목록 조회"""
     try:
         ALLOWED_SORT = {
             "Date": "t.[Date]",
@@ -125,12 +125,12 @@ async def get_target_base_list(
         )
         return result
     except Exception as e:
-        raise HTTPException(500, f"기본 목표 조회 실패: {str(e)}")
+        raise HTTPException(500, f"정기 목표 조회 실패: {str(e)}")
 
 
 @router.get("/year-months")
 async def get_target_base_year_months(user: CurrentUser = Depends(require_permission("Target", "READ"))):
-    """기본 목표 년월 목록 조회"""
+    """정기 목표 년월 목록 조회"""
     try:
         year_months = target_base_repo.get_year_months()
         return {"year_months": year_months}
@@ -146,7 +146,7 @@ async def download_target_base(
     ids: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Target", "EXPORT"))
 ):
-    """기본 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
+    """정기 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
     try:
         data = []
 
@@ -199,7 +199,7 @@ async def download_target_base(
 
         # 안내 시트 데이터
         guide_data = [
-            ['[기본 목표 업로드 안내]', ''],
+            ['[정기 목표 업로드 안내]', ''],
             ['', ''],
             ['■ 업로드 방식', ''],
             ['ID가 있는 행', 'ID 기준으로 해당 데이터를 수정합니다.'],
@@ -247,11 +247,11 @@ async def download_target_base(
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='기본목표')
+            df.to_excel(writer, index=False, sheet_name='정기목표')
             guide_df.to_excel(writer, index=False, sheet_name='안내')
 
             workbook = writer.book
-            worksheet = writer.sheets['기본목표']
+            worksheet = writer.sheets['정기목표']
 
             # 목록 시트 생성 (드롭다운 소스용)
             list_sheet = workbook.add_worksheet('목록')
@@ -389,7 +389,7 @@ async def download_target_base(
 
 @router.get("/{target_id}")
 async def get_target_base_item(target_id: int, user: CurrentUser = Depends(require_permission("Target", "READ"))):
-    """기본 목표 단일 조회"""
+    """정기 목표 단일 조회"""
     try:
         item = target_base_repo.get_by_id(target_id)
         if not item:
@@ -408,7 +408,7 @@ async def create_target_base(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "CREATE"))
 ):
-    """기본 목표 생성"""
+    """정기 목표 생성"""
     try:
         target_id = target_base_repo.create(data.dict(exclude_none=True))
 
@@ -425,7 +425,7 @@ async def update_target_base(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "UPDATE"))
 ):
-    """기본 목표 수정"""
+    """정기 목표 수정"""
     try:
         if not target_base_repo.exists(target_id):
             raise HTTPException(404, "목표 데이터를 찾을 수 없습니다")
@@ -452,7 +452,7 @@ async def delete_target_base(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
-    """기본 목표 삭제"""
+    """정기 목표 삭제"""
     try:
         if not target_base_repo.exists(target_id):
             raise HTTPException(404, "목표 데이터를 찾을 수 없습니다")
@@ -475,7 +475,7 @@ async def bulk_delete_target_base(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
-    """기본 목표 일괄 삭제"""
+    """정기 목표 일괄 삭제"""
     try:
         if not request_body.ids:
             raise HTTPException(400, "삭제할 ID가 없습니다")
@@ -496,7 +496,7 @@ async def filter_delete_target_base(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
-    """필터 조건으로 기본 목표 일괄 삭제"""
+    """필터 조건으로 정기 목표 일괄 삭제"""
     try:
         deleted_count = target_base_repo.delete_by_filter(
             year_month=request_body.year_month,
@@ -512,7 +512,7 @@ async def filter_delete_target_base(
         raise HTTPException(500, f"일괄 삭제 실패: {str(e)}")
 
 
-# ========== 기본 목표 엑셀 ==========
+# ========== 정기 목표 엑셀 ==========
 
 @router.post("/upload")
 async def upload_target_base(
@@ -520,7 +520,7 @@ async def upload_target_base(
     request: Request = None,
     user: CurrentUser = Depends(require_permission("Target", "UPLOAD"))
 ):
-    """기본 목표 엑셀 업로드"""
+    """정기 목표 엑셀 업로드"""
     try:
         upload_start_time = datetime.now()
 
@@ -528,7 +528,7 @@ async def upload_target_base(
         if not file.filename.endswith(('.xlsx', '.xls')):
             raise HTTPException(400, "엑셀 파일(.xlsx, .xls)만 업로드 가능합니다")
 
-        print(f"\n[기본 목표 업로드 시작] {file.filename}")
+        print(f"\n[정기 목표 업로드 시작] {file.filename}")
 
         # 파일 읽기
         content = await file.read()
@@ -718,14 +718,14 @@ async def upload_target_base(
         raise HTTPException(500, f"업로드 실패: {str(e)}")
 
 
-# ========== 행사 목표 Router ==========
+# ========== 비정기 목표 Router ==========
 promotion_router = APIRouter(prefix="/api/targets/promotion", tags=["TargetPromotion"])
 
 # Repository 인스턴스
 target_promotion_repo = TargetPromotionRepository()
 
 
-# Pydantic Models - 행사 목표
+# Pydantic Models - 비정기 목표
 class TargetPromotionCreate(BaseModel):
     PromotionID: str
     PromotionName: Optional[str] = None
@@ -769,7 +769,7 @@ class PromotionFilterDeleteRequest(BaseModel):
     promotion_type: Optional[str] = None
 
 
-# ========== 행사 목표 CRUD ==========
+# ========== 비정기 목표 CRUD ==========
 
 @promotion_router.get("")
 async def get_target_promotion_list(
@@ -783,7 +783,7 @@ async def get_target_promotion_list(
     sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Target", "READ"))
 ):
-    """행사 목표 목록 조회"""
+    """비정기 목표 목록 조회"""
     try:
         ALLOWED_SORT = {
             "PromotionName": "t.PromotionName",
@@ -818,12 +818,12 @@ async def get_target_promotion_list(
         )
         return result
     except Exception as e:
-        raise HTTPException(500, f"행사 목표 조회 실패: {str(e)}")
+        raise HTTPException(500, f"비정기 목표 조회 실패: {str(e)}")
 
 
 @promotion_router.get("/year-months")
 async def get_target_promotion_year_months(user: CurrentUser = Depends(require_permission("Target", "READ"))):
-    """행사 목표 년월 목록 조회"""
+    """비정기 목표 년월 목록 조회"""
     try:
         year_months = target_promotion_repo.get_year_months()
         return {"year_months": year_months}
@@ -850,7 +850,7 @@ async def download_target_promotion(
     ids: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Target", "EXPORT"))
 ):
-    """행사 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
+    """비정기 목표 엑셀 양식 다운로드 (신규/수정 통합)"""
     try:
         data = []
 
@@ -910,7 +910,7 @@ async def download_target_promotion(
 
         # 안내 시트 데이터
         guide_data = [
-            ['[행사 목표 업로드 안내]', ''],
+            ['[비정기 목표 업로드 안내]', ''],
             ['', ''],
             ['■ 업로드 방식', ''],
             ['ID가 있는 행', 'ID 기준으로 해당 데이터를 수정합니다.'],
@@ -979,11 +979,11 @@ async def download_target_promotion(
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='행사목표')
+            df.to_excel(writer, index=False, sheet_name='비정기목표')
             guide_df.to_excel(writer, index=False, sheet_name='안내')
 
             workbook = writer.book
-            worksheet = writer.sheets['행사목표']
+            worksheet = writer.sheets['비정기목표']
 
             # 목록 시트 생성 (드롭다운 소스용)
             list_sheet = workbook.add_worksheet('목록')
@@ -1133,7 +1133,7 @@ async def download_target_promotion(
 
 @promotion_router.get("/{target_id}")
 async def get_target_promotion_item(target_id: int, user: CurrentUser = Depends(require_permission("Target", "READ"))):
-    """행사 목표 단일 조회"""
+    """비정기 목표 단일 조회"""
     try:
         item = target_promotion_repo.get_by_id(target_id)
         if not item:
@@ -1152,7 +1152,7 @@ async def create_target_promotion(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "CREATE"))
 ):
-    """행사 목표 생성"""
+    """비정기 목표 생성"""
     try:
         target_id = target_promotion_repo.create(data.dict(exclude_none=True))
 
@@ -1169,7 +1169,7 @@ async def update_target_promotion(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "UPDATE"))
 ):
-    """행사 목표 수정"""
+    """비정기 목표 수정"""
     try:
         if not target_promotion_repo.exists(target_id):
             raise HTTPException(404, "목표 데이터를 찾을 수 없습니다")
@@ -1196,7 +1196,7 @@ async def delete_target_promotion(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
-    """행사 목표 삭제"""
+    """비정기 목표 삭제"""
     try:
         if not target_promotion_repo.exists(target_id):
             raise HTTPException(404, "목표 데이터를 찾을 수 없습니다")
@@ -1219,7 +1219,7 @@ async def bulk_delete_target_promotion(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
-    """행사 목표 일괄 삭제"""
+    """비정기 목표 일괄 삭제"""
     try:
         if not request_body.ids:
             raise HTTPException(400, "삭제할 ID가 없습니다")
@@ -1240,7 +1240,7 @@ async def filter_delete_target_promotion(
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
-    """필터 조건으로 행사 목표 일괄 삭제"""
+    """필터 조건으로 비정기 목표 일괄 삭제"""
     try:
         deleted_count = target_promotion_repo.delete_by_filter(
             year_month=request_body.year_month,
@@ -1257,7 +1257,7 @@ async def filter_delete_target_promotion(
         raise HTTPException(500, f"일괄 삭제 실패: {str(e)}")
 
 
-# ========== 행사 목표 엑셀 ==========
+# ========== 비정기 목표 엑셀 ==========
 
 @promotion_router.post("/upload")
 async def upload_target_promotion(
@@ -1265,14 +1265,14 @@ async def upload_target_promotion(
     request: Request = None,
     user: CurrentUser = Depends(require_permission("Target", "UPLOAD"))
 ):
-    """행사 목표 엑셀 업로드"""
+    """비정기 목표 엑셀 업로드"""
     try:
         upload_start_time = datetime.now()
 
         if not file.filename.endswith(('.xlsx', '.xls')):
             raise HTTPException(400, "엑셀 파일(.xlsx, .xls)만 업로드 가능합니다")
 
-        print(f"\n[행사 목표 업로드 시작] {file.filename}")
+        print(f"\n[비정기 목표 업로드 시작] {file.filename}")
 
         content = await file.read()
         excel_file = io.BytesIO(content)
