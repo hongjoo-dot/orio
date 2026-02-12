@@ -58,10 +58,10 @@ const detailColumns = [
         render: (row) => `<span style="font-size:13px;">${escapeHtml(row.ProductName) || '-'}</span>`
     },
     {
-        key: 'UniqueCode',
-        header: '고유코드',
-        sortKey: 'UniqueCode',
-        render: (row) => `<code style="font-size:12px;">${escapeHtml(row.UniqueCode) || '-'}</code>`
+        key: 'ERPCode',
+        header: '품목코드',
+        sortKey: 'ERPCode',
+        render: (row) => `<code style="font-size:12px;">${escapeHtml(row.ERPCode) || '-'}</code>`
     },
     {
         key: 'Date',

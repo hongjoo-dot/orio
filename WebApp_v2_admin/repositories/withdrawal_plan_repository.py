@@ -14,7 +14,7 @@ class WithdrawalPlanRepository(BaseRepository):
     # SELECT 컬럼 상수 (순서 변경 금지 - _row_to_dict 인덱스와 일치해야 함)
     SELECT_COLUMNS = (
         "p.PlanID", "p.GroupID", "p.Title", "p.[Date]", "p.Type",
-        "p.ProductName", "p.UniqueCode", "p.PlannedQty",
+        "p.ProductName", "p.ERPCode", "p.UniqueCode", "p.PlannedQty",
         "p.Notes", "p.CreatedBy", "p.CreatedDate", "p.UpdatedDate"
     )
 
@@ -35,12 +35,13 @@ class WithdrawalPlanRepository(BaseRepository):
             "Date": row[3].strftime('%Y-%m-%d') if row[3] else None,
             "Type": row[4],
             "ProductName": row[5],
-            "UniqueCode": row[6],
-            "PlannedQty": int(row[7]) if row[7] else 0,
-            "Notes": row[8],
-            "CreatedBy": row[9],
-            "CreatedDate": row[10].strftime('%Y-%m-%d %H:%M:%S') if row[10] else None,
-            "UpdatedDate": row[11].strftime('%Y-%m-%d %H:%M:%S') if row[11] else None,
+            "ERPCode": row[6],
+            "UniqueCode": row[7],
+            "PlannedQty": int(row[8]) if row[8] else 0,
+            "Notes": row[9],
+            "CreatedBy": row[10],
+            "CreatedDate": row[11].strftime('%Y-%m-%d %H:%M:%S') if row[11] else None,
+            "UpdatedDate": row[12].strftime('%Y-%m-%d %H:%M:%S') if row[12] else None,
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -197,7 +198,7 @@ class WithdrawalPlanRepository(BaseRepository):
                     update_query = """
                         UPDATE [dbo].[WithdrawalPlan]
                         SET GroupID = ?, Title = ?, [Date] = ?, Type = ?,
-                            ProductName = ?, UniqueCode = ?, PlannedQty = ?,
+                            ProductName = ?, ERPCode = ?, UniqueCode = ?, PlannedQty = ?,
                             Notes = ?, UpdatedDate = GETDATE()
                         WHERE PlanID = ?
                     """
@@ -207,6 +208,7 @@ class WithdrawalPlanRepository(BaseRepository):
                         record.get('Date'),
                         record.get('Type'),
                         record.get('ProductName'),
+                        record.get('ERPCode'),
                         record.get('UniqueCode'),
                         record.get('PlannedQty', 1),
                         record.get('Notes'),
@@ -219,8 +221,8 @@ class WithdrawalPlanRepository(BaseRepository):
                     # INSERT
                     insert_query = """
                         INSERT INTO [dbo].[WithdrawalPlan]
-                            (GroupID, Title, [Date], Type, ProductName, UniqueCode, PlannedQty, Notes, CreatedBy)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            (GroupID, Title, [Date], Type, ProductName, ERPCode, UniqueCode, PlannedQty, Notes, CreatedBy)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                     params = [
                         record.get('GroupID'),
@@ -228,6 +230,7 @@ class WithdrawalPlanRepository(BaseRepository):
                         record.get('Date'),
                         record.get('Type'),
                         record.get('ProductName'),
+                        record.get('ERPCode'),
                         record.get('UniqueCode'),
                         record.get('PlannedQty', 1),
                         record.get('Notes'),

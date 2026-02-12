@@ -71,7 +71,7 @@ class PromotionUpdate(BaseModel):
 
 class PromotionProductCreate(BaseModel):
     PromotionID: str
-    UniqueCode: str
+    ERPCode: str
     ProductName: Optional[str] = None
     SellingPrice: Optional[float] = None
     PromotionPrice: Optional[float] = None
@@ -316,7 +316,7 @@ async def download_promotions(
                         '채널분담율': promo['ChannelShare'],
                         '비고(행사)': promo['Notes'],
                         '상품ID': prod['PromotionProductID'],
-                        '상품코드': prod['UniqueCode'],
+                        '품목코드': prod['ERPCode'],
                         '판매가': prod['SellingPrice'],
                         '행사가': prod['PromotionPrice'],
                         '공급가': prod['SupplyPrice'],
@@ -349,7 +349,7 @@ async def download_promotions(
                     '채널분담율': promo['ChannelShare'],
                     '비고(행사)': promo['Notes'],
                     '상품ID': None,
-                    '상품코드': None,
+                    '품목코드': None,
                     '판매가': None,
                     '행사가': None,
                     '공급가': None,
@@ -370,7 +370,7 @@ async def download_promotions(
             '행사ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
             '비고(행사)',
-            '상품ID', '상품코드', '판매가', '행사가', '공급가', '쿠폰할인율',
+            '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
             '예상매출(상품)', '예상수량(상품)', '비고(상품)'
         ]
@@ -381,7 +381,7 @@ async def download_promotions(
         id_column_indices = [promo_id_col_idx, product_id_col_idx]
 
         # 수정 불가 (복합키) 컬럼 인덱스 (검정색)
-        # 행사명(1), 행사유형(2), 시작일(3), 브랜드명(7), 채널명(8), 상품코드(15)
+        # 행사명(1), 행사유형(2), 시작일(3), 브랜드명(7), 채널명(8), 품목코드(15)
         readonly_columns = [1, 2, 3, 7, 8, 15]
 
         if not rows:
@@ -419,7 +419,7 @@ async def download_promotions(
             ['채널분담율', '숫자 (예: 50.0)'],
             ['비고(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
-            ['상품코드 (검정)', 'Product 테이블에 등록된 상품코드 (수정 불가)'],
+            ['품목코드 (검정)', 'ProductBox 테이블의 품목코드 (수정 불가)'],
             ['판매가~기타비', '가격/비용 정보'],
             ['예상매출(상품)', '숫자'],
             ['예상수량(상품)', '숫자'],
@@ -429,7 +429,7 @@ async def download_promotions(
             ['1. 같은 행사의 여러 상품은 행사 정보가 동일하게 반복됩니다.', ''],
             ['2. 행사ID를 비워두면 행사명+행사유형+시작일+브랜드명+채널명으로 그룹핑됩니다.', ''],
             ['3. 검정색/빨간색 배경 컬럼은 수정해도 반영되지 않습니다.', ''],
-            ['4. 브랜드명, 채널명, 상품코드, 행사유형은 반드시 DB에 등록된 값이어야 합니다.', ''],
+            ['4. 브랜드명, 채널명, 품목코드, 행사유형은 반드시 DB에 등록된 값이어야 합니다.', ''],
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
 
@@ -440,6 +440,17 @@ async def download_promotions(
         brand_names = [br['Name'] for br in brands]
         promotion_type_display_names = promotion_repo.get_promotion_type_display_names()
         discount_owner_list = ['COMPANY', 'CHANNEL', 'BOTH']
+
+        # 품목코드 목록 (ProductBox)
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT DISTINCT pb.ERPCode
+                FROM ProductBox pb
+                INNER JOIN Product p ON pb.ProductID = p.ProductID
+                WHERE p.Status = 'YES'
+                ORDER BY pb.ERPCode
+            """)
+            erp_codes = [row[0] for row in cursor.fetchall()]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -465,6 +476,9 @@ async def download_promotions(
             # D열: 할인부담 목록
             for i, name in enumerate(discount_owner_list):
                 list_sheet.write(i, 3, name)
+            # E열: 품목코드 목록
+            for i, code in enumerate(erp_codes):
+                list_sheet.write(i, 4, code)
 
             # 드롭다운 적용 범위
             max_row = max(len(df) + 100, 1000)
@@ -503,6 +517,15 @@ async def download_promotions(
                 'input_message': '할인부담을 선택하세요',
                 'error_message': '목록에서 선택해주세요'
             })
+
+            # 품목코드 드롭다운 (인덱스 15)
+            if erp_codes:
+                worksheet.data_validation(1, 15, max_row, 15, {
+                    'validate': 'list',
+                    'source': f'=목록!$E$1:$E${len(erp_codes)}',
+                    'input_message': '품목코드를 선택하세요',
+                    'error_message': '목록에서 선택해주세요'
+                })
 
             # 서식 정의
             id_header_format = workbook.add_format({
@@ -631,7 +654,8 @@ async def upload_promotions(
             '채널분담율': 'ChannelShare',
             '비고(행사)': 'PromoNotes',
             '상품ID': 'PromotionProductID',
-            '상품코드': 'UniqueCode',
+            '품목코드': 'ERPCode',
+            '상품코드': 'ERPCode',  # 기존 양식 호환
             '상품명': 'ProductName',
             '판매가': 'SellingPrice',
             '행사가': 'PromotionPrice',
@@ -691,8 +715,8 @@ async def upload_promotions(
         df['BrandName'] = df['BrandName'].astype(str).str.strip()
         df['ChannelName'] = df['ChannelName'].astype(str).str.strip()
         df['PromotionType'] = df['PromotionType'].astype(str).str.strip()
-        if 'UniqueCode' in df.columns:
-            df['UniqueCode'] = df['UniqueCode'].astype(str).str.strip()
+        if 'ERPCode' in df.columns:
+            df['ERPCode'] = df['ERPCode'].astype(str).str.strip()
 
         # 5. 마스터 데이터 검증
         errors = {
@@ -737,19 +761,24 @@ async def upload_promotions(
                     row_nums = df[df['ChannelName'] == name].index.tolist()
                     errors['channel'][name] = [r + 2 for r in row_nums]
 
-        # 상품코드 → ProductName 매핑
-        if 'UniqueCode' in df.columns:
-            unique_codes = df['UniqueCode'].dropna().unique().tolist()
-            unique_codes = [c for c in unique_codes if c and c != 'nan']
+        # 품목코드(ERPCode) → UniqueCode, ProductName 매핑
+        if 'ERPCode' in df.columns:
+            erp_codes_unique = df['ERPCode'].dropna().unique().tolist()
+            erp_codes_unique = [c for c in erp_codes_unique if c and c != 'nan']
             product_map = {}
-            for code in unique_codes:
+            for code in erp_codes_unique:
                 with get_db_cursor(commit=False) as cursor:
-                    cursor.execute("SELECT UniqueCode, Name FROM Product WHERE UniqueCode = ?", (code,))
+                    cursor.execute("""
+                        SELECT pb.ERPCode, p.UniqueCode, p.Name
+                        FROM ProductBox pb
+                        INNER JOIN Product p ON pb.ProductID = p.ProductID
+                        WHERE pb.ERPCode = ?
+                    """, (code,))
                     row = cursor.fetchone()
                     if row:
-                        product_map[code] = {'UniqueCode': row[0], 'ProductName': row[1]}
+                        product_map[code] = {'ERPCode': row[0], 'UniqueCode': row[1], 'ProductName': row[2]}
                     else:
-                        row_nums = df[df['UniqueCode'] == code].index.tolist()
+                        row_nums = df[df['ERPCode'] == code].index.tolist()
                         errors['product'][code] = [r + 2 for r in row_nums]
         else:
             product_map = {}
@@ -787,7 +816,7 @@ async def upload_promotions(
             for name, rows in errors['channel'].items():
                 error_messages.append(f"존재하지 않는 채널명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             for code, rows in errors['product'].items():
-                error_messages.append(f"존재하지 않는 상품코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
+                error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             for display_name, rows in errors['promotion_type'].items():
                 error_messages.append(f"존재하지 않는 행사유형: {display_name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
@@ -1001,12 +1030,12 @@ async def upload_promotions(
             for idx in indices:
                 row = df.iloc[idx]
 
-                unique_code = str(row['UniqueCode']).strip() if pd.notna(row.get('UniqueCode')) and str(row.get('UniqueCode')).strip() not in ['', 'nan'] else None
+                erp_code = str(row['ERPCode']).strip() if pd.notna(row.get('ERPCode')) and str(row.get('ERPCode')).strip() not in ['', 'nan'] else None
 
-                if not unique_code:
-                    continue  # 상품코드 없으면 스킵
+                if not erp_code:
+                    continue  # 품목코드 없으면 스킵
 
-                product_info = product_map.get(unique_code, {})
+                product_info = product_map.get(erp_code, {})
 
                 product_id = None
                 if 'PromotionProductID' in row and pd.notna(row.get('PromotionProductID')):
@@ -1018,7 +1047,8 @@ async def upload_promotions(
                 product_records.append({
                     'PromotionProductID': product_id,
                     'PromotionID': promo_id,
-                    'UniqueCode': unique_code,
+                    'ERPCode': erp_code,
+                    'UniqueCode': product_info.get('UniqueCode'),
                     'ProductName': product_info.get('ProductName') or (str(row['ProductName']).strip() if pd.notna(row.get('ProductName')) and str(row.get('ProductName')).strip() != 'nan' else None),
                     'SellingPrice': float(row['SellingPrice']) if pd.notna(row.get('SellingPrice')) else None,
                     'PromotionPrice': float(row['PromotionPrice']) if pd.notna(row.get('PromotionPrice')) else None,
@@ -1323,9 +1353,24 @@ async def create_promotion_product(
 ):
     """행사 상품 생성"""
     try:
-        product_id = promotion_product_repo.create(data.dict(exclude_none=True))
+        # ERPCode → UniqueCode, ProductName 매핑
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT pb.ERPCode, p.UniqueCode, p.Name
+                FROM ProductBox pb
+                INNER JOIN Product p ON pb.ProductID = p.ProductID
+                WHERE pb.ERPCode = ?
+            """, (data.ERPCode,))
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(400, f"존재하지 않는 품목코드: {data.ERPCode}")
 
-        return {"PromotionProductID": product_id, "PromotionID": data.PromotionID, "UniqueCode": data.UniqueCode}
+        create_data = data.dict(exclude_none=True)
+        create_data['UniqueCode'] = row[1]
+        create_data['ProductName'] = row[2]
+        product_id = promotion_product_repo.create(create_data)
+
+        return {"PromotionProductID": product_id, "PromotionID": data.PromotionID, "ERPCode": data.ERPCode}
     except Exception as e:
         raise HTTPException(500, f"행사 상품 생성 실패: {str(e)}")
 

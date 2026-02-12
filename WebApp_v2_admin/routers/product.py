@@ -15,7 +15,7 @@ from datetime import datetime
 from urllib.parse import quote
 from repositories import ProductRepository, ProductBoxRepository
 from core.dependencies import get_client_ip, CurrentUser
-from core import log_activity, log_delete, log_bulk_delete, require_permission
+from core import log_activity, log_delete, log_bulk_delete, require_permission, get_db_cursor
 from core.models import BulkDeleteRequest
 from utils.excel import ProductExcelHandler
 
@@ -190,6 +190,27 @@ async def download_products_excel(
 
         products = result.get('data', [])
 
+        # ProductBox에서 ERPCode 매핑 (ProductID → ERPCode 콤마 구분)
+        if products:
+            product_ids = [p['ProductID'] for p in products]
+            erp_map = {}  # ProductID → "ERPCode1, ERPCode2, ..."
+            with get_db_cursor(commit=False) as cursor:
+                placeholders = ','.join(['?' for _ in product_ids])
+                cursor.execute(f"""
+                    SELECT ProductID, ERPCode
+                    FROM [dbo].[ProductBox]
+                    WHERE ProductID IN ({placeholders})
+                    ORDER BY ProductID, ERPCode
+                """, *product_ids)
+                for row in cursor.fetchall():
+                    pid, erp = row[0], row[1]
+                    if pid in erp_map:
+                        erp_map[pid] += f", {erp}"
+                    else:
+                        erp_map[pid] = erp
+            for p in products:
+                p['ERPCode'] = erp_map.get(p['ProductID'], '')
+
         # 한글 칼럼명 매핑
         column_mapping = {
             'ProductID': '제품ID',
@@ -197,6 +218,7 @@ async def download_products_excel(
             'BrandName': '브랜드명',
             'BrandTitle': '브랜드타이틀',
             'UniqueCode': '고유코드',
+            'ERPCode': '품목코드',
             'Name': '상품명',
             'TypeERP': 'ERP유형',
             'TypeDB': 'DB유형',
@@ -216,7 +238,7 @@ async def download_products_excel(
             df = pd.DataFrame(products)
             # 칼럼 순서 정렬 및 한글명으로 변경
             ordered_columns = [
-                'ProductID', 'BrandName', 'BrandTitle', 'UniqueCode', 'Name',
+                'ProductID', 'BrandName', 'BrandTitle', 'UniqueCode', 'ERPCode', 'Name',
                 'TypeERP', 'TypeDB', 'BaseBarcode', 'Barcode2',
                 'SabangnetCode', 'SabangnetUniqueCode', 'BundleType',
                 'CategoryMid', 'CategorySub', 'Status', 'ReleaseDate'
@@ -229,7 +251,7 @@ async def download_products_excel(
         else:
             # 데이터가 없을 경우 빈 DataFrame 생성 (칼럼명만 포함)
             df = pd.DataFrame(columns=[column_mapping[col] for col in [
-                'ProductID', 'BrandName', 'BrandTitle', 'UniqueCode', 'Name',
+                'ProductID', 'BrandName', 'BrandTitle', 'UniqueCode', 'ERPCode', 'Name',
                 'TypeERP', 'TypeDB', 'BaseBarcode', 'Barcode2',
                 'SabangnetCode', 'SabangnetUniqueCode', 'BundleType',
                 'CategoryMid', 'CategorySub', 'Status', 'ReleaseDate'

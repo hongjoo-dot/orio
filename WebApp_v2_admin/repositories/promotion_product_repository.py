@@ -13,7 +13,7 @@ class PromotionProductRepository(BaseRepository):
     # SELECT 컬럼 상수 (순서 변경 금지 - _row_to_dict 인덱스와 일치해야 함)
     SELECT_COLUMNS = (
         "pp.PromotionProductID", "pp.PromotionID",
-        "pp.UniqueCode", "pp.ProductName",
+        "pp.ERPCode", "pp.UniqueCode", "pp.ProductName",
         "pp.SellingPrice", "pp.PromotionPrice", "pp.SupplyPrice",
         "pp.CouponDiscountRate",
         "pp.UnitCost", "pp.LogisticsCost", "pp.ManagementCost",
@@ -49,33 +49,34 @@ class PromotionProductRepository(BaseRepository):
         return {
             "PromotionProductID": row[0],
             "PromotionID": row[1],
-            "UniqueCode": row[2],
-            "ProductName": row[3],
-            "SellingPrice": float(row[4]) if row[4] else 0,
-            "PromotionPrice": float(row[5]) if row[5] else 0,
-            "SupplyPrice": float(row[6]) if row[6] else 0,
-            "CouponDiscountRate": float(row[7]) if row[7] else None,
-            "UnitCost": float(row[8]) if row[8] else 0,
-            "LogisticsCost": float(row[9]) if row[9] else 0,
-            "ManagementCost": float(row[10]) if row[10] else 0,
-            "WarehouseCost": float(row[11]) if row[11] else 0,
-            "EDICost": float(row[12]) if row[12] else 0,
-            "MisCost": float(row[13]) if row[13] else 0,
-            "ExpectedSalesAmount": float(row[14]) if row[14] else 0,
-            "ExpectedQuantity": int(row[15]) if row[15] else 0,
-            "Notes": row[16],
-            "CreatedDate": row[17].strftime('%Y-%m-%d %H:%M:%S') if row[17] else None,
-            "UpdatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None,
+            "ERPCode": row[2],
+            "UniqueCode": row[3],
+            "ProductName": row[4],
+            "SellingPrice": float(row[5]) if row[5] else 0,
+            "PromotionPrice": float(row[6]) if row[6] else 0,
+            "SupplyPrice": float(row[7]) if row[7] else 0,
+            "CouponDiscountRate": float(row[8]) if row[8] else None,
+            "UnitCost": float(row[9]) if row[9] else 0,
+            "LogisticsCost": float(row[10]) if row[10] else 0,
+            "ManagementCost": float(row[11]) if row[11] else 0,
+            "WarehouseCost": float(row[12]) if row[12] else 0,
+            "EDICost": float(row[13]) if row[13] else 0,
+            "MisCost": float(row[14]) if row[14] else 0,
+            "ExpectedSalesAmount": float(row[15]) if row[15] else 0,
+            "ExpectedQuantity": int(row[16]) if row[16] else 0,
+            "Notes": row[17],
+            "CreatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None,
+            "UpdatedDate": row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else None,
             # JOIN 컬럼
-            "PromotionName": row[19],
-            "PromotionType": row[20],
-            "StartDate": row[21].strftime('%Y-%m-%d') if row[21] else None,
-            "EndDate": row[22].strftime('%Y-%m-%d') if row[22] else None,
-            "BrandID": row[23],
-            "BrandName": row[24],
-            "ChannelID": row[25],
-            "ChannelName": row[26],
-            "Status": row[27],
+            "PromotionName": row[20],
+            "PromotionType": row[21],
+            "StartDate": row[22].strftime('%Y-%m-%d') if row[22] else None,
+            "EndDate": row[23].strftime('%Y-%m-%d') if row[23] else None,
+            "BrandID": row[24],
+            "BrandName": row[25],
+            "ChannelID": row[26],
+            "ChannelName": row[27],
+            "Status": row[28],
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -176,7 +177,8 @@ class PromotionProductRepository(BaseRepository):
                         # ID 기반 UPDATE (가격/비용 + 예상매출/수량 + 비고)
                         update_query = """
                             UPDATE [dbo].[PromotionProduct]
-                            SET ProductName = ?,
+                            SET ERPCode = ?,
+                                ProductName = ?,
                                 SellingPrice = ?,
                                 PromotionPrice = ?,
                                 SupplyPrice = ?,
@@ -194,6 +196,7 @@ class PromotionProductRepository(BaseRepository):
                             WHERE PromotionProductID = ?
                         """
                         params = [
+                            record.get('ERPCode'),
                             record.get('ProductName'),
                             record.get('SellingPrice'),
                             record.get('PromotionPrice'),
@@ -217,15 +220,16 @@ class PromotionProductRepository(BaseRepository):
                         # 신규 INSERT
                         insert_query = """
                             INSERT INTO [dbo].[PromotionProduct]
-                                (PromotionID, UniqueCode, ProductName,
+                                (PromotionID, ERPCode, UniqueCode, ProductName,
                                  SellingPrice, PromotionPrice, SupplyPrice,
                                  CouponDiscountRate, UnitCost, LogisticsCost,
                                  ManagementCost, WarehouseCost, EDICost, MisCost,
                                  ExpectedSalesAmount, ExpectedQuantity, Notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('PromotionID'),
+                            record.get('ERPCode'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
                             record.get('SellingPrice'),

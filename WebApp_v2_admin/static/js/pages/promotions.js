@@ -59,10 +59,10 @@ const masterColumns = [
 // ==================== 디테일 컬럼 정의 ====================
 const detailColumns = [
     {
-        key: 'UniqueCode',
-        header: '상품코드',
-        sortKey: 'UniqueCode',
-        render: (row) => `<span style="font-size:13px;">${escapeHtml(row.UniqueCode) || '-'}</span>`
+        key: 'ERPCode',
+        header: '품목코드',
+        sortKey: 'ERPCode',
+        render: (row) => `<span style="font-size:13px;">${escapeHtml(row.ERPCode) || '-'}</span>`
     },
     {
         key: 'ProductName',

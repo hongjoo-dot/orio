@@ -31,7 +31,7 @@ class WithdrawalPlanCreate(BaseModel):
     Title: str
     Date: str
     Type: str
-    UniqueCode: str
+    ERPCode: str
     PlannedQty: int = 1
     Notes: Optional[str] = None
 
@@ -40,7 +40,7 @@ class WithdrawalPlanUpdate(BaseModel):
     Title: Optional[str] = None
     Date: Optional[str] = None
     Type: Optional[str] = None
-    UniqueCode: Optional[str] = None
+    ERPCode: Optional[str] = None
     PlannedQty: Optional[int] = None
     Notes: Optional[str] = None
 
@@ -203,7 +203,7 @@ async def download_withdrawal_plans(
             data = []
 
         # 엑셀 컬럼 정의
-        export_columns = ['계획ID(수정X)', '캠페인ID(수정X)', '캠페인명', '일자(YYYY-MM-DD)', '사용유형', '고유코드', '예정수량', '메모']
+        export_columns = ['계획ID(수정X)', '캠페인ID(수정X)', '캠페인명', '일자(YYYY-MM-DD)', '사용유형', '품목코드', '예정수량', '메모']
         id_column_indices = [0, 1]  # 계획ID, 캠페인ID (빨간색)
 
         rows = []
@@ -214,7 +214,7 @@ async def download_withdrawal_plans(
                 '캠페인명': item.get('Title'),
                 '일자(YYYY-MM-DD)': item.get('Date'),
                 '사용유형': item.get('Type'),
-                '고유코드': item.get('UniqueCode'),
+                '품목코드': item.get('ERPCode'),
                 '예정수량': item.get('PlannedQty'),
                 '메모': item.get('Notes'),
             })
@@ -238,21 +238,22 @@ async def download_withdrawal_plans(
             ['캠페인명', '캠페인/건명 (같은 이름은 동일 그룹)'],
             ['일자(YYYY-MM-DD)', 'YYYY-MM-DD 형식'],
             ['사용유형', '인플루언서, 증정, 업체샘플, 직원복지, 기타'],
-            ['고유코드', '상품 고유코드 (필수, 상품명 자동 매핑)'],
+            ['품목코드', '품목코드 (필수, ProductBox 테이블의 ERPCode, 상품명 자동 매핑)'],
             ['예정수량', '숫자'],
             ['메모', '메모'],
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
 
-        # 드롭다운용 데이터 (Status=YES인 상품만)
+        # 드롭다운용 데이터 (ProductBox ERPCode)
         with get_db_cursor(commit=False) as cursor:
             cursor.execute("""
-                SELECT UniqueCode FROM [dbo].[Product]
-                WHERE UniqueCode IS NOT NULL AND UniqueCode != ''
-                  AND Status = 'YES'
-                ORDER BY UniqueCode
+                SELECT DISTINCT pb.ERPCode
+                FROM ProductBox pb
+                INNER JOIN Product p ON pb.ProductID = p.ProductID
+                WHERE p.Status = 'YES'
+                ORDER BY pb.ERPCode
             """)
-            unique_codes = [row[0] for row in cursor.fetchall()]
+            erp_codes = [row[0] for row in cursor.fetchall()]
 
         withdrawal_types = plan_repo.get_types()
 
@@ -268,8 +269,8 @@ async def download_withdrawal_plans(
             list_sheet = workbook.add_worksheet('목록')
             list_sheet.hide()
 
-            # A열: 고유코드 목록
-            for i, code in enumerate(unique_codes):
+            # A열: 품목코드 목록
+            for i, code in enumerate(erp_codes):
                 list_sheet.write(i, 0, code)
             # B열: 사용유형 목록
             for i, t in enumerate(withdrawal_types):
@@ -277,12 +278,12 @@ async def download_withdrawal_plans(
 
             max_row = max(len(df) + 100, 1000)
 
-            # 고유코드 드롭다운 (인덱스 5)
-            if unique_codes:
+            # 품목코드 드롭다운 (인덱스 5)
+            if erp_codes:
                 worksheet.data_validation(1, 5, max_row, 5, {
                     'validate': 'list',
-                    'source': f'=목록!$A$1:$A${len(unique_codes)}',
-                    'input_message': '고유코드를 선택하세요',
+                    'source': f'=목록!$A$1:$A${len(erp_codes)}',
+                    'input_message': '품목코드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
@@ -377,14 +378,15 @@ async def upload_withdrawal_plans(
             '캠페인명': 'Title',
             '일자(YYYY-MM-DD)': 'Date',
             '사용유형': 'Type',
-            '고유코드': 'UniqueCode',
+            '품목코드': 'ERPCode',
+            '고유코드': 'ERPCode',  # 기존 양식 호환
             '예정수량': 'PlannedQty',
             '메모': 'Notes',
         }
         df = df.rename(columns=column_map)
 
         # 필수 컬럼 확인
-        required_cols = ['Title', 'Date', 'Type', 'UniqueCode']
+        required_cols = ['Title', 'Date', 'Type', 'ERPCode']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise HTTPException(400, f"필수 컬럼이 없습니다: {missing_cols}")
@@ -397,25 +399,27 @@ async def upload_withdrawal_plans(
         if 'PlannedQty' in df.columns:
             df['PlannedQty'] = pd.to_numeric(df['PlannedQty'], errors='coerce').fillna(1).astype(int)
 
-        # UniqueCode → ProductName 매핑
-        unique_codes = df['UniqueCode'].dropna().unique().tolist()
-        unique_codes = [str(c).strip() for c in unique_codes if c and str(c).strip()]
+        # ERPCode → UniqueCode, ProductName 매핑
+        erp_codes_unique = df['ERPCode'].dropna().unique().tolist()
+        erp_codes_unique = [str(c).strip() for c in erp_codes_unique if c and str(c).strip()]
 
         product_map = {}
         errors = []
 
-        for code in unique_codes:
+        for code in erp_codes_unique:
             with get_db_cursor(commit=False) as cursor:
-                cursor.execute(
-                    "SELECT Name FROM [dbo].[Product] WHERE UniqueCode = ?",
-                    (code,)
-                )
+                cursor.execute("""
+                    SELECT pb.ERPCode, p.UniqueCode, p.Name
+                    FROM ProductBox pb
+                    INNER JOIN Product p ON pb.ProductID = p.ProductID
+                    WHERE pb.ERPCode = ?
+                """, (code,))
                 row = cursor.fetchone()
                 if row:
-                    product_map[code] = row[0]
+                    product_map[code] = {'ERPCode': row[0], 'UniqueCode': row[1], 'ProductName': row[2]}
                 else:
-                    row_nums = df[df['UniqueCode'].astype(str).str.strip() == code].index.tolist()
-                    errors.append(f"존재하지 않는 고유코드: {code} (행 {', '.join(map(str, [r + 2 for r in row_nums[:5]]))})")
+                    row_nums = df[df['ERPCode'].astype(str).str.strip() == code].index.tolist()
+                    errors.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, [r + 2 for r in row_nums[:5]]))})")
 
         if errors:
             raise HTTPException(400, "\n".join(errors))
@@ -430,15 +434,16 @@ async def upload_withdrawal_plans(
         # 레코드 준비
         records = []
         for idx, row in df.iterrows():
-            unique_code = str(row.get('UniqueCode', '')).strip()
-            product_name = product_map.get(unique_code, '')
+            erp_code = str(row.get('ERPCode', '')).strip()
+            product_info = product_map.get(erp_code, {})
 
             record = {
                 'Title': str(row.get('Title', '')).strip(),
                 'Date': row.get('Date'),
                 'Type': str(row.get('Type', '')).strip(),
-                'UniqueCode': unique_code,
-                'ProductName': product_name,
+                'ERPCode': erp_code,
+                'UniqueCode': product_info.get('UniqueCode', ''),
+                'ProductName': product_info.get('ProductName', ''),
                 'PlannedQty': int(row.get('PlannedQty', 1)) if pd.notna(row.get('PlannedQty')) else 1,
                 'Notes': str(row.get('Notes', '')).strip() if pd.notna(row.get('Notes')) and str(row.get('Notes')).strip() != 'nan' else None,
                 'CreatedBy': user.user_id if user else None,
@@ -565,16 +570,17 @@ async def create_withdrawal_plan(
 ):
     """단건 생성"""
     try:
-        # UniqueCode → ProductName 매핑
+        # ERPCode → UniqueCode, ProductName 매핑
         with get_db_cursor(commit=False) as cursor:
-            cursor.execute(
-                "SELECT Name FROM [dbo].[Product] WHERE UniqueCode = ?",
-                (data.UniqueCode,)
-            )
+            cursor.execute("""
+                SELECT pb.ERPCode, p.UniqueCode, p.Name
+                FROM ProductBox pb
+                INNER JOIN Product p ON pb.ProductID = p.ProductID
+                WHERE pb.ERPCode = ?
+            """, (data.ERPCode,))
             row = cursor.fetchone()
             if not row:
-                raise HTTPException(400, f"존재하지 않는 고유코드: {data.UniqueCode}")
-            product_name = row[0]
+                raise HTTPException(400, f"존재하지 않는 품목코드: {data.ERPCode}")
 
         # GroupID 결정
         group_id = plan_repo.get_group_id_by_title(data.Title)
@@ -586,8 +592,9 @@ async def create_withdrawal_plan(
             'Title': data.Title,
             'Date': data.Date,
             'Type': data.Type,
-            'ProductName': product_name,
-            'UniqueCode': data.UniqueCode,
+            'ERPCode': data.ERPCode,
+            'ProductName': row[2],
+            'UniqueCode': row[1],
             'PlannedQty': data.PlannedQty,
             'Notes': data.Notes,
             'CreatedBy': user.user_id if user else None,
@@ -619,17 +626,20 @@ async def update_withdrawal_plan(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        # UniqueCode가 변경되면 ProductName도 업데이트
-        if 'UniqueCode' in update_data:
+        # ERPCode가 변경되면 UniqueCode, ProductName도 업데이트
+        if 'ERPCode' in update_data:
             with get_db_cursor(commit=False) as cursor:
-                cursor.execute(
-                    "SELECT Name FROM [dbo].[Product] WHERE UniqueCode = ?",
-                    (update_data['UniqueCode'],)
-                )
+                cursor.execute("""
+                    SELECT pb.ERPCode, p.UniqueCode, p.Name
+                    FROM ProductBox pb
+                    INNER JOIN Product p ON pb.ProductID = p.ProductID
+                    WHERE pb.ERPCode = ?
+                """, (update_data['ERPCode'],))
                 row = cursor.fetchone()
                 if not row:
-                    raise HTTPException(400, f"존재하지 않는 고유코드: {update_data['UniqueCode']}")
-                update_data['ProductName'] = row[0]
+                    raise HTTPException(400, f"존재하지 않는 품목코드: {update_data['ERPCode']}")
+                update_data['UniqueCode'] = row[1]
+                update_data['ProductName'] = row[2]
 
         plan_repo.update(plan_id, update_data)
         return {"PlanID": plan_id, "message": "수정 완료"}
