@@ -102,6 +102,13 @@ const detailColumns = [
 
 // ==================== 초기화 ====================
 document.addEventListener('DOMContentLoaded', async function () {
+    // 미저장 변경사항 이탈 방지
+    window.addEventListener('beforeunload', (e) => {
+        if (dirtyRows.size > 0) {
+            e.preventDefault();
+        }
+    });
+
     uploadModal = new ModalManager('uploadModal');
     uploadResultModal = new ModalManager('uploadResultModal');
 
