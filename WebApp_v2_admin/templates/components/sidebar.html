@@ -1,193 +1,132 @@
-<!-- Sidebar Component -->
-<nav class="sidebar" id="sidebar">
-    <div class="sidebar-header">
+<!-- Top Navbar Component -->
+<nav class="topnav" id="topnav">
+    <div class="topnav-left">
         <a href="/" class="logo">
             <i class="fa-solid fa-rocket"></i>
             <span class="logo-text">Orio ERP</span>
         </a>
-        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="사이드바 접기/펴기">
-            <i class="fa-solid fa-angles-left"></i>
-        </button>
-    </div>
 
-    <div class="nav-links">
-        <div class="nav-section-title">Main / 메인</div>
-        <a href="/" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
-            <i class="fa-solid fa-chart-line"></i> <span class="nav-text">대시보드</span>
-        </a>
+        <div class="nav-links">
+            <a href="/" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                <i class="fa-solid fa-chart-line"></i> <span class="nav-text">대시보드</span>
+            </a>
 
-        <div class="nav-section-title">Management / 관리</div>
-
-        <!-- 판매 관리 그룹 -->
-        <div class="nav-group {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}open{% endif %}">
-            <div class="nav-item nav-group-header {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}active{% endif %}" onclick="toggleNavGroup(this)">
-                <i class="fa-solid fa-won-sign"></i>
-                <span class="nav-text">판매 관리</span>
-                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            <!-- 판매 관리 드롭다운 -->
+            <div class="nav-dropdown {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}active{% endif %}">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}active{% endif %}">
+                    <i class="fa-solid fa-won-sign"></i>
+                    <span class="nav-text">판매 관리</span>
+                    <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
+                </div>
+                <div class="nav-dropdown-menu">
+                    <a href="/sales" class="nav-dropdown-item {% if active_page == 'sales' %}active{% endif %}">
+                        <i class="fa-solid fa-receipt"></i> 판매 현황
+                    </a>
+                    <a href="/targets" class="nav-dropdown-item {% if active_page == 'targets' %}active{% endif %}">
+                        <i class="fa-solid fa-bullseye"></i> 목표 관리
+                    </a>
+                    <a href="/promotions" class="nav-dropdown-item {% if active_page == 'promotions' %}active{% endif %}">
+                        <i class="fa-solid fa-tags"></i> 비정기 관리
+                    </a>
+                </div>
             </div>
-            <div class="nav-group-items {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}expanded{% endif %}">
-                <a href="/sales" class="nav-item nav-sub-item {% if active_page == 'sales' %}active{% endif %}">
-                    <i class="fa-solid fa-receipt"></i> <span class="nav-text">판매 현황</span>
-                </a>
-                <a href="/targets" class="nav-item nav-sub-item {% if active_page == 'targets' %}active{% endif %}">
-                    <i class="fa-solid fa-bullseye"></i> <span class="nav-text">목표 관리</span>
-                </a>
-                <a href="/promotions" class="nav-item nav-sub-item {% if active_page == 'promotions' %}active{% endif %}">
-                    <i class="fa-solid fa-tags"></i> <span class="nav-text">비정기 관리</span>
-                </a>
-            </div>
-        </div>
 
-        <!-- 상품 관리 그룹 -->
-        <div class="nav-group {% if active_page in ['products', 'bom'] %}open{% endif %}">
-            <div class="nav-item nav-group-header {% if active_page in ['products', 'bom'] %}active{% endif %}" onclick="toggleNavGroup(this)">
-                <i class="fa-solid fa-box"></i>
-                <span class="nav-text">상품 관리</span>
-                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            <!-- 상품 관리 드롭다운 -->
+            <div class="nav-dropdown {% if active_page in ['products', 'bom'] %}active{% endif %}">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['products', 'bom'] %}active{% endif %}">
+                    <i class="fa-solid fa-box"></i>
+                    <span class="nav-text">상품 관리</span>
+                    <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
+                </div>
+                <div class="nav-dropdown-menu">
+                    <a href="/products" class="nav-dropdown-item {% if active_page == 'products' %}active{% endif %}">
+                        <i class="fa-solid fa-box"></i> 상품 관리
+                    </a>
+                    <a href="/bom" class="nav-dropdown-item {% if active_page == 'bom' %}active{% endif %}">
+                        <i class="fa-solid fa-sitemap"></i> BOM 관리
+                    </a>
+                </div>
             </div>
-            <div class="nav-group-items {% if active_page in ['products', 'bom'] %}expanded{% endif %}">
-                <a href="/products" class="nav-item nav-sub-item {% if active_page == 'products' %}active{% endif %}">
-                    <i class="fa-solid fa-box"></i> <span class="nav-text">상품 관리</span>
-                </a>
-                <a href="/bom" class="nav-item nav-sub-item {% if active_page == 'bom' %}active{% endif %}">
-                    <i class="fa-solid fa-sitemap"></i> <span class="nav-text">BOM 관리</span>
-                </a>
-            </div>
-        </div>
 
-        <a href="/channels" class="nav-item {% if active_page == 'channels' %}active{% endif %}">
-            <i class="fa-solid fa-store"></i> <span class="nav-text">채널 관리</span>
-        </a>
-        <a href="/withdrawal-plans" class="nav-item {% if active_page == 'withdrawal-plans' %}active{% endif %}">
-            <i class="fa-solid fa-clipboard-list"></i> <span class="nav-text">불출 계획</span>
-        </a>
+            <a href="/channels" class="nav-item {% if active_page == 'channels' %}active{% endif %}">
+                <i class="fa-solid fa-store"></i> <span class="nav-text">채널 관리</span>
+            </a>
+            <a href="/withdrawal-plans" class="nav-item {% if active_page == 'withdrawal-plans' %}active{% endif %}">
+                <i class="fa-solid fa-clipboard-list"></i> <span class="nav-text">불출 계획</span>
+            </a>
+            <a href="/utilities" class="nav-item {% if active_page == 'utilities' %}active{% endif %}">
+                <i class="fa-solid fa-toolbox"></i> <span class="nav-text">유틸리티</span>
+            </a>
 
-        <div class="nav-section-title">Tools / 도구</div>
-        <a href="/utilities" class="nav-item {% if active_page == 'utilities' %}active{% endif %}">
-            <i class="fa-solid fa-toolbox"></i> <span class="nav-text">유틸리티</span>
-        </a>
-
-        <!-- 시스템 관리 그룹 (Admin 역할에게만 표시) -->
-        <div class="nav-group admin-only {% if active_page in ['admin-users', 'permissions', 'activity-log', 'system-config'] %}open{% endif %}" style="display: none;">
-            <div class="nav-item nav-group-header {% if active_page in ['admin-users', 'permissions', 'activity-log', 'system-config'] %}active{% endif %}" onclick="toggleNavGroup(this)">
-                <i class="fa-solid fa-gear"></i>
-                <span class="nav-text">시스템 관리</span>
-                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
-            </div>
-            <div class="nav-group-items {% if active_page in ['admin-users', 'permissions', 'activity-log', 'system-config'] %}expanded{% endif %}">
-                <a href="/admin/users" class="nav-item nav-sub-item {% if active_page == 'admin-users' %}active{% endif %}">
-                    <i class="fa-solid fa-users-gear"></i> <span class="nav-text">사용자 관리</span>
-                </a>
-                <a href="/admin/permissions" class="nav-item nav-sub-item {% if active_page == 'permissions' %}active{% endif %}">
-                    <i class="fa-solid fa-shield-halved"></i> <span class="nav-text">권한 관리</span>
-                </a>
-                <a href="/admin/activity-log" class="nav-item nav-sub-item {% if active_page == 'activity-log' %}active{% endif %}">
-                    <i class="fa-solid fa-clock-rotate-left"></i> <span class="nav-text">활동 이력</span>
-                </a>
-                <a href="/admin/system-config" class="nav-item nav-sub-item {% if active_page == 'system-config' %}active{% endif %}">
-                    <i class="fa-solid fa-gear"></i> <span class="nav-text">시스템 설정</span>
-                </a>
+            <!-- 시스템 관리 드롭다운 (Admin만) -->
+            <div class="nav-dropdown admin-only {% if active_page in ['admin-users', 'permissions', 'activity-log', 'system-config'] %}active{% endif %}" style="display: none;">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['admin-users', 'permissions', 'activity-log', 'system-config'] %}active{% endif %}">
+                    <i class="fa-solid fa-gear"></i>
+                    <span class="nav-text">시스템</span>
+                    <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
+                </div>
+                <div class="nav-dropdown-menu">
+                    <a href="/admin/users" class="nav-dropdown-item {% if active_page == 'admin-users' %}active{% endif %}">
+                        <i class="fa-solid fa-users-gear"></i> 사용자 관리
+                    </a>
+                    <a href="/admin/permissions" class="nav-dropdown-item {% if active_page == 'permissions' %}active{% endif %}">
+                        <i class="fa-solid fa-shield-halved"></i> 권한 관리
+                    </a>
+                    <a href="/admin/activity-log" class="nav-dropdown-item {% if active_page == 'activity-log' %}active{% endif %}">
+                        <i class="fa-solid fa-clock-rotate-left"></i> 활동 이력
+                    </a>
+                    <a href="/admin/system-config" class="nav-dropdown-item {% if active_page == 'system-config' %}active{% endif %}">
+                        <i class="fa-solid fa-gear"></i> 시스템 설정
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- User Info at Bottom -->
-    <div class="sidebar-footer">
+    <div class="topnav-right">
         <div id="userInfo" class="user-info">
-            <div id="userName" class="user-name"></div>
-            <div id="userRole" class="user-role"></div>
+            <span id="userName" class="user-name"></span>
+            <span id="userRole" class="user-role"></span>
         </div>
-        <button id="btnLogout" class="btn-logout">
-            <i class="fa-solid fa-right-from-bracket"></i> <span class="nav-text">로그아웃</span>
+        <button id="btnLogout" class="btn-logout" title="로그아웃">
+            <i class="fa-solid fa-right-from-bracket"></i>
         </button>
     </div>
+
+    <!-- 모바일 햄버거 -->
+    <button class="mobile-toggle" id="mobileToggle" onclick="toggleMobileMenu()">
+        <i class="fa-solid fa-bars"></i>
+    </button>
 </nav>
 
-<style>
-    /* 서브메뉴 스타일 */
-    .nav-group {
-        margin-bottom: 4px;
-    }
-    .nav-group-header {
-        cursor: pointer;
-        gap: 12px;
-    }
-    .nav-group-header i:first-child {
-        width: 20px;
-        text-align: center;
-        flex-shrink: 0;
-    }
-    .nav-group-arrow {
-        font-size: 10px;
-        transition: transform 0.2s;
-        margin-left: auto;
-    }
-    .nav-group-items {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.2s ease-out;
-    }
-    .nav-group-items.expanded {
-        max-height: 200px;
-    }
-    .nav-sub-item {
-        padding-left: 36px !important;
-        font-size: 13px;
-    }
-    .nav-sub-item i {
-        font-size: 12px;
-    }
-    .nav-group-header.active + .nav-group-items,
-    .nav-group-items.expanded {
-        max-height: 200px;
-    }
-    .nav-group.open .nav-group-arrow {
-        transform: rotate(180deg);
-    }
-</style>
-
 <script>
-    // 서브메뉴 토글
-    function toggleNavGroup(header) {
-        const group = header.closest('.nav-group');
-        const items = group.querySelector('.nav-group-items');
-        group.classList.toggle('open');
-        items.classList.toggle('expanded');
-    }
-
-    // 사이드바 접기/펴기 토글
-    function toggleSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        const mainContent = document.querySelector('.main-content');
-
-        sidebar.classList.toggle('collapsed');
-        if (mainContent) {
-            mainContent.classList.toggle('expanded');
-        }
-
-        // localStorage에 상태 저장
-        const isCollapsed = sidebar.classList.contains('collapsed');
-        localStorage.setItem('sidebarCollapsed', isCollapsed);
-    }
-
-    // 페이지 로드 시 사이드바 상태 복원 및 서브메뉴 펼치기
-    document.addEventListener('DOMContentLoaded', function() {
-        // 서브메뉴 펼치기
-        document.querySelectorAll('.nav-group-items.expanded').forEach(items => {
-            items.closest('.nav-group').classList.add('open');
+    // 드롭다운 토글 (클릭)
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.nav-dropdown-toggle').forEach(toggle => {
+            toggle.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const dropdown = this.closest('.nav-dropdown');
+                // 다른 드롭다운 닫기
+                document.querySelectorAll('.nav-dropdown.open').forEach(d => {
+                    if (d !== dropdown) d.classList.remove('open');
+                });
+                dropdown.classList.toggle('open');
+            });
         });
 
-        // 사이드바 상태 복원
-        const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-        if (isCollapsed) {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.querySelector('.main-content');
-            sidebar.classList.add('collapsed');
-            if (mainContent) {
-                mainContent.classList.add('expanded');
-            }
-        }
+        // 외부 클릭 시 드롭다운 닫기
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.nav-dropdown.open').forEach(d => {
+                d.classList.remove('open');
+            });
+        });
     });
+
+    // 모바일 메뉴 토글
+    function toggleMobileMenu() {
+        const topnav = document.getElementById('topnav');
+        topnav.classList.toggle('mobile-open');
+    }
 
     // 사용자 정보 표시 및 Admin 메뉴 제어
     (function () {
@@ -195,7 +134,6 @@
         const token = localStorage.getItem('access_token');
 
         if (!token) {
-            // 로그인 페이지가 아닌 경우 리다이렉트
             if (!window.location.pathname.includes('/login')) {
                 window.location.href = '/login';
             }
@@ -212,7 +150,7 @@
             userRoleEl.textContent = user.role;
         }
 
-        // Admin 메뉴 표시 (Admin 역할만)
+        // Admin 메뉴 표시
         if (user.role === 'Admin') {
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.style.display = '';
@@ -230,9 +168,7 @@
                             'Authorization': `Bearer ${token}`
                         }
                     });
-                } catch (e) {
-                    // 무시
-                }
+                } catch (e) { }
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('user');
                 window.location.href = '/login';
