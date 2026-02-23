@@ -1,10 +1,15 @@
 /**
  * Utilities Page
  * - 피벗 해제 (Unpivot) 도구
+ * - BOM 분해 도구
  */
 
+// Unpivot 상태
 let uploadedFile = null;
 let currentHeaders = [];
+
+// BOM 분해 상태
+let bomUploadedFile = null;
 
 // ========================
 // 초기화
@@ -12,7 +17,19 @@ let currentHeaders = [];
 document.addEventListener('DOMContentLoaded', () => {
     initUploadZone();
     initInputListeners();
+    initBomUploadZone();
 });
+
+// ========================
+// 탭 전환
+// ========================
+function switchUtilityTab(tabName) {
+    document.querySelectorAll('.utility-tab').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.utility-tab-content').forEach(content => content.classList.remove('active'));
+
+    document.querySelector(`.utility-tab[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+}
 
 // ========================
 // 파일 업로드
@@ -324,6 +341,217 @@ async function downloadResult() {
             if (match) {
                 filename = decodeURIComponent(match[1]);
             }
+        }
+
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showAlert('다운로드 완료', 'success');
+    } catch (e) {
+        showAlert(e.message, 'error');
+    }
+}
+
+// ============================================================
+// BOM 분해
+// ============================================================
+
+function initBomUploadZone() {
+    const zone = document.getElementById('bomUploadZone');
+    const fileInput = document.getElementById('bomFileInput');
+
+    zone.addEventListener('click', () => fileInput.click());
+
+    zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('drag-over');
+    });
+
+    zone.addEventListener('dragleave', () => {
+        zone.classList.remove('drag-over');
+    });
+
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) bomHandleFile(file);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) bomHandleFile(file);
+    });
+}
+
+function bomHandleFile(file) {
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+        showAlert('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다', 'error');
+        return;
+    }
+
+    bomUploadedFile = file;
+
+    document.getElementById('bomFileInfo').style.display = 'block';
+    document.getElementById('bomFileName').textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+
+    bomRequestPreview();
+}
+
+function bomResetUpload() {
+    bomUploadedFile = null;
+    document.getElementById('bomFileInput').value = '';
+    document.getElementById('bomFileInfo').style.display = 'none';
+    document.getElementById('bomStep2').style.display = 'none';
+}
+
+async function bomRequestPreview() {
+    if (!bomUploadedFile) return;
+
+    const formData = new FormData();
+    formData.append('file', bomUploadedFile);
+
+    try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch('/api/utilities/bom-decompose/preview', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'BOM 분해 실패');
+        }
+
+        const data = await res.json();
+
+        document.getElementById('bomStep2').style.display = 'block';
+
+        if (!data.success) {
+            // 검증 실패: 에러 목록 표시
+            document.getElementById('bomErrors').style.display = 'block';
+            document.getElementById('bomSuccess').style.display = 'none';
+            bomRenderErrors(data.errors);
+        } else {
+            // 검증 통과: 결과 표시
+            document.getElementById('bomErrors').style.display = 'none';
+            document.getElementById('bomSuccess').style.display = 'block';
+            bomRenderSummary(data.summary);
+
+            const headers = [
+                '품목코드(품목)', '바코드2(품목)', '상품명(품목)', '수량(품목)',
+                '품목코드(구성품)', '바코드2(구성품)', '상품명(구성품)', '수량(구성품)'
+            ];
+            const rows = data.result.map(r => ({
+                '품목코드(품목)': r.parent_erp,
+                '바코드2(품목)': r.parent_barcode2,
+                '상품명(품목)': r.parent_name,
+                '수량(품목)': r.parent_qty,
+                '품목코드(구성품)': r.child_erp,
+                '바코드2(구성품)': r.child_barcode2,
+                '상품명(구성품)': r.child_name,
+                '수량(구성품)': r.child_qty
+            }));
+            renderPreviewTable('bomResultTable', headers, rows, 0);
+
+            document.getElementById('bomResultInfo').textContent =
+                `입력 ${data.summary.input_rows}행 → 분해 결과 ${data.summary.output_rows}행`;
+        }
+    } catch (e) {
+        showAlert(e.message, 'error');
+    }
+}
+
+function bomRenderSummary(summary) {
+    const container = document.getElementById('bomSummary');
+    container.innerHTML = `
+        <div class="bom-summary-item">
+            <div class="label">입력 행</div>
+            <div class="value">${summary.input_rows}</div>
+        </div>
+        <div class="bom-summary-item">
+            <div class="label">세트/번들 분해</div>
+            <div class="value">${summary.sets_decomposed}</div>
+        </div>
+        <div class="bom-summary-item">
+            <div class="label">단품 통과</div>
+            <div class="value">${summary.singles_passed}</div>
+        </div>
+        <div class="bom-summary-item">
+            <div class="label">결과 행</div>
+            <div class="value">${summary.output_rows}</div>
+        </div>
+    `;
+}
+
+function bomRenderErrors(errors) {
+    const container = document.getElementById('bomErrors');
+    const rows = errors.map(e =>
+        `<tr>
+            <td>${e.row}</td>
+            <td>${escapeHtml(e.erp_code)}</td>
+            <td>${escapeHtml(e.ref_name)}</td>
+            <td>${escapeHtml(e.reason)}</td>
+        </tr>`
+    ).join('');
+
+    container.innerHTML = `
+        <div class="bom-error-box">
+            <div class="error-title">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                검증 실패 ${errors.length}건 - 아래 문제를 수정 후 다시 업로드하세요
+            </div>
+            <table class="bom-error-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px;">행</th>
+                        <th style="width:140px;">품목코드</th>
+                        <th>상품명(참고)</th>
+                        <th>사유</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    `;
+}
+
+async function bomDownloadResult() {
+    if (!bomUploadedFile) {
+        showAlert('먼저 파일을 업로드해주세요', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', bomUploadedFile);
+
+    try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch('/api/utilities/bom-decompose/download', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || '다운로드 실패');
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        const disposition = res.headers.get('Content-Disposition');
+        let filename = 'bom_decompose_result.xlsx';
+        if (disposition) {
+            const match = disposition.match(/filename\*=UTF-8''(.+)/);
+            if (match) filename = decodeURIComponent(match[1]);
         }
 
         a.download = filename;

@@ -10,7 +10,20 @@
     <p class="page-subtitle">데이터 변환 도구 모음</p>
 </div>
 
-<!-- 피벗 해제 도구 -->
+<!-- 탭 네비게이션 -->
+<div class="utility-tabs">
+    <button class="utility-tab active" data-tab="unpivot" onclick="switchUtilityTab('unpivot')">
+        <i class="fa-solid fa-table-columns"></i> 피벗 해제
+    </button>
+    <button class="utility-tab" data-tab="bom-decompose" onclick="switchUtilityTab('bom-decompose')">
+        <i class="fa-solid fa-sitemap"></i> BOM 분해
+    </button>
+</div>
+
+<!-- ======================== -->
+<!-- 탭 1: 피벗 해제 -->
+<!-- ======================== -->
+<div class="utility-tab-content active" id="tab-unpivot">
 <div class="card">
     <div class="card-header">
         <div class="card-title" style="margin:0;">
@@ -118,10 +131,182 @@
         </div>
     </div>
 </div>
+</div>
+
+<!-- ======================== -->
+<!-- 탭 2: BOM 분해 -->
+<!-- ======================== -->
+<div class="utility-tab-content" id="tab-bom-decompose">
+<div class="card">
+    <div class="card-header">
+        <div class="card-title" style="margin:0;">
+            <i class="fa-solid fa-sitemap"></i> BOM 분해 (BOM Decomposition)
+        </div>
+    </div>
+
+    <p style="color:var(--text-muted);margin-bottom:20px;line-height:1.6;">
+        세트/번들 상품의 품목코드와 수량을 입력하면, BOM 데이터를 기반으로 단품 기준 필요수량으로 분해합니다.<br>
+        엑셀 컬럼 구조: <strong>품목코드(ERPCode)</strong> | <strong>상품명(참고용)</strong> | <strong>수량</strong>
+    </p>
+
+    <!-- Step 1: 파일 업로드 -->
+    <div class="bom-step" id="bomStep1">
+        <h3 class="step-title">
+            <span class="step-badge">1</span> 엑셀 파일 업로드
+        </h3>
+        <div class="upload-zone" id="bomUploadZone">
+            <i class="fa-solid fa-cloud-arrow-up" style="font-size:40px;color:var(--accent);margin-bottom:12px;"></i>
+            <p style="margin-bottom:8px;">파일을 드래그하거나 클릭하여 업로드</p>
+            <p style="font-size:12px;color:var(--text-muted);">컬럼: 품목코드 | 상품명(참고) | 수량</p>
+            <input type="file" id="bomFileInput" accept=".xlsx,.xls" style="display:none;">
+        </div>
+        <div id="bomFileInfo" style="display:none;margin-top:12px;">
+            <span id="bomFileName" style="color:var(--accent);font-weight:500;"></span>
+            <button class="btn btn-secondary btn-sm" onclick="bomResetUpload()" style="margin-left:12px;">
+                <i class="fa-solid fa-xmark"></i> 제거
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 2: 결과 -->
+    <div class="bom-step" id="bomStep2" style="display:none;">
+        <h3 class="step-title">
+            <span class="step-badge">2</span> 분해 결과
+        </h3>
+
+        <!-- 검증 에러 (실패 시) -->
+        <div id="bomErrors" style="display:none;"></div>
+
+        <!-- 성공 시: 요약 + 결과 테이블 -->
+        <div id="bomSuccess" style="display:none;">
+            <div class="bom-summary" id="bomSummary"></div>
+
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+                <span id="bomResultInfo" style="color:var(--text-muted);"></span>
+                <button class="btn btn-primary" onclick="bomDownloadResult()">
+                    <i class="fa-solid fa-download"></i> 결과 다운로드
+                </button>
+            </div>
+            <div style="overflow-x:auto;">
+                <table class="data-table" id="bomResultTable">
+                    <thead><tr></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
 {% endblock %}
 
 {% block extra_css %}
 <style>
+    /* 유틸리티 탭 네비게이션 */
+    .utility-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: var(--spacing-lg);
+    }
+    .utility-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: rgba(148, 163, 184, 0.1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+    .utility-tab:hover {
+        border-color: var(--accent);
+        color: var(--text-main);
+    }
+    .utility-tab.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: white;
+    }
+    .utility-tab-content {
+        display: none;
+    }
+    .utility-tab-content.active {
+        display: block;
+    }
+
+    /* BOM 분해 스텝 */
+    .bom-step {
+        margin-bottom: 28px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--border);
+    }
+    .bom-step:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+
+    /* BOM 요약 카드 */
+    .bom-summary {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .bom-summary-item {
+        background: rgba(148, 163, 184, 0.05);
+        border-radius: var(--radius-md);
+        padding: 12px 20px;
+        text-align: center;
+        min-width: 120px;
+    }
+    .bom-summary-item .label {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
+    .bom-summary-item .value {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--accent);
+    }
+
+    /* BOM 에러 박스 */
+    .bom-error-box {
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: var(--radius-md);
+        padding: 16px 20px;
+    }
+    .bom-error-box .error-title {
+        color: var(--danger);
+        font-weight: 600;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+    }
+    .bom-error-table {
+        width: 100%;
+        font-size: 13px;
+        border-collapse: collapse;
+    }
+    .bom-error-table th {
+        text-align: left;
+        padding: 6px 12px;
+        border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+    .bom-error-table td {
+        padding: 6px 12px;
+        border-bottom: 1px solid rgba(239, 68, 68, 0.1);
+    }
+
     .unpivot-step {
         margin-bottom: 28px;
         padding-bottom: 24px;

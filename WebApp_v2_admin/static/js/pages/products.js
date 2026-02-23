@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         onSelectionChange: (selectedIds) => updateBoxActionButtons(selectedIds),
         emptyMessage: '박스가 없습니다.'
     });
+    detailTableManager.renderHeader(detailColumns);
 
     // 페이지네이션 매니저 초기화
     paginationManager = new PaginationManager('pagination', {
