@@ -390,16 +390,6 @@ def _validate_bom_items(items: list, erp_map: dict, bom_children: dict) -> list:
         product_info = erp_map[erp_code]
         product_type = (product_info.get("ProductType") or "").upper()
 
-        # EXCLUDE 검증
-        if product_type == "EXCLUDE":
-            errors.append({
-                "row": row_num,
-                "erp_code": erp_code,
-                "ref_name": item["ref_name"],
-                "reason": "제외 대상(EXCLUDE) 상품"
-            })
-            continue
-
         # SET/BUNDLE BOM 존재 검증
         if product_type in ("SET", "BUNDLE"):
             if erp_code not in bom_children or not bom_children[erp_code]:
