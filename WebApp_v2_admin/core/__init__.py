@@ -8,6 +8,7 @@ from .decorators import (
     log_execution_time, validate_input
 )
 from .activity_decorator import log_activity, log_delete, log_bulk_delete
+from .changelog import log_changes, log_changes_bulk
 from .dependencies import require_permission
 from .exceptions import (
     BaseRepositoryError, DatabaseConnectionError, RecordNotFoundError,
@@ -39,6 +40,9 @@ __all__ = [
     'log_activity',
     'log_delete',
     'log_bulk_delete',
+    # Change Log
+    'log_changes',
+    'log_changes_bulk',
     # Permission
     'require_permission',
     # Exceptions

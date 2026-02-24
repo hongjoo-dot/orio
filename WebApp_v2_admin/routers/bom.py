@@ -147,7 +147,7 @@ async def create_bom_by_boxid(
 ):
     """BOM 생성 (BoxID 직접 지정)"""
     try:
-        bom_id = bom_repo.create(data.dict(exclude_none=True))
+        bom_id = bom_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
 
         return {"BOMID": bom_id, "ParentBoxID": data.ParentProductBoxID, "ChildBoxID": data.ChildProductBoxID}
     except Exception as e:
@@ -173,7 +173,7 @@ async def update_bom(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = bom_repo.update(bom_id, update_data)
+        success = bom_repo.update(bom_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "BOM 수정 실패")
 

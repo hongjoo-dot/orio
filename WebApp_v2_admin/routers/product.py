@@ -322,7 +322,7 @@ async def create_product(
             raise HTTPException(400, f"중복된 고유코드입니다: {data.UniqueCode}")
 
         # 생성
-        product_id = product_repo.create(data.dict(exclude_none=True))
+        product_id = product_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
 
         return {"ProductID": product_id, "Name": data.Name, "UniqueCode": data.UniqueCode}
     except HTTPException:
@@ -395,7 +395,7 @@ async def update_product(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = product_repo.update(product_id, update_data)
+        success = product_repo.update(product_id, update_data, user_id=user.user_id)
 
         if not success:
             raise HTTPException(500, "제품 수정 실패")
@@ -562,7 +562,7 @@ async def create_product_box(
         box_data = data.dict()
         box_data['ProductID'] = product_id
 
-        box_id = box_repo.create(box_data)
+        box_id = box_repo.create(box_data, user_id=user.user_id)
 
         return {"BoxID": box_id, "ERPCode": data.ERPCode, "ProductID": product_id}
     except HTTPException:
@@ -653,7 +653,7 @@ async def create_productbox_direct(
         if data.ERPCode and box_repo.check_duplicate("ERPCode", data.ERPCode):
             raise HTTPException(400, f"중복된 ERP 코드입니다: {data.ERPCode}")
 
-        box_id = box_repo.create(data.dict(exclude_none=True))
+        box_id = box_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
 
         return {"BoxID": box_id, "ERPCode": data.ERPCode, "ProductID": data.ProductID}
     except HTTPException:
@@ -683,7 +683,7 @@ async def update_productbox_direct(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = box_repo.update(box_id, update_data)
+        success = box_repo.update(box_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "Box 수정 실패")
 

@@ -12,8 +12,8 @@
             </a>
 
             <!-- 판매 관리 드롭다운 -->
-            <div class="nav-dropdown {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}active{% endif %}">
-                <div class="nav-item nav-dropdown-toggle {% if active_page in ['sales', 'targets', 'expected', 'promotions'] %}active{% endif %}">
+            <div class="nav-dropdown {% if active_page in ['sales', 'targets', 'expected', 'irregulars'] %}active{% endif %}">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['sales', 'targets', 'expected', 'irregulars'] %}active{% endif %}">
                     <i class="fa-solid fa-won-sign"></i>
                     <span class="nav-text">판매 관리</span>
                     <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
@@ -25,7 +25,7 @@
                     <a href="/targets" class="nav-dropdown-item {% if active_page == 'targets' %}active{% endif %}">
                         <i class="fa-solid fa-bullseye"></i> 목표 관리
                     </a>
-                    <a href="/promotions" class="nav-dropdown-item {% if active_page == 'promotions' %}active{% endif %}">
+                    <a href="/irregulars" class="nav-dropdown-item {% if active_page == 'irregulars' %}active{% endif %}">
                         <i class="fa-solid fa-tags"></i> 비정기 관리
                     </a>
                 </div>

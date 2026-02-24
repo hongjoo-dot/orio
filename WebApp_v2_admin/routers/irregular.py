@@ -1,7 +1,7 @@
 """
-Promotion (행사 관리) Router
-- 행사 (Promotion) CRUD + 통합 엑셀
-- 행사 상품 (PromotionProduct) CRUD
+Irregular (비정기 관리) Router
+- 비정기 (Irregular) CRUD + 통합 엑셀
+- 비정기 상품 (IrregularProduct) CRUD
 """
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
@@ -11,8 +11,8 @@ from typing import Optional, List
 import pandas as pd
 import io
 from datetime import datetime
-from repositories.promotion_repository import PromotionRepository
-from repositories.promotion_product_repository import PromotionProductRepository
+from repositories.irregular_repository import IrregularRepository
+from repositories.irregular_product_repository import IrregularProductRepository
 from repositories import BrandRepository, ChannelRepository, ProductRepository, ActivityLogRepository
 from core import get_db_cursor
 from core.dependencies import get_client_ip, CurrentUser
@@ -22,19 +22,19 @@ from utils.helpers import format_time_value
 
 
 # ========== Repository 인스턴스 ==========
-promotion_repo = PromotionRepository()
-promotion_product_repo = PromotionProductRepository()
+irregular_repo = IrregularRepository()
+irregular_product_repo = IrregularProductRepository()
 brand_repo = BrandRepository()
 channel_repo = ChannelRepository()
 product_repo = ProductRepository()
 activity_log_repo = ActivityLogRepository()
 
 
-# ========== Pydantic Models — Promotion ==========
+# ========== Pydantic Models — Irregular ==========
 
-class PromotionCreate(BaseModel):
-    PromotionName: str
-    PromotionType: str
+class IrregularCreate(BaseModel):
+    IrregularName: str
+    IrregularType: str
     StartDate: str
     StartTime: Optional[str] = "00:00:00"
     EndDate: str
@@ -52,8 +52,8 @@ class PromotionCreate(BaseModel):
     Notes: Optional[str] = None
 
 
-class PromotionUpdate(BaseModel):
-    PromotionName: Optional[str] = None
+class IrregularUpdate(BaseModel):
+    IrregularName: Optional[str] = None
     EndDate: Optional[str] = None
     EndTime: Optional[str] = None
     StartTime: Optional[str] = None
@@ -67,14 +67,14 @@ class PromotionUpdate(BaseModel):
     Notes: Optional[str] = None
 
 
-# ========== Pydantic Models — PromotionProduct ==========
+# ========== Pydantic Models — IrregularProduct ==========
 
-class PromotionProductCreate(BaseModel):
-    PromotionID: str
+class IrregularProductCreate(BaseModel):
+    IrregularID: str
     ERPCode: str
     ProductName: Optional[str] = None
     SellingPrice: Optional[float] = None
-    PromotionPrice: Optional[float] = None
+    IrregularPrice: Optional[float] = None
     SupplyPrice: Optional[float] = None
     CouponDiscountRate: Optional[float] = None
     UnitCost: Optional[float] = None
@@ -88,10 +88,10 @@ class PromotionProductCreate(BaseModel):
     Notes: Optional[str] = None
 
 
-class PromotionProductUpdate(BaseModel):
+class IrregularProductUpdate(BaseModel):
     ProductName: Optional[str] = None
     SellingPrice: Optional[float] = None
-    PromotionPrice: Optional[float] = None
+    IrregularPrice: Optional[float] = None
     SupplyPrice: Optional[float] = None
     CouponDiscountRate: Optional[float] = None
     UnitCost: Optional[float] = None
@@ -105,45 +105,45 @@ class PromotionProductUpdate(BaseModel):
     Notes: Optional[str] = None
 
 
-class PromotionProductBulkUpdateItem(BaseModel):
-    PromotionProductID: int
-    PromotionPrice: Optional[float] = None
+class IrregularProductBulkUpdateItem(BaseModel):
+    IrregularProductID: int
+    IrregularPrice: Optional[float] = None
     ExpectedSalesAmount: Optional[float] = None
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
 
 
-class PromotionProductBulkUpdateRequest(BaseModel):
-    items: List[PromotionProductBulkUpdateItem]
+class IrregularProductBulkUpdateRequest(BaseModel):
+    items: List[IrregularProductBulkUpdateItem]
 
 
 # ==========================================================
-#  Promotion Router (행사 목록 CRUD + 통합 엑셀)
+#  Irregular Router (행사 목록 CRUD + 통합 엑셀)
 # ==========================================================
-router = APIRouter(prefix="/api/promotions", tags=["Promotion"])
+router = APIRouter(prefix="/api/irregulars", tags=["Irregular"])
 
 
 # ========== 행사 목록 조회 ==========
 
 @router.get("")
-async def get_promotion_list(
+async def get_irregular_list(
     page: int = 1,
     limit: int = 20,
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_type: Optional[str] = None,
+    irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = "DESC",
-    user: CurrentUser = Depends(require_permission("Promotion", "READ"))
+    user: CurrentUser = Depends(require_permission("Irregular", "READ"))
 ):
     """행사 목록 조회"""
     try:
         ALLOWED_SORT = {
-            "PromotionID": "p.PromotionID",
-            "PromotionName": "p.PromotionName",
-            "PromotionType": "p.PromotionType",
+            "IrregularID": "p.IrregularID",
+            "IrregularName": "p.IrregularName",
+            "IrregularType": "p.IrregularType",
             "StartDate": "p.StartDate",
             "EndDate": "p.EndDate",
             "BrandName": "b.Name",
@@ -164,12 +164,12 @@ async def get_promotion_list(
             filters['brand_id'] = brand_id
         if channel_id:
             filters['channel_id'] = channel_id
-        if promotion_type:
-            filters['promotion_type'] = promotion_type
+        if irregular_type:
+            filters['irregular_type'] = irregular_type
         if status:
             filters['status'] = status
 
-        result = promotion_repo.get_list(
+        result = irregular_repo.get_list(
             page=page,
             limit=limit,
             filters=filters,
@@ -182,30 +182,30 @@ async def get_promotion_list(
 
 
 @router.get("/year-months")
-async def get_promotion_year_months(user: CurrentUser = Depends(require_permission("Promotion", "READ"))):
+async def get_irregular_year_months(user: CurrentUser = Depends(require_permission("Irregular", "READ"))):
     """행사 년월 목록 조회"""
     try:
-        year_months = promotion_repo.get_year_months()
+        year_months = irregular_repo.get_year_months()
         return {"year_months": year_months}
     except Exception as e:
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
 
 
-@router.get("/promotion-types")
-async def get_promotion_types(user: CurrentUser = Depends(require_permission("Promotion", "READ"))):
-    """행사유형 목록 조회 (PromotionType 테이블에서 DisplayName)"""
+@router.get("/irregular-types")
+async def get_irregular_types(user: CurrentUser = Depends(require_permission("Irregular", "READ"))):
+    """행사유형 목록 조회 (IrregularType 테이블에서 DisplayName)"""
     try:
-        promotion_types = promotion_repo.get_promotion_type_display_names()
-        return {"promotion_types": promotion_types}
+        irregular_types = irregular_repo.get_irregular_type_display_names()
+        return {"irregular_types": irregular_types}
     except Exception as e:
         raise HTTPException(500, f"행사유형 목록 조회 실패: {str(e)}")
 
 
 @router.get("/statuses")
-async def get_promotion_statuses(user: CurrentUser = Depends(require_permission("Promotion", "READ"))):
+async def get_irregular_statuses(user: CurrentUser = Depends(require_permission("Irregular", "READ"))):
     """행사 상태 목록 조회 (고정값)"""
     try:
-        statuses = promotion_repo.get_statuses()
+        statuses = irregular_repo.get_statuses()
         return {"statuses": statuses}
     except Exception as e:
         raise HTTPException(500, f"상태 목록 조회 실패: {str(e)}")
@@ -214,13 +214,13 @@ async def get_promotion_statuses(user: CurrentUser = Depends(require_permission(
 # ========== 마스터 패널용 요약 목록 ==========
 
 @router.get("/master-summary")
-async def get_promotion_master_summary(
+async def get_irregular_master_summary(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_type: Optional[str] = None,
+    irregular_type: Optional[str] = None,
     status: Optional[str] = None,
-    user: CurrentUser = Depends(require_permission("Promotion", "READ"))
+    user: CurrentUser = Depends(require_permission("Irregular", "READ"))
 ):
     """마스터 패널용 비정기 목록 + 상품 수 조회"""
     try:
@@ -231,12 +231,12 @@ async def get_promotion_master_summary(
             filters['brand_id'] = brand_id
         if channel_id:
             filters['channel_id'] = channel_id
-        if promotion_type:
-            filters['promotion_type'] = promotion_type
+        if irregular_type:
+            filters['irregular_type'] = irregular_type
         if status:
             filters['status'] = status
 
-        data = promotion_repo.get_master_summary(filters)
+        data = irregular_repo.get_master_summary(filters)
         return {"data": data, "total": len(data)}
     except Exception as e:
         raise HTTPException(500, f"비정기 목록 조회 실패: {str(e)}")
@@ -245,27 +245,27 @@ async def get_promotion_master_summary(
 # ========== 통합 엑셀 다운로드 ==========
 
 @router.get("/download")
-async def download_promotions(
+async def download_irregulars(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_type: Optional[str] = None,
+    irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     ids: Optional[str] = None,
-    user: CurrentUser = Depends(require_permission("Promotion", "EXPORT"))
+    user: CurrentUser = Depends(require_permission("Irregular", "EXPORT"))
 ):
     """행사 + 행사 상품 통합 엑셀 다운로드"""
     try:
-        promotions = []
+        irregulars = []
         products = []
 
         # 데이터 조회
         if ids:
-            # PromotionID 리스트로 조회
+            # IrregularID 리스트로 조회
             id_list = [id.strip() for id in ids.split(',') if id.strip()]
-            promotions = promotion_repo.get_by_ids(id_list)
-            products = promotion_product_repo.get_by_promotion_ids(id_list)
-        elif year_month or brand_id or channel_id or promotion_type or status:
+            irregulars = irregular_repo.get_by_ids(id_list)
+            products = irregular_product_repo.get_by_irregular_ids(id_list)
+        elif year_month or brand_id or channel_id or irregular_type or status:
             # 필터 조건으로 조회
             filters = {}
             if year_month:
@@ -274,51 +274,51 @@ async def download_promotions(
                 filters['brand_id'] = brand_id
             if channel_id:
                 filters['channel_id'] = channel_id
-            if promotion_type:
-                filters['promotion_type'] = promotion_type
+            if irregular_type:
+                filters['irregular_type'] = irregular_type
             if status:
                 filters['status'] = status
 
-            result = promotion_repo.get_list(page=1, limit=100000, filters=filters)
-            promotions = result['data']
+            result = irregular_repo.get_list(page=1, limit=100000, filters=filters)
+            irregulars = result['data']
 
-            if promotions:
-                promo_ids = [p['PromotionID'] for p in promotions]
-                products = promotion_product_repo.get_by_promotion_ids(promo_ids)
+            if irregulars:
+                promo_ids = [p['IrregularID'] for p in irregulars]
+                products = irregular_product_repo.get_by_irregular_ids(promo_ids)
 
         # 행사별 상품 매핑
         products_by_promo = {}
         for prod in products:
-            pid = prod['PromotionID']
+            pid = prod['IrregularID']
             if pid not in products_by_promo:
                 products_by_promo[pid] = []
             products_by_promo[pid].append(prod)
 
         # 통합 행 생성 (행사 정보 + 상품 정보를 1행으로 합침)
         rows = []
-        for promo in promotions:
-            promo_products = products_by_promo.get(promo['PromotionID'], [])
+        for irreg in irregulars:
+            promo_products = products_by_irreg.get(irreg['IrregularID'], [])
             if promo_products:
                 for prod in promo_products:
                     rows.append({
-                        '행사ID': promo['PromotionID'],
-                        '행사명': promo['PromotionName'],
-                        '행사유형': promo['PromotionType'],
-                        '시작일': promo['StartDate'],
+                        '행사ID': irreg['IrregularID'],
+                        '행사명': irreg['IrregularName'],
+                        '행사유형': irreg['IrregularType'],
+                        '시작일': irreg['StartDate'],
                         '시작시간': promo['StartTime'],
-                        '종료일': promo['EndDate'],
+                        '종료일': irreg['EndDate'],
                         '종료시간': promo['EndTime'],
-                        '브랜드명': promo['BrandName'],
-                        '채널명': promo['ChannelName'],
-                        '수수료율': promo['CommissionRate'],
-                        '할인부담': promo['DiscountOwner'],
-                        '자사분담율': promo['CompanyShare'],
-                        '채널분담율': promo['ChannelShare'],
-                        '비고(행사)': promo['Notes'],
-                        '상품ID': prod['PromotionProductID'],
+                        '브랜드명': irreg['BrandName'],
+                        '채널명': irreg['ChannelName'],
+                        '수수료율': irreg['CommissionRate'],
+                        '할인부담': irreg['DiscountOwner'],
+                        '자사분담율': irreg['CompanyShare'],
+                        '채널분담율': irreg['ChannelShare'],
+                        '비고(행사)': irreg['Notes'],
+                        '상품ID': prod['IrregularProductID'],
                         '품목코드': prod['ERPCode'],
                         '판매가': prod['SellingPrice'],
-                        '행사가': prod['PromotionPrice'],
+                        '행사가': prod['IrregularPrice'],
                         '공급가': prod['SupplyPrice'],
                         '쿠폰할인율': prod['CouponDiscountRate'],
                         '원가': prod['UnitCost'],
@@ -334,20 +334,20 @@ async def download_promotions(
             else:
                 # 상품이 없는 행사도 출력 (상품 컬럼은 빈 값)
                 rows.append({
-                    '행사ID': promo['PromotionID'],
-                    '행사명': promo['PromotionName'],
-                    '행사유형': promo['PromotionType'],
-                    '시작일': promo['StartDate'],
+                    '행사ID': irreg['IrregularID'],
+                    '행사명': irreg['IrregularName'],
+                    '행사유형': irreg['IrregularType'],
+                    '시작일': irreg['StartDate'],
                     '시작시간': promo['StartTime'],
-                    '종료일': promo['EndDate'],
+                    '종료일': irreg['EndDate'],
                     '종료시간': promo['EndTime'],
-                    '브랜드명': promo['BrandName'],
-                    '채널명': promo['ChannelName'],
-                    '수수료율': promo['CommissionRate'],
-                    '할인부담': promo['DiscountOwner'],
-                    '자사분담율': promo['CompanyShare'],
-                    '채널분담율': promo['ChannelShare'],
-                    '비고(행사)': promo['Notes'],
+                    '브랜드명': irreg['BrandName'],
+                    '채널명': irreg['ChannelName'],
+                    '수수료율': irreg['CommissionRate'],
+                    '할인부담': irreg['DiscountOwner'],
+                    '자사분담율': irreg['CompanyShare'],
+                    '채널분담율': irreg['ChannelShare'],
+                    '비고(행사)': irreg['Notes'],
                     '상품ID': None,
                     '품목코드': None,
                     '판매가': None,
@@ -438,7 +438,7 @@ async def download_promotions(
         brands = brand_repo.get_all_brands()
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
-        promotion_type_display_names = promotion_repo.get_promotion_type_display_names()
+        irregular_type_display_names = irregular_repo.get_irregular_type_display_names()
         discount_owner_list = ['COMPANY', 'CHANNEL', 'BOTH']
 
         # 품목코드 목록 (ProductBox)
@@ -471,7 +471,7 @@ async def download_promotions(
             for i, name in enumerate(channel_names):
                 list_sheet.write(i, 1, name)
             # C열: 행사유형 목록
-            for i, name in enumerate(promotion_type_display_names):
+            for i, name in enumerate(irregular_type_display_names):
                 list_sheet.write(i, 2, name)
             # D열: 할인부담 목록
             for i, name in enumerate(discount_owner_list):
@@ -502,10 +502,10 @@ async def download_promotions(
                 })
 
             # 행사유형 드롭다운 (인덱스 2)
-            if promotion_type_display_names:
+            if irregular_type_display_names:
                 worksheet.data_validation(1, 2, max_row, 2, {
                     'validate': 'list',
-                    'source': f'=목록!$C$1:$C${len(promotion_type_display_names)}',
+                    'source': f'=목록!$C$1:$C${len(irregular_type_display_names)}',
                     'input_message': '행사유형을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
@@ -598,7 +598,7 @@ async def download_promotions(
 
         output.seek(0)
 
-        filename = f"promotions_{year_month or 'template'}.xlsx"
+        filename = f"irregulars_{year_month or 'template'}.xlsx"
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"'
         }
@@ -617,10 +617,10 @@ async def download_promotions(
 # ========== 통합 엑셀 업로드 ==========
 
 @router.post("/upload")
-async def upload_promotions(
+async def upload_irregulars(
     file: UploadFile = File(...),
     request: Request = None,
-    user: CurrentUser = Depends(require_permission("Promotion", "UPLOAD"))
+    user: CurrentUser = Depends(require_permission("Irregular", "UPLOAD"))
 ):
     """행사 + 행사 상품 통합 엑셀 업로드"""
     try:
@@ -639,9 +639,9 @@ async def upload_promotions(
 
         # 2. 컬럼 매핑 (한글 → 영문)
         column_map = {
-            '행사ID': 'PromotionID',
-            '행사명': 'PromotionName',
-            '행사유형': 'PromotionType',
+            '행사ID': 'IrregularID',
+            '행사명': 'IrregularName',
+            '행사유형': 'IrregularType',
             '시작일': 'StartDate',
             '시작시간': 'StartTime',
             '종료일': 'EndDate',
@@ -653,12 +653,12 @@ async def upload_promotions(
             '자사분담율': 'CompanyShare',
             '채널분담율': 'ChannelShare',
             '비고(행사)': 'PromoNotes',
-            '상품ID': 'PromotionProductID',
+            '상품ID': 'IrregularProductID',
             '품목코드': 'ERPCode',
             '상품코드': 'ERPCode',  # 기존 양식 호환
             '상품명': 'ProductName',
             '판매가': 'SellingPrice',
-            '행사가': 'PromotionPrice',
+            '행사가': 'IrregularPrice',
             '공급가': 'SupplyPrice',
             '쿠폰할인율': 'CouponDiscountRate',
             '원가': 'UnitCost',
@@ -674,7 +674,7 @@ async def upload_promotions(
         df = df.rename(columns=column_map)
 
         # 3. 필수 컬럼 확인
-        required_cols = ['PromotionName', 'PromotionType', 'StartDate', 'EndDate', 'BrandName', 'ChannelName']
+        required_cols = ['IrregularName', 'IrregularType', 'StartDate', 'EndDate', 'BrandName', 'ChannelName']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise HTTPException(400, f"필수 컬럼이 없습니다: {missing_cols}")
@@ -701,7 +701,7 @@ async def upload_promotions(
 
         # 숫자 변환 (상품)
         product_numeric_cols = [
-            'SellingPrice', 'PromotionPrice', 'SupplyPrice', 'CouponDiscountRate',
+            'SellingPrice', 'IrregularPrice', 'SupplyPrice', 'CouponDiscountRate',
             'UnitCost', 'LogisticsCost', 'ManagementCost', 'WarehouseCost',
             'EDICost', 'MisCost', 'ProdExpectedSalesAmount'
         ]
@@ -714,7 +714,7 @@ async def upload_promotions(
         # 문자열 컬럼 공백 제거
         df['BrandName'] = df['BrandName'].astype(str).str.strip()
         df['ChannelName'] = df['ChannelName'].astype(str).str.strip()
-        df['PromotionType'] = df['PromotionType'].astype(str).str.strip()
+        df['IrregularType'] = df['IrregularType'].astype(str).str.strip()
         if 'ERPCode' in df.columns:
             df['ERPCode'] = df['ERPCode'].astype(str).str.strip()
 
@@ -723,7 +723,7 @@ async def upload_promotions(
             'brand': {},
             'channel': {},
             'product': {},
-            'promotion_type': {}
+            'irregular_type': {}
         }
 
         # 브랜드명 → BrandID, BrandCode 매핑
@@ -784,32 +784,32 @@ async def upload_promotions(
             product_map = {}
 
         # 행사유형 → DisplayName, TypeCode 매핑
-        promotion_type_map = {}
+        irregular_type_map = {}
         missing_type_codes = []
-        promo_types_unique = df['PromotionType'].dropna().unique().tolist()
+        promo_types_unique = df['IrregularType'].dropna().unique().tolist()
         promo_types_unique = [t for t in promo_types_unique if t and str(t) != 'nan']
         for display_name in promo_types_unique:
             display_name_str = str(display_name).strip()
             with get_db_cursor(commit=False) as cursor:
-                cursor.execute("SELECT DisplayName, TypeCode FROM PromotionType WHERE DisplayName = ?", (display_name_str,))
+                cursor.execute("SELECT DisplayName, TypeCode FROM IrregularType WHERE DisplayName = ?", (display_name_str,))
                 row = cursor.fetchone()
                 if row:
                     type_code = row[1] if row[1] else ''
-                    promotion_type_map[display_name_str] = {
+                    irregular_type_map[display_name_str] = {
                         'DisplayName': row[0],
                         'TypeCode': type_code
                     }
                     if not type_code:
                         missing_type_codes.append(display_name_str)
                 else:
-                    row_nums = df[df['PromotionType'] == display_name].index.tolist()
-                    errors['promotion_type'][display_name_str] = [r + 2 for r in row_nums]
+                    row_nums = df[df['IrregularType'] == display_name].index.tolist()
+                    errors['irregular_type'][display_name_str] = [r + 2 for r in row_nums]
 
         if missing_type_codes:
-            raise HTTPException(400, f"TypeCode가 설정되지 않은 행사유형이 있습니다: {', '.join(missing_type_codes)}. PromotionType 테이블에서 TypeCode를 설정해주세요.")
+            raise HTTPException(400, f"TypeCode가 설정되지 않은 행사유형이 있습니다: {', '.join(missing_type_codes)}. IrregularType 테이블에서 TypeCode를 설정해주세요.")
 
         # 에러 모아서 반환
-        if errors['brand'] or errors['channel'] or errors['product'] or errors['promotion_type']:
+        if errors['brand'] or errors['channel'] or errors['product'] or errors['irregular_type']:
             error_messages = []
             for name, rows in errors['brand'].items():
                 error_messages.append(f"존재하지 않는 브랜드명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
@@ -817,28 +817,28 @@ async def upload_promotions(
                 error_messages.append(f"존재하지 않는 채널명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             for code, rows in errors['product'].items():
                 error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
-            for display_name, rows in errors['promotion_type'].items():
+            for display_name, rows in errors['irregular_type'].items():
                 error_messages.append(f"존재하지 않는 행사유형: {display_name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
         # 6. 행사 단위 그룹핑
-        def get_group_key(row, has_promotion_id):
-            if has_promotion_id:
-                return row['PromotionID']
+        def get_group_key(row, has_irregular_id):
+            if has_irregular_id:
+                return row['IrregularID']
             else:
                 brand = str(row['BrandName']).strip() if pd.notna(row['BrandName']) else ''
                 channel = str(row['ChannelName']).strip() if pd.notna(row['ChannelName']) else ''
-                ptype = str(row['PromotionType']).strip() if pd.notna(row['PromotionType']) else ''
+                ptype = str(row['IrregularType']).strip() if pd.notna(row['IrregularType']) else ''
                 sdate = row['StartDate'].strftime('%Y-%m-%d') if hasattr(row['StartDate'], 'strftime') else str(row['StartDate'])[:10]
-                pname = str(row['PromotionName']).strip() if pd.notna(row['PromotionName']) else ''
+                pname = str(row['IrregularName']).strip() if pd.notna(row['IrregularName']) else ''
                 return f"{brand}_{channel}_{ptype}_{sdate}_{pname}"
 
         groups = {}  # {group_key: [row_indices]}
         for idx, row in df.iterrows():
             has_promo_id = (
-                'PromotionID' in row
-                and pd.notna(row.get('PromotionID'))
-                and str(row.get('PromotionID')).strip() not in ['', 'nan']
+                'IrregularID' in row
+                and pd.notna(row.get('IrregularID'))
+                and str(row.get('IrregularID')).strip() not in ['', 'nan']
             )
             key = get_group_key(row, has_promo_id)
             if key not in groups:
@@ -846,21 +846,21 @@ async def upload_promotions(
             groups[key].append(idx)
 
         # 7. 신규 행사 복합키 중복 체크
-        duplicate_promotions = []
+        duplicate_irregulars = []
         for key, indices in groups.items():
             first_row = df.iloc[indices[0]]
             has_promo_id = (
-                'PromotionID' in first_row
-                and pd.notna(first_row.get('PromotionID'))
-                and str(first_row.get('PromotionID')).strip() not in ['', 'nan']
+                'IrregularID' in first_row
+                and pd.notna(first_row.get('IrregularID'))
+                and str(first_row.get('IrregularID')).strip() not in ['', 'nan']
             )
 
             if not has_promo_id:
                 # 신규 행사 → 복합키 중복 체크
                 brand_name = str(first_row['BrandName']).strip() if pd.notna(first_row['BrandName']) else None
                 channel_name = str(first_row['ChannelName']).strip() if pd.notna(first_row['ChannelName']) else None
-                promo_type = str(first_row['PromotionType']).strip() if pd.notna(first_row['PromotionType']) else None
-                promo_name = str(first_row['PromotionName']).strip() if pd.notna(first_row['PromotionName']) else None
+                promo_type = str(first_row['IrregularType']).strip() if pd.notna(first_row['IrregularType']) else None
+                promo_name = str(first_row['IrregularName']).strip() if pd.notna(first_row['IrregularName']) else None
                 start_date_val = first_row['StartDate'].strftime('%Y-%m-%d') if hasattr(first_row['StartDate'], 'strftime') else str(first_row['StartDate'])[:10]
 
                 brand_info = brand_map.get(brand_name, {})
@@ -872,21 +872,21 @@ async def upload_promotions(
                 if b_id and c_id and promo_type and promo_name:
                     with get_db_cursor(commit=False) as cursor:
                         cursor.execute("""
-                            SELECT PromotionID FROM [dbo].[Promotion]
-                            WHERE BrandID = ? AND ChannelID = ? AND PromotionType = ?
-                              AND StartDate = ? AND PromotionName = ?
+                            SELECT IrregularID FROM [dbo].[Irregular]
+                            WHERE BrandID = ? AND ChannelID = ? AND IrregularType = ?
+                              AND StartDate = ? AND IrregularName = ?
                         """, b_id, c_id, promo_type, start_date_val, promo_name)
                         existing = cursor.fetchone()
                         if existing:
                             row_num = int(indices[0]) + 2
-                            duplicate_promotions.append(
+                            duplicate_irregulars.append(
                                 f"행 {row_num}: 이미 등록된 행사 (행사명: {promo_name}, 시작일: {start_date_val}, 브랜드: {brand_name}, 채널: {channel_name}, 유형: {promo_type})"
                             )
 
-        if duplicate_promotions:
-            raise HTTPException(400, "중복된 행사가 있습니다. 동일 복합키(브랜드+채널+행사유형+시작일+행사명)의 행사가 이미 존재합니다.\n" + "\n".join(duplicate_promotions[:10]))
+        if duplicate_irregulars:
+            raise HTTPException(400, "중복된 행사가 있습니다. 동일 복합키(브랜드+채널+행사유형+시작일+행사명)의 행사가 이미 존재합니다.\n" + "\n".join(duplicate_irregulars[:10]))
 
-        # 8. 신규 행사만 PromotionID 자동 생성
+        # 8. 신규 행사만 IrregularID 자동 생성
         prefix_sequences = {}  # {prefix: current_sequence}
 
         # DB에서 각 접두사의 최대 순번 조회
@@ -894,18 +894,18 @@ async def upload_promotions(
         for key, indices in groups.items():
             first_row = df.iloc[indices[0]]
             has_promo_id = (
-                'PromotionID' in first_row
-                and pd.notna(first_row.get('PromotionID'))
-                and str(first_row.get('PromotionID')).strip() not in ['', 'nan']
+                'IrregularID' in first_row
+                and pd.notna(first_row.get('IrregularID'))
+                and str(first_row.get('IrregularID')).strip() not in ['', 'nan']
             )
 
             if not has_promo_id:
                 brand_name = str(first_row['BrandName']).strip() if pd.notna(first_row['BrandName']) else None
-                promo_type = str(first_row['PromotionType']).strip() if pd.notna(first_row['PromotionType']) else None
+                promo_type = str(first_row['IrregularType']).strip() if pd.notna(first_row['IrregularType']) else None
 
                 if brand_name and promo_type and pd.notna(first_row['StartDate']):
                     b_info = brand_map.get(brand_name, {})
-                    t_info = promotion_type_map.get(promo_type, {})
+                    t_info = irregular_type_map.get(promo_type, {})
                     b_code = b_info.get('BrandCode', '')[:2] if b_info.get('BrandCode') else ''
                     t_code = t_info.get('TypeCode', '')
 
@@ -919,29 +919,29 @@ async def upload_promotions(
                         all_prefixes.add(prefix)
 
         if all_prefixes:
-            max_sequences = promotion_repo.get_max_sequences_by_prefixes(list(all_prefixes))
+            max_sequences = irregular_repo.get_max_sequences_by_prefixes(list(all_prefixes))
             for prefix, max_seq in max_sequences.items():
                 prefix_sequences[prefix] = max_seq
 
-        # 각 그룹에 대해 PromotionID 할당
-        group_promotion_ids = {}  # {group_key: PromotionID}
+        # 각 그룹에 대해 IrregularID 할당
+        group_irregular_ids = {}  # {group_key: IrregularID}
         for key, indices in groups.items():
             first_row = df.iloc[indices[0]]
             has_promo_id = (
-                'PromotionID' in first_row
-                and pd.notna(first_row.get('PromotionID'))
-                and str(first_row.get('PromotionID')).strip() not in ['', 'nan']
+                'IrregularID' in first_row
+                and pd.notna(first_row.get('IrregularID'))
+                and str(first_row.get('IrregularID')).strip() not in ['', 'nan']
             )
 
             if has_promo_id:
-                group_promotion_ids[key] = str(first_row['PromotionID']).strip()
+                group_irregular_ids[key] = str(first_row['IrregularID']).strip()
             else:
-                # 신규 PromotionID 생성
+                # 신규 IrregularID 생성
                 brand_name = str(first_row['BrandName']).strip() if pd.notna(first_row['BrandName']) else None
-                promo_type = str(first_row['PromotionType']).strip() if pd.notna(first_row['PromotionType']) else None
+                promo_type = str(first_row['IrregularType']).strip() if pd.notna(first_row['IrregularType']) else None
 
                 b_info = brand_map.get(brand_name, {})
-                t_info = promotion_type_map.get(promo_type, {})
+                t_info = irregular_type_map.get(promo_type, {})
                 b_code = b_info.get('BrandCode', '')[:2] if b_info.get('BrandCode') else ''
                 t_code = t_info.get('TypeCode', '')
 
@@ -955,26 +955,26 @@ async def upload_promotions(
 
                     current_seq = prefix_sequences.get(prefix, 0) + 1
                     prefix_sequences[prefix] = current_seq
-                    promotion_id = f"{prefix}{current_seq:02d}"
-                    group_promotion_ids[key] = promotion_id
-                    print(f"   [PromotionID 자동 생성] {promotion_id}")
+                    irregular_id = f"{prefix}{current_seq:02d}"
+                    group_irregular_ids[key] = irregular_id
+                    print(f"   [IrregularID 자동 생성] {irregular_id}")
                 else:
                     row_num = int(indices[0]) + 2
                     raise HTTPException(400, f"행사ID를 생성할 수 없습니다. BrandCode, 행사유형, 시작일을 확인해주세요. (행 {row_num})")
 
-        # 9. Promotion 레코드 준비 + bulk_upsert
-        promotion_records = []
+        # 9. Irregular 레코드 준비 + bulk_upsert
+        irregular_records = []
         for key, indices in groups.items():
             first_row = df.iloc[indices[0]]
-            promo_id = group_promotion_ids[key]
+            promo_id = group_irregular_ids[key]
 
             brand_name = str(first_row['BrandName']).strip() if pd.notna(first_row['BrandName']) and str(first_row['BrandName']).strip() != 'nan' else None
             channel_name = str(first_row['ChannelName']).strip() if pd.notna(first_row['ChannelName']) and str(first_row['ChannelName']).strip() != 'nan' else None
-            promo_type = str(first_row['PromotionType']).strip() if pd.notna(first_row['PromotionType']) and str(first_row['PromotionType']).strip() != 'nan' else None
+            promo_type = str(first_row['IrregularType']).strip() if pd.notna(first_row['IrregularType']) and str(first_row['IrregularType']).strip() != 'nan' else None
 
             brand_info = brand_map.get(brand_name, {})
             channel_info = channel_map.get(channel_name, {})
-            type_info = promotion_type_map.get(promo_type, {})
+            type_info = irregular_type_map.get(promo_type, {})
 
             start_time_val = format_time_value(first_row.get('StartTime', '00:00:00'))
             end_time_val = format_time_value(first_row.get('EndTime', '23:59:59'))
@@ -989,10 +989,10 @@ async def upload_promotions(
                 if pd.notna(row.get('ProdExpectedQuantity')):
                     sum_qty += int(row['ProdExpectedQuantity'])
 
-            promotion_records.append({
-                'PromotionID': promo_id,
-                'PromotionName': str(first_row['PromotionName']).strip() if pd.notna(first_row.get('PromotionName')) else None,
-                'PromotionType': type_info.get('DisplayName') or promo_type,
+            irregular_records.append({
+                'IrregularID': promo_id,
+                'IrregularName': str(first_row['IrregularName']).strip() if pd.notna(first_row.get('IrregularName')) else None,
+                'IrregularType': type_info.get('DisplayName') or promo_type,
                 'StartDate': first_row['StartDate'].strftime('%Y-%m-%d') if pd.notna(first_row['StartDate']) else None,
                 'StartTime': start_time_val,
                 'EndDate': first_row['EndDate'].strftime('%Y-%m-%d') if pd.notna(first_row['EndDate']) else None,
@@ -1010,7 +1010,7 @@ async def upload_promotions(
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
             })
 
-        promo_result = promotion_repo.bulk_upsert(promotion_records)
+        promo_result = irregular_repo.bulk_upsert(irregular_records)
 
         # 중복 체크 (Repository 방어)
         promo_duplicates = promo_result.get('duplicates', [])
@@ -1018,14 +1018,14 @@ async def upload_promotions(
             error_messages = []
             for dup in promo_duplicates[:10]:
                 error_messages.append(
-                    f"행사 중복: {dup.get('promotion_name', '')} (시작일: {dup.get('start_date', '')}, 브랜드: {dup.get('brand_name', '')})"
+                    f"행사 중복: {dup.get('irregular_name', '')} (시작일: {dup.get('start_date', '')}, 브랜드: {dup.get('brand_name', '')})"
                 )
             raise HTTPException(400, "중복된 행사가 있습니다.\n" + "\n".join(error_messages))
 
-        # 10. PromotionProduct 레코드 준비 + bulk_upsert
+        # 10. IrregularProduct 레코드 준비 + bulk_upsert
         product_records = []
         for key, indices in groups.items():
-            promo_id = group_promotion_ids[key]
+            promo_id = group_irregular_ids[key]
 
             for idx in indices:
                 row = df.iloc[idx]
@@ -1038,20 +1038,20 @@ async def upload_promotions(
                 product_info = product_map.get(erp_code, {})
 
                 product_id = None
-                if 'PromotionProductID' in row and pd.notna(row.get('PromotionProductID')):
+                if 'IrregularProductID' in row and pd.notna(row.get('IrregularProductID')):
                     try:
-                        product_id = int(row['PromotionProductID'])
+                        product_id = int(row['IrregularProductID'])
                     except (ValueError, TypeError):
                         product_id = None
 
                 product_records.append({
-                    'PromotionProductID': product_id,
-                    'PromotionID': promo_id,
+                    'IrregularProductID': product_id,
+                    'IrregularID': promo_id,
                     'ERPCode': erp_code,
                     'UniqueCode': product_info.get('UniqueCode'),
                     'ProductName': product_info.get('ProductName') or (str(row['ProductName']).strip() if pd.notna(row.get('ProductName')) and str(row.get('ProductName')).strip() != 'nan' else None),
                     'SellingPrice': float(row['SellingPrice']) if pd.notna(row.get('SellingPrice')) else None,
-                    'PromotionPrice': float(row['PromotionPrice']) if pd.notna(row.get('PromotionPrice')) else None,
+                    'IrregularPrice': float(row['IrregularPrice']) if pd.notna(row.get('IrregularPrice')) else None,
                     'SupplyPrice': float(row['SupplyPrice']) if pd.notna(row.get('SupplyPrice')) else None,
                     'CouponDiscountRate': float(row['CouponDiscountRate']) if pd.notna(row.get('CouponDiscountRate')) else None,
                     'UnitCost': float(row['UnitCost']) if pd.notna(row.get('UnitCost')) else None,
@@ -1068,14 +1068,14 @@ async def upload_promotions(
 
         prod_result = {"inserted": 0, "updated": 0, "duplicates": []}
         if product_records:
-            prod_result = promotion_product_repo.bulk_upsert(product_records)
+            prod_result = irregular_product_repo.bulk_upsert(product_records)
 
             prod_duplicates = prod_result.get('duplicates', [])
             if prod_duplicates:
                 error_messages = []
                 for dup in prod_duplicates[:10]:
                     error_messages.append(
-                        f"행 {dup.get('row', '')}: 중복 상품 (행사ID: {dup.get('promotion_id', '')}, 상품코드: {dup.get('unique_code', '')})"
+                        f"행 {dup.get('row', '')}: 중복 상품 (행사ID: {dup.get('irregular_id', '')}, 상품코드: {dup.get('unique_code', '')})"
                     )
                 raise HTTPException(400, "중복된 행사 상품이 있습니다.\n" + "\n".join(error_messages))
 
@@ -1087,13 +1087,13 @@ async def upload_promotions(
             activity_log_repo.log_action(
                 user_id=user.user_id,
                 action_type="CREATE",
-                target_table="Promotion",
+                target_table="Irregular",
                 details={
                     "action": "EXCEL_UPLOAD",
                     "filename": file.filename,
                     "total_rows": len(df),
-                    "promotion_inserted": promo_result['inserted'],
-                    "promotion_updated": promo_result['updated'],
+                    "irregular_inserted": promo_result['inserted'],
+                    "irregular_updated": promo_result['updated'],
                     "product_inserted": prod_result['inserted'],
                     "product_updated": prod_result['updated'],
                     "duration_seconds": duration
@@ -1107,8 +1107,8 @@ async def upload_promotions(
         return {
             "message": "업로드 완료",
             "total_rows": len(df),
-            "promotion_inserted": promo_result['inserted'],
-            "promotion_updated": promo_result['updated'],
+            "irregular_inserted": promo_result['inserted'],
+            "irregular_updated": promo_result['updated'],
             "product_inserted": prod_result['inserted'],
             "product_updated": prod_result['updated'],
             "duration_seconds": duration
@@ -1122,11 +1122,11 @@ async def upload_promotions(
 
 # ========== 행사 단일 CRUD ==========
 
-@router.get("/{promotion_id}")
-async def get_promotion_item(promotion_id: str, user: CurrentUser = Depends(require_permission("Promotion", "READ"))):
+@router.get("/{irregular_id}")
+async def get_irregular_item(irregular_id: str, user: CurrentUser = Depends(require_permission("Irregular", "READ"))):
     """행사 단일 조회"""
     try:
-        item = promotion_repo.get_by_id(promotion_id)
+        item = irregular_repo.get_by_id(irregular_id)
         if not item:
             raise HTTPException(404, "행사 데이터를 찾을 수 없습니다")
         return item
@@ -1137,17 +1137,17 @@ async def get_promotion_item(promotion_id: str, user: CurrentUser = Depends(requ
 
 
 @router.post("")
-@log_activity("CREATE", "Promotion", id_key="PromotionID")
-async def create_promotion(
-    data: PromotionCreate,
+@log_activity("CREATE", "Irregular", id_key="IrregularID")
+async def create_irregular(
+    data: IrregularCreate,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "CREATE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "CREATE"))
 ):
     """행사 생성"""
     try:
-        # PromotionID 자동 생성
+        # IrregularID 자동 생성
         brand_name = data.BrandName
-        promo_type = data.PromotionType
+        promo_type = data.IrregularType
 
         # 브랜드 BrandCode 조회
         brand_code = ''
@@ -1160,7 +1160,7 @@ async def create_promotion(
         # 행사유형 TypeCode 조회
         type_code = ''
         with get_db_cursor(commit=False) as cursor:
-            cursor.execute("SELECT TypeCode FROM PromotionType WHERE DisplayName = ?", (promo_type,))
+            cursor.execute("SELECT TypeCode FROM IrregularType WHERE DisplayName = ?", (promo_type,))
             row = cursor.fetchone()
             if row and row[0]:
                 type_code = row[0]
@@ -1174,67 +1174,67 @@ async def create_promotion(
         prefix = f"{brand_code}{type_code}{yymm}"
 
         # 최대 순번 조회
-        max_sequences = promotion_repo.get_max_sequences_by_prefixes([prefix])
+        max_sequences = irregular_repo.get_max_sequences_by_prefixes([prefix])
         current_seq = max_sequences.get(prefix, 0) + 1
-        promotion_id = f"{prefix}{current_seq:02d}"
+        irregular_id = f"{prefix}{current_seq:02d}"
 
         create_data = data.dict(exclude_none=True)
-        create_data['PromotionID'] = promotion_id
+        create_data['IrregularID'] = irregular_id
 
-        promotion_repo.create(create_data)
+        irregular_repo.create(create_data, user_id=user.user_id)
 
-        return {"PromotionID": promotion_id, "PromotionName": data.PromotionName}
+        return {"IrregularID": irregular_id, "IrregularName": data.IrregularName}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"행사 생성 실패: {str(e)}")
 
 
-@router.put("/{promotion_id}")
-@log_activity("UPDATE", "Promotion", id_key="PromotionID")
-async def update_promotion(
-    promotion_id: str,
-    data: PromotionUpdate,
+@router.put("/{irregular_id}")
+@log_activity("UPDATE", "Irregular", id_key="IrregularID")
+async def update_irregular(
+    irregular_id: str,
+    data: IrregularUpdate,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "UPDATE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "UPDATE"))
 ):
     """행사 수정"""
     try:
-        if not promotion_repo.exists(promotion_id):
+        if not irregular_repo.exists(irregular_id):
             raise HTTPException(404, "행사 데이터를 찾을 수 없습니다")
 
         update_data = data.dict(exclude_none=True)
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = promotion_repo.update(promotion_id, update_data)
+        success = irregular_repo.update(irregular_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "행사 수정 실패")
 
-        return {"PromotionID": promotion_id, **update_data}
+        return {"IrregularID": irregular_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"행사 수정 실패: {str(e)}")
 
 
-@router.delete("/{promotion_id}")
-@log_delete("Promotion", id_param="promotion_id")
-async def delete_promotion(
-    promotion_id: str,
+@router.delete("/{irregular_id}")
+@log_delete("Irregular", id_param="irregular_id")
+async def delete_irregular(
+    irregular_id: str,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "DELETE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "DELETE"))
 ):
-    """행사 삭제 (PromotionProduct도 함께 삭제)"""
+    """행사 삭제 (IrregularProduct도 함께 삭제)"""
     try:
-        if not promotion_repo.exists(promotion_id):
+        if not irregular_repo.exists(irregular_id):
             raise HTTPException(404, "행사 데이터를 찾을 수 없습니다")
 
-        # PromotionProduct 먼저 삭제
-        promotion_product_repo.delete_by_promotion_id(promotion_id)
+        # IrregularProduct 먼저 삭제
+        irregular_product_repo.delete_by_irregular_id(irregular_id)
 
-        # Promotion 삭제
-        success = promotion_repo.delete(promotion_id)
+        # Irregular 삭제
+        success = irregular_repo.delete(irregular_id)
         if not success:
             raise HTTPException(500, "행사 삭제 실패")
 
@@ -1246,18 +1246,18 @@ async def delete_promotion(
 
 
 @router.post("/bulk-delete")
-@log_bulk_delete("Promotion")
-async def bulk_delete_promotions(
+@log_bulk_delete("Irregular")
+async def bulk_delete_irregulars(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "DELETE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "DELETE"))
 ):
-    """행사 일괄 삭제 (PromotionProduct도 함께 삭제)"""
+    """행사 일괄 삭제 (IrregularProduct도 함께 삭제)"""
     try:
         if not request_body.ids:
             raise HTTPException(400, "삭제할 ID가 없습니다")
 
-        deleted_count = promotion_repo.bulk_delete(request_body.ids)
+        deleted_count = irregular_repo.bulk_delete(request_body.ids)
 
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:
@@ -1267,44 +1267,44 @@ async def bulk_delete_promotions(
 
 
 # ==========================================================
-#  PromotionProduct Router (행사 상품 CRUD)
+#  IrregularProduct Router (행사 상품 CRUD)
 # ==========================================================
-product_router = APIRouter(prefix="/api/promotions/products", tags=["PromotionProduct"])
+product_router = APIRouter(prefix="/api/irregulars/products", tags=["IrregularProduct"])
 
 
 @product_router.get("")
-async def get_promotion_product_list(
+async def get_irregular_product_list(
     page: int = 1,
     limit: int = 20,
-    promotion_id: Optional[str] = None,
+    irregular_id: Optional[str] = None,
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_type: Optional[str] = None,
+    irregular_type: Optional[str] = None,
     status: Optional[str] = None,
-    user: CurrentUser = Depends(require_permission("Promotion", "READ"))
+    user: CurrentUser = Depends(require_permission("Irregular", "READ"))
 ):
     """행사 상품 목록 조회"""
     try:
         filters = {}
-        if promotion_id:
-            filters['promotion_id'] = promotion_id
+        if irregular_id:
+            filters['irregular_id'] = irregular_id
         if year_month:
             filters['year_month'] = year_month
         if brand_id:
             filters['brand_id'] = brand_id
         if channel_id:
             filters['channel_id'] = channel_id
-        if promotion_type:
-            filters['promotion_type'] = promotion_type
+        if irregular_type:
+            filters['irregular_type'] = irregular_type
         if status:
             filters['status'] = status
 
-        result = promotion_product_repo.get_list(
+        result = irregular_product_repo.get_list(
             page=page,
             limit=limit,
             filters=filters,
-            order_by="pp.PromotionID",
+            order_by="pp.IrregularID",
             order_dir="DESC"
         )
         return result
@@ -1313,16 +1313,16 @@ async def get_promotion_product_list(
 
 
 @product_router.put("/bulk-update")
-@log_activity("UPDATE", "PromotionProduct")
-async def bulk_update_promotion_products_inline(
-    data: PromotionProductBulkUpdateRequest,
+@log_activity("UPDATE", "IrregularProduct")
+async def bulk_update_irregular_products_inline(
+    data: IrregularProductBulkUpdateRequest,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "UPDATE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "UPDATE"))
 ):
     """비정기 상품 인라인 편집 일괄 저장"""
     try:
         items = [item.dict() for item in data.items]
-        result = promotion_product_repo.bulk_update_products(items)
+        result = irregular_product_repo.bulk_update_products(items, user_id=user.user_id)
         return result
     except HTTPException:
         raise
@@ -1331,10 +1331,10 @@ async def bulk_update_promotion_products_inline(
 
 
 @product_router.get("/{product_id}")
-async def get_promotion_product_item(product_id: int, user: CurrentUser = Depends(require_permission("Promotion", "READ"))):
+async def get_irregular_product_item(product_id: int, user: CurrentUser = Depends(require_permission("Irregular", "READ"))):
     """행사 상품 단일 조회"""
     try:
-        item = promotion_product_repo.get_by_id(product_id)
+        item = irregular_product_repo.get_by_id(product_id)
         if not item:
             raise HTTPException(404, "행사 상품 데이터를 찾을 수 없습니다")
         return item
@@ -1345,11 +1345,11 @@ async def get_promotion_product_item(product_id: int, user: CurrentUser = Depend
 
 
 @product_router.post("")
-@log_activity("CREATE", "PromotionProduct", id_key="PromotionProductID")
-async def create_promotion_product(
-    data: PromotionProductCreate,
+@log_activity("CREATE", "IrregularProduct", id_key="IrregularProductID")
+async def create_irregular_product(
+    data: IrregularProductCreate,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "CREATE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "CREATE"))
 ):
     """행사 상품 생성"""
     try:
@@ -1368,35 +1368,35 @@ async def create_promotion_product(
         create_data = data.dict(exclude_none=True)
         create_data['UniqueCode'] = row[1]
         create_data['ProductName'] = row[2]
-        product_id = promotion_product_repo.create(create_data)
+        product_id = irregular_product_repo.create(create_data, user_id=user.user_id)
 
-        return {"PromotionProductID": product_id, "PromotionID": data.PromotionID, "ERPCode": data.ERPCode}
+        return {"IrregularProductID": product_id, "IrregularID": data.IrregularID, "ERPCode": data.ERPCode}
     except Exception as e:
         raise HTTPException(500, f"행사 상품 생성 실패: {str(e)}")
 
 
 @product_router.put("/{product_id}")
-@log_activity("UPDATE", "PromotionProduct", id_key="PromotionProductID")
-async def update_promotion_product(
+@log_activity("UPDATE", "IrregularProduct", id_key="IrregularProductID")
+async def update_irregular_product(
     product_id: int,
-    data: PromotionProductUpdate,
+    data: IrregularProductUpdate,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "UPDATE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "UPDATE"))
 ):
     """행사 상품 수정"""
     try:
-        if not promotion_product_repo.exists(product_id):
+        if not irregular_product_repo.exists(product_id):
             raise HTTPException(404, "행사 상품 데이터를 찾을 수 없습니다")
 
         update_data = data.dict(exclude_none=True)
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = promotion_product_repo.update(product_id, update_data)
+        success = irregular_product_repo.update(product_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "행사 상품 수정 실패")
 
-        return {"PromotionProductID": product_id, **update_data}
+        return {"IrregularProductID": product_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -1404,18 +1404,18 @@ async def update_promotion_product(
 
 
 @product_router.delete("/{product_id}")
-@log_delete("PromotionProduct", id_param="product_id")
-async def delete_promotion_product(
+@log_delete("IrregularProduct", id_param="product_id")
+async def delete_irregular_product(
     product_id: int,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "DELETE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "DELETE"))
 ):
     """행사 상품 삭제"""
     try:
-        if not promotion_product_repo.exists(product_id):
+        if not irregular_product_repo.exists(product_id):
             raise HTTPException(404, "행사 상품 데이터를 찾을 수 없습니다")
 
-        success = promotion_product_repo.delete(product_id)
+        success = irregular_product_repo.delete(product_id)
         if not success:
             raise HTTPException(500, "행사 상품 삭제 실패")
 
@@ -1427,18 +1427,18 @@ async def delete_promotion_product(
 
 
 @product_router.post("/bulk-delete")
-@log_bulk_delete("PromotionProduct")
-async def bulk_delete_promotion_products(
+@log_bulk_delete("IrregularProduct")
+async def bulk_delete_irregular_products(
     request_body: BulkDeleteRequest,
     request: Request,
-    user: CurrentUser = Depends(require_permission("Promotion", "DELETE"))
+    user: CurrentUser = Depends(require_permission("Irregular", "DELETE"))
 ):
     """행사 상품 일괄 삭제"""
     try:
         if not request_body.ids:
             raise HTTPException(400, "삭제할 ID가 없습니다")
 
-        deleted_count = promotion_product_repo.bulk_delete(request_body.ids)
+        deleted_count = irregular_product_repo.bulk_delete(request_body.ids)
 
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:

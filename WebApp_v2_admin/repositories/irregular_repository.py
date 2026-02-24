@@ -1,18 +1,18 @@
 """
-Promotion Repository
-- 행사 마스터 테이블 CRUD 작업
+Irregular Repository
+- 비정기 마스터 테이블 CRUD 작업
 """
 
 from typing import Dict, Any, Optional, List
-from core import BaseRepository, QueryBuilder, get_db_cursor
+from core import BaseRepository, QueryBuilder, get_db_cursor, log_changes
 
 
-class PromotionRepository(BaseRepository):
-    """Promotion 테이블 Repository"""
+class IrregularRepository(BaseRepository):
+    """Irregular 테이블 Repository"""
 
     # SELECT 컬럼 상수 (순서 변경 금지 - _row_to_dict 인덱스와 일치해야 함)
     SELECT_COLUMNS = (
-        "p.PromotionID", "p.PromotionName", "p.PromotionType",
+        "p.IrregularID", "p.IrregularName", "p.IrregularType",
         "p.StartDate", "p.StartTime", "p.EndDate", "p.EndTime",
         """CASE
             WHEN p.Status = 'CANCELLED' THEN 'CANCELLED'
@@ -30,19 +30,19 @@ class PromotionRepository(BaseRepository):
     )
 
     def __init__(self):
-        super().__init__(table_name="[dbo].[Promotion]", id_column="PromotionID")
+        super().__init__(table_name="[dbo].[Irregular]", id_column="IrregularID")
 
     def get_select_query(self) -> str:
-        """Promotion 조회 쿼리"""
+        """Irregular 조회 쿼리"""
         columns = ", ".join(self.SELECT_COLUMNS)
-        return f"SELECT {columns} FROM [dbo].[Promotion] p"
+        return f"SELECT {columns} FROM [dbo].[Irregular] p"
 
     def _row_to_dict(self, row) -> Dict[str, Any]:
         """Row를 Dictionary로 변환"""
         return {
-            "PromotionID": row[0],
-            "PromotionName": row[1],
-            "PromotionType": row[2],
+            "IrregularID": row[0],
+            "IrregularName": row[1],
+            "IrregularType": row[2],
             "StartDate": row[3].strftime('%Y-%m-%d') if row[3] else None,
             "StartTime": row[4].strftime('%H:%M:%S') if row[4] else None,
             "EndDate": row[5].strftime('%Y-%m-%d') if row[5] else None,
@@ -65,13 +65,13 @@ class PromotionRepository(BaseRepository):
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
         """
-        Promotion 전용 필터 로직
+        Irregular 전용 필터 로직
 
         지원하는 필터:
         - year_month: 시작일 기준 년월 (YYYY-MM 형식)
         - brand_id: BrandID 정확히 매칭
         - channel_id: ChannelID 정확히 매칭
-        - promotion_type: PromotionType 정확히 매칭
+        - irregular_type: IrregularType 정확히 매칭
         - status: Status 정확히 매칭
         """
         if filters.get('year_month'):
@@ -83,8 +83,8 @@ class PromotionRepository(BaseRepository):
         if filters.get('channel_id'):
             builder.where_equals("p.ChannelID", filters['channel_id'])
 
-        if filters.get('promotion_type'):
-            builder.where_equals("p.PromotionType", filters['promotion_type'])
+        if filters.get('irregular_type'):
+            builder.where_equals("p.IrregularType", filters['irregular_type'])
 
         if filters.get('status'):
             status_val = filters['status']
@@ -102,8 +102,8 @@ class PromotionRepository(BaseRepository):
                 builder.where("CAST(p.EndDate AS DATETIME) + CAST(ISNULL(p.EndTime, '23:59:59') AS DATETIME) >= GETDATE()")
 
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
-        """Promotion 전용 QueryBuilder 생성"""
-        builder = QueryBuilder("[dbo].[Promotion] p")
+        """Irregular 전용 QueryBuilder 생성"""
+        builder = QueryBuilder("[dbo].[Irregular] p")
         builder.select(*self.SELECT_COLUMNS)
 
         if filters:
@@ -111,16 +111,17 @@ class PromotionRepository(BaseRepository):
 
         return builder
 
-    def create(self, data: Dict[str, Any]) -> str:
+    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> str:
         """
-        새 Promotion 레코드 생성
-        PromotionID는 문자열 PK (IDENTITY 아님) → 직접 INSERT
+        새 Irregular 레코드 생성
+        IrregularID는 문자열 PK (IDENTITY 아님) → 직접 INSERT
 
         Args:
-            data: 생성할 데이터 (PromotionID 포함)
+            data: 생성할 데이터 (IrregularID 포함)
+            user_id: 변경 이력 기록용 사용자 ID
 
         Returns:
-            str: 생성된 PromotionID
+            str: 생성된 IrregularID
         """
         with get_db_cursor() as cursor:
             columns = list(data.keys())
@@ -129,14 +130,19 @@ class PromotionRepository(BaseRepository):
             query = f"INSERT INTO {self.table_name} ({col_str}) VALUES ({placeholders})"
             params = [data[col] for col in columns]
             cursor.execute(query, *params)
-            return data.get('PromotionID')
+
+            irregular_id = data.get('IrregularID')
+            if user_id is not None:
+                log_changes(cursor, self.table_name, irregular_id, None, data, user_id)
+
+            return irregular_id
 
     def bulk_upsert(self, records: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, Any]:
         """
         일괄 INSERT/UPDATE
-        - PromotionID가 있으면: ID 기반 UPDATE
-        - PromotionID가 없으면: 복합키 중복 체크 후 INSERT (중복 시 에러)
-          * 복합키: BrandID + ChannelID + PromotionType + StartDate + PromotionName
+        - IrregularID가 있으면: ID 기반 UPDATE
+        - IrregularID가 없으면: 복합키 중복 체크 후 INSERT (중복 시 에러)
+          * 복합키: BrandID + ChannelID + IrregularType + StartDate + IrregularName
 
         Returns:
             Dict: {"inserted": N, "updated": M, "duplicates": [...]}
@@ -148,32 +154,32 @@ class PromotionRepository(BaseRepository):
         # 1단계: 신규 레코드(ID 없음)에 대해 중복 체크 먼저 수행
         with get_db_cursor(commit=False) as cursor:
             for idx, record in enumerate(records):
-                promotion_id = record.get('PromotionID')
+                irregular_id = record.get('IrregularID')
                 row_num = idx + 2
 
-                if not promotion_id:
+                if not irregular_id:
                     check_query = """
-                        SELECT PromotionID FROM [dbo].[Promotion]
-                        WHERE BrandID = ? AND ChannelID = ? AND PromotionType = ?
-                          AND StartDate = ? AND PromotionName = ?
+                        SELECT IrregularID FROM [dbo].[Irregular]
+                        WHERE BrandID = ? AND ChannelID = ? AND IrregularType = ?
+                          AND StartDate = ? AND IrregularName = ?
                     """
                     cursor.execute(check_query,
                         record.get('BrandID'),
                         record.get('ChannelID'),
-                        record.get('PromotionType'),
+                        record.get('IrregularType'),
                         record.get('StartDate'),
-                        record.get('PromotionName')
+                        record.get('IrregularName')
                     )
                     existing = cursor.fetchone()
 
                     if existing:
                         duplicates.append({
                             'row': row_num,
-                            'promotion_name': record.get('PromotionName'),
+                            'irregular_name': record.get('IrregularName'),
                             'start_date': record.get('StartDate'),
                             'brand_name': record.get('BrandName'),
                             'channel_name': record.get('ChannelName'),
-                            'promotion_type': record.get('PromotionType'),
+                            'irregular_type': record.get('IrregularType'),
                             'existing_id': existing[0]
                         })
 
@@ -187,13 +193,13 @@ class PromotionRepository(BaseRepository):
                 batch = records[i:i + batch_size]
 
                 for record in batch:
-                    promotion_id = record.get('PromotionID')
+                    irregular_id = record.get('IrregularID')
 
-                    if promotion_id and self.exists(promotion_id):
+                    if irregular_id and self.exists(irregular_id):
                         # ID 기반 UPDATE (수정 가능 필드만)
                         update_query = """
-                            UPDATE [dbo].[Promotion]
-                            SET PromotionName = ?,
+                            UPDATE [dbo].[Irregular]
+                            SET IrregularName = ?,
                                 EndDate = ?,
                                 EndTime = ?,
                                 StartTime = ?,
@@ -205,10 +211,10 @@ class PromotionRepository(BaseRepository):
                                 ExpectedQuantity = ?,
                                 Notes = ?,
                                 UpdatedDate = GETDATE()
-                            WHERE PromotionID = ?
+                            WHERE IrregularID = ?
                         """
                         params = [
-                            record.get('PromotionName'),
+                            record.get('IrregularName'),
                             record.get('EndDate'),
                             record.get('EndTime', '23:59:59'),
                             record.get('StartTime', '00:00:00'),
@@ -219,7 +225,7 @@ class PromotionRepository(BaseRepository):
                             record.get('ExpectedSalesAmount'),
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
-                            promotion_id
+                            irregular_id
                         ]
                         cursor.execute(update_query, *params)
                         if cursor.rowcount > 0:
@@ -227,8 +233,8 @@ class PromotionRepository(BaseRepository):
                     else:
                         # 신규 INSERT
                         insert_query = """
-                            INSERT INTO [dbo].[Promotion]
-                                (PromotionID, PromotionName, PromotionType,
+                            INSERT INTO [dbo].[Irregular]
+                                (IrregularID, IrregularName, IrregularType,
                                  StartDate, StartTime, EndDate, EndTime,
                                  Status, BrandID, BrandName, ChannelID, ChannelName,
                                  CommissionRate, DiscountOwner, CompanyShare, ChannelShare,
@@ -236,9 +242,9 @@ class PromotionRepository(BaseRepository):
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
-                            record.get('PromotionID'),
-                            record.get('PromotionName'),
-                            record.get('PromotionType'),
+                            record.get('IrregularID'),
+                            record.get('IrregularName'),
+                            record.get('IrregularType'),
                             record.get('StartDate'),
                             record.get('StartTime', '00:00:00'),
                             record.get('EndDate'),
@@ -263,7 +269,7 @@ class PromotionRepository(BaseRepository):
         return {"inserted": total_inserted, "updated": total_updated, "duplicates": []}
 
     def get_by_ids(self, ids: List[str]) -> List[Dict[str, Any]]:
-        """PromotionID 리스트로 데이터 조회"""
+        """IrregularID 리스트로 데이터 조회"""
         if not ids:
             return []
 
@@ -272,8 +278,8 @@ class PromotionRepository(BaseRepository):
             columns = ", ".join(self.SELECT_COLUMNS)
             query = f"""
                 SELECT {columns}
-                FROM [dbo].[Promotion] p
-                WHERE p.PromotionID IN ({placeholders})
+                FROM [dbo].[Irregular] p
+                WHERE p.IrregularID IN ({placeholders})
                 ORDER BY p.StartDate DESC
             """
             cursor.execute(query, *ids)
@@ -284,18 +290,18 @@ class PromotionRepository(BaseRepository):
         with get_db_cursor(commit=False) as cursor:
             query = """
                 SELECT DISTINCT FORMAT(StartDate, 'yyyy-MM') as YearMonth
-                FROM [dbo].[Promotion]
+                FROM [dbo].[Irregular]
                 ORDER BY YearMonth DESC
             """
             cursor.execute(query)
             return [row[0] for row in cursor.fetchall()]
 
-    def get_promotion_types(self) -> List[Dict[str, str]]:
-        """PromotionType 테이블에서 행사유형 목록 조회"""
+    def get_irregular_types(self) -> List[Dict[str, str]]:
+        """IrregularType 테이블에서 행사유형 목록 조회"""
         with get_db_cursor(commit=False) as cursor:
             query = """
                 SELECT TypeCode, TypeName, DisplayName, Category
-                FROM [dbo].[PromotionType]
+                FROM [dbo].[IrregularType]
                 ORDER BY DisplayName
             """
             cursor.execute(query)
@@ -309,12 +315,12 @@ class PromotionRepository(BaseRepository):
                 for row in cursor.fetchall()
             ]
 
-    def get_promotion_type_display_names(self) -> List[str]:
+    def get_irregular_type_display_names(self) -> List[str]:
         """행사유형 DisplayName 목록만 조회"""
         with get_db_cursor(commit=False) as cursor:
             query = """
                 SELECT DISTINCT DisplayName
-                FROM [dbo].[PromotionType]
+                FROM [dbo].[IrregularType]
                 WHERE DisplayName IS NOT NULL AND DisplayName != ''
                 ORDER BY DisplayName
             """
@@ -326,7 +332,7 @@ class PromotionRepository(BaseRepository):
         return ['SCHEDULED', 'ACTIVE', 'ENDED', 'CANCELLED']
 
     def bulk_delete(self, id_values: List[Any], batch_size: int = 1000) -> int:
-        """일괄 삭제 (PromotionProduct도 함께 삭제)"""
+        """일괄 삭제 (IrregularProduct도 함께 삭제)"""
         total_deleted = 0
 
         with get_db_cursor() as cursor:
@@ -337,15 +343,15 @@ class PromotionRepository(BaseRepository):
 
                 placeholders = ','.join(['?' for _ in batch])
 
-                # PromotionProduct 먼저 삭제 (FK 제약)
+                # IrregularProduct 먼저 삭제 (FK 제약)
                 cursor.execute(
-                    f"DELETE FROM [dbo].[PromotionProduct] WHERE PromotionID IN ({placeholders})",
+                    f"DELETE FROM [dbo].[IrregularProduct] WHERE IrregularID IN ({placeholders})",
                     *batch
                 )
 
-                # Promotion 삭제
+                # Irregular 삭제
                 cursor.execute(
-                    f"DELETE FROM [dbo].[Promotion] WHERE PromotionID IN ({placeholders})",
+                    f"DELETE FROM [dbo].[Irregular] WHERE IrregularID IN ({placeholders})",
                     *batch
                 )
                 total_deleted += cursor.rowcount
@@ -368,9 +374,9 @@ class PromotionRepository(BaseRepository):
                 if filters.get('channel_id'):
                     where_clauses.append("p.ChannelID = ?")
                     params.append(filters['channel_id'])
-                if filters.get('promotion_type'):
-                    where_clauses.append("p.PromotionType = ?")
-                    params.append(filters['promotion_type'])
+                if filters.get('irregular_type'):
+                    where_clauses.append("p.IrregularType = ?")
+                    params.append(filters['irregular_type'])
                 if filters.get('status'):
                     status_val = filters['status']
                     if status_val == 'CANCELLED':
@@ -396,7 +402,7 @@ class PromotionRepository(BaseRepository):
             END"""
 
             query = f"""
-                SELECT p.PromotionID, p.PromotionName, p.PromotionType,
+                SELECT p.IrregularID, p.IrregularName, p.IrregularType,
                        p.StartDate, p.EndDate,
                        p.BrandID, p.BrandName, p.ChannelID, p.ChannelName,
                        {status_case} AS ComputedStatus,
@@ -404,23 +410,23 @@ class PromotionRepository(BaseRepository):
                        ISNULL(cnt.ProductCount, 0) AS ProductCount,
                        ISNULL(cnt.TotalSalesAmount, 0) AS TotalSalesAmount,
                        ISNULL(cnt.TotalQuantity, 0) AS TotalQuantity
-                FROM [dbo].[Promotion] p
+                FROM [dbo].[Irregular] p
                 LEFT JOIN (
-                    SELECT PromotionID,
+                    SELECT IrregularID,
                            COUNT(*) AS ProductCount,
                            SUM(ISNULL(ExpectedSalesAmount, 0)) AS TotalSalesAmount,
                            SUM(ISNULL(ExpectedQuantity, 0)) AS TotalQuantity
-                    FROM [dbo].[PromotionProduct]
-                    GROUP BY PromotionID
-                ) cnt ON p.PromotionID = cnt.PromotionID
+                    FROM [dbo].[IrregularProduct]
+                    GROUP BY IrregularID
+                ) cnt ON p.IrregularID = cnt.IrregularID
                 WHERE {where_sql}
-                ORDER BY p.StartDate DESC, p.PromotionName ASC
+                ORDER BY p.StartDate DESC, p.IrregularName ASC
             """
             cursor.execute(query, *params)
             return [{
-                "PromotionID": row[0],
-                "PromotionName": row[1],
-                "PromotionType": row[2],
+                "IrregularID": row[0],
+                "IrregularName": row[1],
+                "IrregularType": row[2],
                 "StartDate": row[3].strftime('%Y-%m-%d') if row[3] else None,
                 "EndDate": row[4].strftime('%Y-%m-%d') if row[4] else None,
                 "BrandID": row[5],
@@ -440,7 +446,7 @@ class PromotionRepository(BaseRepository):
         여러 접두사에 대한 현재 최대 순번 일괄 조회
 
         Args:
-            prefixes: PromotionID 접두사 리스트 (예: ["OREN2501"])
+            prefixes: IrregularID 접두사 리스트 (예: ["OREN2501"])
 
         Returns:
             Dict[str, int]: {prefix: max_sequence} 매핑
@@ -455,10 +461,10 @@ class PromotionRepository(BaseRepository):
 
             for prefix in unique_prefixes:
                 query = """
-                    SELECT MAX(CAST(RIGHT(PromotionID, 2) AS INT))
-                    FROM [dbo].[Promotion]
-                    WHERE PromotionID LIKE ? + '%'
-                      AND LEN(PromotionID) > 2
+                    SELECT MAX(CAST(RIGHT(IrregularID, 2) AS INT))
+                    FROM [dbo].[Irregular]
+                    WHERE IrregularID LIKE ? + '%'
+                      AND LEN(IrregularID) > 2
                 """
                 cursor.execute(query, prefix)
                 row = cursor.fetchone()

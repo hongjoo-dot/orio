@@ -1,7 +1,7 @@
 """
 Target (목표 관리) Router
 - 정기 목표 (TargetBaseProduct) API
-- 비정기 목표 (TargetPromotionProduct) API
+- 비정기 목표 (TargetIrregularProduct) API
 """
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
@@ -12,7 +12,7 @@ import pandas as pd
 import io
 from datetime import datetime
 from repositories.target_base_repository import TargetBaseRepository
-from repositories.target_promotion_repository import TargetPromotionRepository
+from repositories.target_irregular_repository import TargetIrregularRepository
 from repositories import BrandRepository, ChannelRepository, ProductRepository, ActivityLogRepository
 from core import get_db_cursor
 from core.dependencies import get_client_ip, CurrentUser
@@ -183,7 +183,7 @@ async def bulk_update_target_base(
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
         records = [item.dict() for item in request_body.items]
-        result = target_base_repo.bulk_update_amounts(records)
+        result = target_base_repo.bulk_update_amounts(records, user_id=user.user_id)
 
         return {
             "message": f"{result['updated']}건 수정 완료",
@@ -232,9 +232,9 @@ async def download_target_base(
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '목표금액(VAT포함)', '목표금액(VAT제외)', '목표수량', '비고']
+        export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '목표금액(VAT포함)', '목표수량', '비고']
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [1, 2, 3, 4, 6]  # 날짜, 브랜드명, 채널명, 품목코드, 목표금액(VAT제외)
+        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -246,13 +246,12 @@ async def download_target_base(
 
             # 컬럼 순서 및 이름 변경
             column_map = {
-                'TargetBaseID': 'ID',
+                'TargetBaseID': 'ID(수정X)',
                 'Date': '날짜(YYYY-MM-01)',
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
                 'ERPCode': '품목코드',
                 'TargetAmount': '목표금액(VAT포함)',
-                'TargetAmountExVAT': '목표금액(VAT제외)',
                 'TargetQuantity': '목표수량',
                 'Notes': '비고'
             }
@@ -271,20 +270,19 @@ async def download_target_base(
             ['ID가 없는 행', '날짜+채널+품목코드 기준으로 신규 등록 또는 수정합니다.'],
             ['', ''],
             ['■ 컬럼 설명', ''],
-            ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
+            ['ID(수정X)', '수정할 데이터의 ID (비워두면 신규 등록, 수정 불가)'],
             ['날짜(YYYY-MM-01)', '목표 날짜 (YYYY-MM-01 형식, 월 단위)'],
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
             ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
-            ['목표금액(VAT포함)', 'VAT 포함 금액 (예: 1000000)'],
-            ['목표금액(VAT제외)', '자동 계산됨 (수정 불가)'],
+            ['목표금액(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
             ['수정 가능', '목표금액(VAT포함), 목표수량, 비고'],
-            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드, 목표금액(VAT제외)'],
-            ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
+            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드'],
+            ['ID(수정X) (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 주의사항', ''],
             ['1. ID 컬럼을 비워두면 신규 등록으로 처리됩니다.', ''],
@@ -476,7 +474,7 @@ async def create_target_base(
 ):
     """정기 목표 생성"""
     try:
-        target_id = target_base_repo.create(data.dict(exclude_none=True))
+        target_id = target_base_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
 
         return {"TargetBaseID": target_id, "UniqueCode": data.UniqueCode, "Date": data.Date}
     except Exception as e:
@@ -500,7 +498,7 @@ async def update_target_base(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = target_base_repo.update(target_id, update_data)
+        success = target_base_repo.update(target_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "목표 수정 실패")
 
@@ -604,7 +602,7 @@ async def upload_target_base(
 
         # 컬럼 매핑 (엑셀 컬럼명 → 내부 컬럼명)
         column_map = {
-            'ID': 'TargetBaseID',
+            'ID(수정X)': 'TargetBaseID',
             '날짜(YYYY-MM-01)': 'Date',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
@@ -785,16 +783,16 @@ async def upload_target_base(
 
 
 # ========== 비정기 목표 Router ==========
-promotion_router = APIRouter(prefix="/api/targets/promotion", tags=["TargetPromotion"])
+irregular_router = APIRouter(prefix="/api/targets/irregular", tags=["TargetIrregular"])
 
 # Repository 인스턴스
-target_promotion_repo = TargetPromotionRepository()
+target_irregular_repo = TargetIrregularRepository()
 
 
 # Pydantic Models - 비정기 목표
-class TargetPromotionCreate(BaseModel):
-    PromotionID: str
-    PromotionName: Optional[str] = None
+class TargetIrregularCreate(BaseModel):
+    IrregularID: str
+    IrregularName: Optional[str] = None
     StartDate: str
     StartTime: Optional[str] = "00:00:00"
     EndDate: str
@@ -810,9 +808,9 @@ class TargetPromotionCreate(BaseModel):
     Notes: Optional[str] = None
 
 
-class TargetPromotionUpdate(BaseModel):
-    PromotionID: Optional[str] = None
-    PromotionName: Optional[str] = None
+class TargetIrregularUpdate(BaseModel):
+    IrregularID: Optional[str] = None
+    IrregularName: Optional[str] = None
     StartDate: Optional[str] = None
     StartTime: Optional[str] = None
     EndDate: Optional[str] = None
@@ -828,15 +826,15 @@ class TargetPromotionUpdate(BaseModel):
     Notes: Optional[str] = None
 
 
-class PromotionFilterDeleteRequest(BaseModel):
+class IrregularFilterDeleteRequest(BaseModel):
     year_month: str
     brand_id: Optional[int] = None
     channel_id: Optional[int] = None
-    promotion_type: Optional[str] = None
+    irregular_type: Optional[str] = None
 
 
 class TargetPromoBulkUpdateItem(BaseModel):
-    TargetPromotionID: int
+    TargetIrregularID: int
     TargetAmount: Optional[float] = None
     TargetQuantity: Optional[int] = None
     Notes: Optional[str] = None
@@ -848,14 +846,14 @@ class TargetPromoBulkUpdateRequest(BaseModel):
 
 # ========== 비정기 목표 CRUD ==========
 
-@promotion_router.get("")
-async def get_target_promotion_list(
+@irregular_router.get("")
+async def get_target_irregular_list(
     page: int = 1,
     limit: int = 20,
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_type: Optional[str] = None,
+    irregular_type: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Target", "READ"))
@@ -863,8 +861,8 @@ async def get_target_promotion_list(
     """비정기 목표 목록 조회"""
     try:
         ALLOWED_SORT = {
-            "PromotionName": "t.PromotionName",
-            "PromotionType": "t.PromotionType",
+            "IrregularName": "t.IrregularName",
+            "IrregularType": "t.IrregularType",
             "StartDate": "t.StartDate",
             "EndDate": "t.EndDate",
             "BrandName": "t.BrandName",
@@ -883,10 +881,10 @@ async def get_target_promotion_list(
             filters['brand_id'] = brand_id
         if channel_id is not None:
             filters['channel_id'] = channel_id
-        if promotion_type:
-            filters['promotion_type'] = promotion_type
+        if irregular_type:
+            filters['irregular_type'] = irregular_type
 
-        result = target_promotion_repo.get_list(
+        result = target_irregular_repo.get_list(
             page=page,
             limit=limit,
             filters=filters,
@@ -898,39 +896,39 @@ async def get_target_promotion_list(
         raise HTTPException(500, f"비정기 목표 조회 실패: {str(e)}")
 
 
-@promotion_router.get("/year-months")
-async def get_target_promotion_year_months(user: CurrentUser = Depends(require_permission("Target", "READ"))):
+@irregular_router.get("/year-months")
+async def get_target_irregular_year_months(user: CurrentUser = Depends(require_permission("Target", "READ"))):
     """비정기 목표 년월 목록 조회"""
     try:
-        year_months = target_promotion_repo.get_year_months()
+        year_months = target_irregular_repo.get_year_months()
         return {"year_months": year_months}
     except Exception as e:
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
 
 
-@promotion_router.get("/promotion-types")
-async def get_promotion_types(user: CurrentUser = Depends(require_permission("Target", "READ"))):
+@irregular_router.get("/irregular-types")
+async def get_irregular_types(user: CurrentUser = Depends(require_permission("Target", "READ"))):
     """행사유형 목록 조회 (드롭다운용)"""
     try:
-        promotion_types = target_promotion_repo.get_promotion_types()
-        return {"promotion_types": promotion_types}
+        irregular_types = target_irregular_repo.get_irregular_types()
+        return {"irregular_types": irregular_types}
     except Exception as e:
         raise HTTPException(500, f"행사유형 목록 조회 실패: {str(e)}")
 
 
-@promotion_router.get("/groups")
-async def get_target_promotion_groups(
+@irregular_router.get("/groups")
+async def get_target_irregular_groups(
     year_month: str,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_type: Optional[str] = None,
+    irregular_type: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Target", "READ"))
 ):
     """그룹별 비정기 목표 요약 조회 (마스터 패널용)"""
     try:
         if not year_month:
             raise HTTPException(400, "년월은 필수입니다")
-        groups = target_promotion_repo.get_groups_summary(year_month, brand_id, channel_id, promotion_type)
+        groups = target_irregular_repo.get_groups_summary(year_month, brand_id, channel_id, irregular_type)
         return {"data": groups, "total": len(groups)}
     except HTTPException:
         raise
@@ -938,11 +936,11 @@ async def get_target_promotion_groups(
         raise HTTPException(500, f"그룹 요약 조회 실패: {str(e)}")
 
 
-@promotion_router.get("/group-items")
-async def get_target_promotion_group_items(
+@irregular_router.get("/group-items")
+async def get_target_irregular_group_items(
     channel_id: int,
-    promotion_name: str,
-    promotion_type: str,
+    irregular_name: str,
+    irregular_type: str,
     year_month: str,
     brand_id: Optional[int] = None,
     user: CurrentUser = Depends(require_permission("Target", "READ"))
@@ -951,7 +949,7 @@ async def get_target_promotion_group_items(
     try:
         if not year_month:
             raise HTTPException(400, "년월은 필수입니다")
-        items = target_promotion_repo.get_by_group(channel_id, promotion_name, promotion_type, year_month, brand_id)
+        items = target_irregular_repo.get_by_group(channel_id, irregular_name, irregular_type, year_month, brand_id)
         return {"data": items, "total": len(items)}
     except HTTPException:
         raise
@@ -959,9 +957,9 @@ async def get_target_promotion_group_items(
         raise HTTPException(500, f"그룹 상품 목록 조회 실패: {str(e)}")
 
 
-@promotion_router.put("/bulk-update")
-@log_activity("UPDATE", "TargetPromotionProduct")
-async def bulk_update_target_promotion(
+@irregular_router.put("/bulk-update")
+@log_activity("UPDATE", "TargetIrregularProduct")
+async def bulk_update_target_irregular(
     request_body: TargetPromoBulkUpdateRequest,
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "UPDATE"))
@@ -972,7 +970,7 @@ async def bulk_update_target_promotion(
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
         records = [item.dict() for item in request_body.items]
-        result = target_promotion_repo.bulk_update_promo_amounts(records)
+        result = target_irregular_repo.bulk_update_irregular_amounts(records, user_id=user.user_id)
 
         return {
             "message": f"{result['updated']}건 수정 완료",
@@ -984,12 +982,12 @@ async def bulk_update_target_promotion(
         raise HTTPException(500, f"일괄 수정 실패: {str(e)}")
 
 
-@promotion_router.get("/download")
-async def download_target_promotion(
+@irregular_router.get("/download")
+async def download_target_irregular(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
-    promotion_type: Optional[str] = None,
+    irregular_type: Optional[str] = None,
     ids: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Target", "EXPORT"))
 ):
@@ -1000,8 +998,8 @@ async def download_target_promotion(
         # 선택된 ID가 있으면 해당 ID들만 조회
         if ids:
             id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
-            data = target_promotion_repo.get_by_ids(id_list)
-        elif year_month or brand_id is not None or channel_id is not None or promotion_type:
+            data = target_irregular_repo.get_by_ids(id_list)
+        elif year_month or brand_id is not None or channel_id is not None or irregular_type:
             # 필터 조건이 있으면 해당 조건으로 조회
             filters = {}
             if year_month:
@@ -1010,19 +1008,19 @@ async def download_target_promotion(
                 filters['brand_id'] = brand_id
             if channel_id is not None:
                 filters['channel_id'] = channel_id
-            if promotion_type:
-                filters['promotion_type'] = promotion_type
+            if irregular_type:
+                filters['irregular_type'] = irregular_type
 
-            result = target_promotion_repo.get_list(page=1, limit=100000, filters=filters)
+            result = target_irregular_repo.get_list(page=1, limit=100000, filters=filters)
             data = result['data']
 
         # 컬럼 정의
         export_columns = [
-            'ID', '행사명', '행사유형', '시작일(YYYY-MM-DD)', '시작시간(HH:MM:SS)', '종료일(YYYY-MM-DD)', '종료시간(HH:MM:SS)',
-            '브랜드명', '채널명', '품목코드', '목표금액(VAT포함)', '목표금액(VAT제외)', '목표수량', '비고'
+            'ID(수정X)', '행사명', '행사유형', '시작일(YYYY-MM-DD)', '시작시간(HH:MM:SS)', '종료일(YYYY-MM-DD)', '종료시간(HH:MM:SS)',
+            '브랜드명', '채널명', '품목코드', '목표금액(VAT포함)', '목표수량', '비고'
         ]
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [2, 3, 5, 7, 8, 9, 11]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드, 목표금액(VAT제외)
+        readonly_columns = [2, 3, 5, 7, 8, 9]  # 행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -1032,9 +1030,9 @@ async def download_target_promotion(
             df = pd.DataFrame(data)
 
             column_map = {
-                'TargetPromotionID': 'ID',
-                'PromotionName': '행사명',
-                'PromotionType': '행사유형',
+                'TargetIrregularID': 'ID(수정X)',
+                'IrregularName': '행사명',
+                'IrregularType': '행사유형',
                 'StartDate': '시작일(YYYY-MM-DD)',
                 'StartTime': '시작시간(HH:MM:SS)',
                 'EndDate': '종료일(YYYY-MM-DD)',
@@ -1043,7 +1041,6 @@ async def download_target_promotion(
                 'ChannelName': '채널명',
                 'ERPCode': '품목코드',
                 'TargetAmount': '목표금액(VAT포함)',
-                'TargetAmountExVAT': '목표금액(VAT제외)',
                 'TargetQuantity': '목표수량',
                 'Notes': '비고'
             }
@@ -1063,10 +1060,10 @@ async def download_target_promotion(
             ['■ 행사ID 자동 생성 규칙', ''],
             ['형식', 'BrandCode(2자리) + TypeCode(2자리) + YYMM(4자리) + 순번(2자리)'],
             ['예시', 'OREN250101 (오리온 + 에누리 + 25년01월 + 01번)'],
-            ['참고', 'TypeCode는 PromotionType 테이블의 TypeCode 값 (2자리 알파벳)'],
+            ['참고', 'TypeCode는 IrregularType 테이블의 TypeCode 값 (2자리 알파벳)'],
             ['', ''],
             ['■ 컬럼 설명', ''],
-            ['ID', '수정할 데이터의 ID (비워두면 신규 등록)'],
+            ['ID(수정X)', '수정할 데이터의 ID (비워두면 신규 등록, 수정 불가)'],
             ['행사명', '행사 이름'],
             ['행사유형', '아래 행사유형 목록 참조 (행사ID 생성에 필요)'],
             ['시작일(YYYY-MM-DD)', '행사 시작 날짜 (YYYY-MM-DD 형식)'],
@@ -1076,15 +1073,14 @@ async def download_target_promotion(
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명 (행사ID 생성에 필요)'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
             ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
-            ['목표금액(VAT포함)', 'VAT 포함 금액 (예: 1000000)'],
-            ['목표금액(VAT제외)', '자동 계산됨 (수정 불가)'],
+            ['목표금액(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
             ['목표수량', '숫자 (예: 100)'],
             ['비고', '메모'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
             ['수정 가능', '행사명, 시작시간, 종료시간, 목표금액(VAT포함), 목표수량, 비고'],
-            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드, 목표금액(VAT제외)'],
-            ['ID (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
+            ['수정 불가 (검정)', '행사유형, 시작일, 종료일, 브랜드명, 채널명, 품목코드'],
+            ['ID(수정X) (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 행사유형 목록', ''],
             ['에누리', ''],
@@ -1109,7 +1105,7 @@ async def download_target_promotion(
         brands = brand_repo.get_all_brands()
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
-        promotion_types = ['에누리', '쿠폰', '판매가+쿠폰', '판매가할인', '정산후보정', '기획상품', '원매가할인', '공동구매']
+        irregular_types = ['에누리', '쿠폰', '판매가+쿠폰', '판매가할인', '정산후보정', '기획상품', '원매가할인', '공동구매']
 
         # 품목코드 드롭다운용 목록 조회 (Status = 'YES'인 제품만)
         with get_db_cursor(commit=False) as cursor:
@@ -1143,7 +1139,7 @@ async def download_target_promotion(
                 list_sheet.write(i, 1, name)
 
             # 행사유형 목록 작성 (C열)
-            for i, name in enumerate(promotion_types):
+            for i, name in enumerate(irregular_types):
                 list_sheet.write(i, 2, name)
 
             # 품목코드 목록 작성 (D열)
@@ -1174,7 +1170,7 @@ async def download_target_promotion(
             # 행사유형 드롭다운 (C열, 인덱스 2)
             worksheet.data_validation(1, 2, max_row, 2, {
                 'validate': 'list',
-                'source': f'=목록!$C$1:$C${len(promotion_types)}',
+                'source': f'=목록!$C$1:$C${len(irregular_types)}',
                 'input_message': '행사유형을 선택하세요',
                 'error_message': '목록에서 선택해주세요'
             })
@@ -1260,7 +1256,7 @@ async def download_target_promotion(
 
         output.seek(0)
 
-        filename = f"target_promotion_{year_month or 'template'}.xlsx"
+        filename = f"target_irregular_{year_month or 'template'}.xlsx"
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"'
         }
@@ -1276,11 +1272,11 @@ async def download_target_promotion(
         raise HTTPException(500, f"다운로드 실패: {str(e)}")
 
 
-@promotion_router.get("/{target_id}")
-async def get_target_promotion_item(target_id: int, user: CurrentUser = Depends(require_permission("Target", "READ"))):
+@irregular_router.get("/{target_id}")
+async def get_target_irregular_item(target_id: int, user: CurrentUser = Depends(require_permission("Target", "READ"))):
     """비정기 목표 단일 조회"""
     try:
-        item = target_promotion_repo.get_by_id(target_id)
+        item = target_irregular_repo.get_by_id(target_id)
         if not item:
             raise HTTPException(404, "목표 데이터를 찾을 수 없습니다")
         return item
@@ -1290,63 +1286,63 @@ async def get_target_promotion_item(target_id: int, user: CurrentUser = Depends(
         raise HTTPException(500, f"목표 조회 실패: {str(e)}")
 
 
-@promotion_router.post("")
-@log_activity("CREATE", "TargetPromotionProduct", id_key="TargetPromotionID")
-async def create_target_promotion(
-    data: TargetPromotionCreate,
+@irregular_router.post("")
+@log_activity("CREATE", "TargetIrregularProduct", id_key="TargetIrregularID")
+async def create_target_irregular(
+    data: TargetIrregularCreate,
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "CREATE"))
 ):
     """비정기 목표 생성"""
     try:
-        target_id = target_promotion_repo.create(data.dict(exclude_none=True))
+        target_id = target_irregular_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
 
-        return {"TargetPromotionID": target_id, "PromotionID": data.PromotionID, "UniqueCode": data.UniqueCode}
+        return {"TargetIrregularID": target_id, "IrregularID": data.IrregularID, "UniqueCode": data.UniqueCode}
     except Exception as e:
         raise HTTPException(500, f"목표 생성 실패: {str(e)}")
 
 
-@promotion_router.put("/{target_id}")
-@log_activity("UPDATE", "TargetPromotionProduct", id_key="TargetPromotionID")
-async def update_target_promotion(
+@irregular_router.put("/{target_id}")
+@log_activity("UPDATE", "TargetIrregularProduct", id_key="TargetIrregularID")
+async def update_target_irregular(
     target_id: int,
-    data: TargetPromotionUpdate,
+    data: TargetIrregularUpdate,
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "UPDATE"))
 ):
     """비정기 목표 수정"""
     try:
-        if not target_promotion_repo.exists(target_id):
+        if not target_irregular_repo.exists(target_id):
             raise HTTPException(404, "목표 데이터를 찾을 수 없습니다")
 
         update_data = data.dict(exclude_none=True)
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = target_promotion_repo.update(target_id, update_data)
+        success = target_irregular_repo.update(target_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "목표 수정 실패")
 
-        return {"TargetPromotionID": target_id, **update_data}
+        return {"TargetIrregularID": target_id, **update_data}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"목표 수정 실패: {str(e)}")
 
 
-@promotion_router.delete("/{target_id}")
-@log_delete("TargetPromotionProduct", id_param="target_id")
-async def delete_target_promotion(
+@irregular_router.delete("/{target_id}")
+@log_delete("TargetIrregularProduct", id_param="target_id")
+async def delete_target_irregular(
     target_id: int,
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
     """비정기 목표 삭제"""
     try:
-        if not target_promotion_repo.exists(target_id):
+        if not target_irregular_repo.exists(target_id):
             raise HTTPException(404, "목표 데이터를 찾을 수 없습니다")
 
-        success = target_promotion_repo.delete(target_id)
+        success = target_irregular_repo.delete(target_id)
         if not success:
             raise HTTPException(500, "목표 삭제 실패")
 
@@ -1357,9 +1353,9 @@ async def delete_target_promotion(
         raise HTTPException(500, f"목표 삭제 실패: {str(e)}")
 
 
-@promotion_router.post("/bulk-delete")
-@log_bulk_delete("TargetPromotionProduct")
-async def bulk_delete_target_promotion(
+@irregular_router.post("/bulk-delete")
+@log_bulk_delete("TargetIrregularProduct")
+async def bulk_delete_target_irregular(
     request_body: BulkDeleteRequest,
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
@@ -1369,7 +1365,7 @@ async def bulk_delete_target_promotion(
         if not request_body.ids:
             raise HTTPException(400, "삭제할 ID가 없습니다")
 
-        deleted_count = target_promotion_repo.bulk_delete(request_body.ids)
+        deleted_count = target_irregular_repo.bulk_delete(request_body.ids)
 
         return {"message": "삭제되었습니다", "deleted_count": deleted_count}
     except HTTPException:
@@ -1378,20 +1374,20 @@ async def bulk_delete_target_promotion(
         raise HTTPException(500, f"일괄 삭제 실패: {str(e)}")
 
 
-@promotion_router.post("/filter-delete")
-@log_activity("BULK_DELETE", "TargetPromotionProduct")
-async def filter_delete_target_promotion(
-    request_body: PromotionFilterDeleteRequest,
+@irregular_router.post("/filter-delete")
+@log_activity("BULK_DELETE", "TargetIrregularProduct")
+async def filter_delete_target_irregular(
+    request_body: IrregularFilterDeleteRequest,
     request: Request,
     user: CurrentUser = Depends(require_permission("Target", "DELETE"))
 ):
     """필터 조건으로 비정기 목표 일괄 삭제"""
     try:
-        deleted_count = target_promotion_repo.delete_by_filter(
+        deleted_count = target_irregular_repo.delete_by_filter(
             year_month=request_body.year_month,
             brand_id=request_body.brand_id,
             channel_id=request_body.channel_id,
-            promotion_type=request_body.promotion_type
+            irregular_type=request_body.irregular_type
         )
 
         return {
@@ -1404,8 +1400,8 @@ async def filter_delete_target_promotion(
 
 # ========== 비정기 목표 엑셀 ==========
 
-@promotion_router.post("/upload")
-async def upload_target_promotion(
+@irregular_router.post("/upload")
+async def upload_target_irregular(
     file: UploadFile = File(...),
     request: Request = None,
     user: CurrentUser = Depends(require_permission("Target", "UPLOAD"))
@@ -1426,10 +1422,10 @@ async def upload_target_promotion(
 
         # 컬럼 매핑 (엑셀 컬럼명 → 내부 컬럼명)
         column_map = {
-            'ID': 'TargetPromotionID',
-            '행사ID': 'PromotionID',
-            '행사명': 'PromotionName',
-            '행사유형': 'PromotionType',
+            'ID(수정X)': 'TargetIrregularID',
+            '행사ID': 'IrregularID',
+            '행사명': 'IrregularName',
+            '행사유형': 'IrregularType',
             '시작일(YYYY-MM-DD)': 'StartDate',
             '시작시간(HH:MM:SS)': 'StartTime',
             '종료일(YYYY-MM-DD)': 'EndDate',
@@ -1443,8 +1439,8 @@ async def upload_target_promotion(
         }
         df = df.rename(columns=column_map)
 
-        # 필수 컬럼 확인 (PromotionID 제거 - 자동 생성됨)
-        required_cols = ['PromotionType', 'StartDate', 'EndDate', 'BrandName', 'ChannelName', 'ERPCode']
+        # 필수 컬럼 확인 (IrregularID 제거 - 자동 생성됨)
+        required_cols = ['IrregularType', 'StartDate', 'EndDate', 'BrandName', 'ChannelName', 'ERPCode']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise HTTPException(400, f"필수 컬럼이 없습니다: {missing_cols}")
@@ -1459,13 +1455,13 @@ async def upload_target_promotion(
             raise HTTPException(400, f"날짜 형식이 잘못된 행이 있습니다 (시작일: {invalid_start_dates}개, 종료일: {invalid_end_dates}개)")
 
         # 신규 행(ID 없음)에서 행사유형이 비어있는지 확인
-        df['PromotionType'] = df['PromotionType'].astype(str).str.strip()
+        df['IrregularType'] = df['IrregularType'].astype(str).str.strip()
         empty_type_rows = []
         for idx, row in df.iterrows():
             # ID가 없는 신규 행에서만 행사유형 필수 체크
-            has_id = 'TargetPromotionID' in row and pd.notna(row.get('TargetPromotionID'))
-            has_promo_id = 'PromotionID' in row and pd.notna(row.get('PromotionID')) and str(row.get('PromotionID')).strip() not in ['', 'nan']
-            promo_type = str(row.get('PromotionType', '')).strip()
+            has_id = 'TargetIrregularID' in row and pd.notna(row.get('TargetIrregularID'))
+            has_promo_id = 'IrregularID' in row and pd.notna(row.get('IrregularID')) and str(row.get('IrregularID')).strip() not in ['', 'nan']
+            promo_type = str(row.get('IrregularType', '')).strip()
 
             if not has_id and not has_promo_id and (not promo_type or promo_type == 'nan'):
                 empty_type_rows.append(idx + 2)  # 엑셀 행 번호 (헤더 + 0-index)
@@ -1493,7 +1489,7 @@ async def upload_target_promotion(
             'brand': {},          # {name: [행번호들]}
             'channel': {},        # {name: [행번호들]}
             'product': {},        # {code: [행번호들]}
-            'promotion_type': {}  # {display_name: [행번호들]}
+            'irregular_type': {}  # {display_name: [행번호들]}
         }
 
         # 브랜드명 → BrandID, BrandCode 매핑 테이블 생성
@@ -1552,21 +1548,21 @@ async def upload_target_promotion(
                     row_nums = df[df['ERPCode'] == code].index.tolist()
                     errors['product'][code] = [r + 2 for r in row_nums]
 
-        # 행사유형 검증 및 TypeCode 매핑 (PromotionType 테이블에서 조회)
-        promotion_type_map = {}
+        # 행사유형 검증 및 TypeCode 매핑 (IrregularType 테이블에서 조회)
+        irregular_type_map = {}
         missing_type_codes = []  # TypeCode가 없는 행사유형
-        if 'PromotionType' in df.columns:
-            promotion_types = df['PromotionType'].dropna().unique().tolist()
-            promotion_types = [t for t in promotion_types if t and str(t) != 'nan']
-            for display_name in promotion_types:
+        if 'IrregularType' in df.columns:
+            irregular_types = df['IrregularType'].dropna().unique().tolist()
+            irregular_types = [t for t in irregular_types if t and str(t) != 'nan']
+            for display_name in irregular_types:
                 display_name_str = str(display_name).strip()
-                # PromotionType 테이블에서 DisplayName으로 TypeCode 조회
+                # IrregularType 테이블에서 DisplayName으로 TypeCode 조회
                 with get_db_cursor() as cursor:
-                    cursor.execute("SELECT DisplayName, TypeCode FROM PromotionType WHERE DisplayName = ?", (display_name_str,))
+                    cursor.execute("SELECT DisplayName, TypeCode FROM IrregularType WHERE DisplayName = ?", (display_name_str,))
                     row = cursor.fetchone()
                     if row:
                         type_code = row[1] if row[1] else ''
-                        promotion_type_map[display_name_str] = {
+                        irregular_type_map[display_name_str] = {
                             'DisplayName': row[0],
                             'TypeCode': type_code
                         }
@@ -1575,15 +1571,15 @@ async def upload_target_promotion(
                             missing_type_codes.append(display_name_str)
                     else:
                         # DB에 없는 행사유형 - 에러 수집
-                        row_nums = df[df['PromotionType'] == display_name].index.tolist()
-                        errors['promotion_type'][display_name_str] = [r + 2 for r in row_nums]
+                        row_nums = df[df['IrregularType'] == display_name].index.tolist()
+                        errors['irregular_type'][display_name_str] = [r + 2 for r in row_nums]
 
         # TypeCode가 없는 행사유형이 있으면 에러
         if missing_type_codes:
-            raise HTTPException(400, f"TypeCode가 설정되지 않은 행사유형이 있습니다: {', '.join(missing_type_codes)}. PromotionType 테이블에서 TypeCode를 설정해주세요.")
+            raise HTTPException(400, f"TypeCode가 설정되지 않은 행사유형이 있습니다: {', '.join(missing_type_codes)}. IrregularType 테이블에서 TypeCode를 설정해주세요.")
 
         # 에러가 있으면 모두 모아서 반환
-        if errors['brand'] or errors['channel'] or errors['product'] or errors['promotion_type']:
+        if errors['brand'] or errors['channel'] or errors['product'] or errors['irregular_type']:
             error_messages = []
             for name, rows in errors['brand'].items():
                 error_messages.append(f"존재하지 않는 브랜드명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
@@ -1591,26 +1587,26 @@ async def upload_target_promotion(
                 error_messages.append(f"존재하지 않는 채널명: {name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             for code, rows in errors['product'].items():
                 error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
-            for display_name, rows in errors['promotion_type'].items():
+            for display_name, rows in errors['irregular_type'].items():
                 error_messages.append(f"존재하지 않는 행사유형: {display_name} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
-        # 신규 행 중복 체크 (복합키: BrandID + ChannelID + PromotionType + StartDate + UniqueCode)
+        # 신규 행 중복 체크 (복합키: BrandID + ChannelID + IrregularType + StartDate + UniqueCode)
         duplicate_rows = []
         for idx, row in df.iterrows():
             # ID가 있는 행은 수정이므로 중복 체크 불필요
-            if 'TargetPromotionID' in df.columns and pd.notna(row.get('TargetPromotionID')):
+            if 'TargetIrregularID' in df.columns and pd.notna(row.get('TargetIrregularID')):
                 continue
 
             brand_name = str(row['BrandName']).strip() if pd.notna(row['BrandName']) else None
             channel_name = str(row['ChannelName']).strip() if pd.notna(row['ChannelName']) else None
-            promo_type = str(row['PromotionType']).strip() if pd.notna(row.get('PromotionType')) else None
+            promo_type = str(row['IrregularType']).strip() if pd.notna(row.get('IrregularType')) else None
             erp_code = str(row['ERPCode']).strip() if pd.notna(row['ERPCode']) else None
 
             if brand_name and channel_name and promo_type and erp_code and pd.notna(row['StartDate']):
                 brand_info = brand_map.get(brand_name, {})
                 channel_info = channel_map.get(channel_name, {})
-                type_info = promotion_type_map.get(promo_type, {})
+                type_info = irregular_type_map.get(promo_type, {})
                 product_info = product_map.get(erp_code, {})
 
                 brand_id = brand_info.get('BrandID')
@@ -1622,8 +1618,8 @@ async def upload_target_promotion(
                 if brand_id and channel_id_val and promo_type_val and unique_code:
                     with get_db_cursor(commit=False) as cursor:
                         cursor.execute("""
-                            SELECT 1 FROM [dbo].[TargetPromotionProduct]
-                            WHERE BrandID = ? AND ChannelID = ? AND PromotionType = ?
+                            SELECT 1 FROM [dbo].[TargetIrregularProduct]
+                            WHERE BrandID = ? AND ChannelID = ? AND IrregularType = ?
                               AND StartDate = ? AND UniqueCode = ?
                         """, brand_id, channel_id_val, promo_type_val, start_date, unique_code)
                         if cursor.fetchone():
@@ -1632,7 +1628,7 @@ async def upload_target_promotion(
         if duplicate_rows:
             raise HTTPException(400, f"이미 등록된 데이터가 있습니다. 동일 조건(브랜드+채널+행사유형+시작일+품목코드)의 데이터가 존재합니다. (행 {', '.join(map(str, duplicate_rows[:10]))}{'...' if len(duplicate_rows) > 10 else ''})")
 
-        # PromotionID 자동 생성을 위한 접두사별 순번 관리
+        # IrregularID 자동 생성을 위한 접두사별 순번 관리
         # 형식: BrandCode(2) + TypeCode(2) + YYMM(4) + Sequence(2) = 10자리
         prefix_sequences = {}  # {prefix: current_sequence}
 
@@ -1640,15 +1636,15 @@ async def upload_target_promotion(
         all_prefixes = set()
         for _, row in df.iterrows():
             # ID가 있는 행은 수정이므로 생성 불필요
-            if 'TargetPromotionID' in row and pd.notna(row.get('TargetPromotionID')):
+            if 'TargetIrregularID' in row and pd.notna(row.get('TargetIrregularID')):
                 continue
 
             brand_name = str(row['BrandName']).strip() if pd.notna(row['BrandName']) else None
-            promo_type = str(row['PromotionType']).strip() if pd.notna(row.get('PromotionType')) else None
+            promo_type = str(row['IrregularType']).strip() if pd.notna(row.get('IrregularType')) else None
 
             if brand_name and promo_type and pd.notna(row['StartDate']):
                 brand_info = brand_map.get(brand_name, {})
-                type_info = promotion_type_map.get(promo_type, {})
+                type_info = irregular_type_map.get(promo_type, {})
                 brand_code = brand_info.get('BrandCode', '')[:2] if brand_info.get('BrandCode') else ''
                 type_code = type_info.get('TypeCode', '')
 
@@ -1663,7 +1659,7 @@ async def upload_target_promotion(
 
         # DB에서 각 접두사의 최대 순번 조회
         if all_prefixes:
-            max_sequences = target_promotion_repo.get_max_sequences_by_prefixes(list(all_prefixes))
+            max_sequences = target_irregular_repo.get_max_sequences_by_prefixes(list(all_prefixes))
             for prefix, max_seq in max_sequences.items():
                 prefix_sequences[prefix] = max_seq
 
@@ -1683,26 +1679,26 @@ async def upload_target_promotion(
 
             # ID가 있으면 포함 (수정 양식인 경우)
             target_id = None
-            if 'TargetPromotionID' in row and pd.notna(row['TargetPromotionID']):
-                target_id = int(row['TargetPromotionID'])
+            if 'TargetIrregularID' in row and pd.notna(row['TargetIrregularID']):
+                target_id = int(row['TargetIrregularID'])
 
             # 행사유형 처리
-            promotion_type_val = None
+            irregular_type_val = None
             type_info = {}
-            if 'PromotionType' in row and pd.notna(row.get('PromotionType')) and str(row['PromotionType']) != 'nan':
-                promo_type_str = str(row['PromotionType']).strip()
-                type_info = promotion_type_map.get(promo_type_str, {})
-                promotion_type_val = type_info.get('DisplayName')
+            if 'IrregularType' in row and pd.notna(row.get('IrregularType')) and str(row['IrregularType']) != 'nan':
+                promo_type_str = str(row['IrregularType']).strip()
+                type_info = irregular_type_map.get(promo_type_str, {})
+                irregular_type_val = type_info.get('DisplayName')
 
-            # PromotionID 자동 생성 (신규 등록 시)
-            promotion_id = None
-            if 'PromotionID' in row and pd.notna(row.get('PromotionID')):
-                promo_id_val = str(row['PromotionID']).strip()
+            # IrregularID 자동 생성 (신규 등록 시)
+            irregular_id = None
+            if 'IrregularID' in row and pd.notna(row.get('IrregularID')):
+                promo_id_val = str(row['IrregularID']).strip()
                 if promo_id_val and promo_id_val != 'nan':
-                    # 기존 PromotionID가 있으면 사용
-                    promotion_id = promo_id_val
+                    # 기존 IrregularID가 있으면 사용
+                    irregular_id = promo_id_val
             elif not target_id:
-                # 신규 등록 시 PromotionID 자동 생성
+                # 신규 등록 시 IrregularID 자동 생성
                 brand_code = brand_info.get('BrandCode', '')[:2] if brand_info.get('BrandCode') else ''
                 type_code = type_info.get('TypeCode', '')
 
@@ -1719,20 +1715,20 @@ async def upload_target_promotion(
                     current_seq = prefix_sequences.get(prefix, 0) + 1
                     prefix_sequences[prefix] = current_seq
 
-                    # PromotionID 생성 (순번은 2자리 0-padding)
-                    promotion_id = f"{prefix}{current_seq:02d}"
-                    print(f"   [PromotionID 자동 생성] {promotion_id}")
+                    # IrregularID 생성 (순번은 2자리 0-padding)
+                    irregular_id = f"{prefix}{current_seq:02d}"
+                    print(f"   [IrregularID 자동 생성] {irregular_id}")
 
-            # 신규 등록인데 PromotionID가 없으면 에러 (안전장치)
-            if not target_id and not promotion_id:
+            # 신규 등록인데 IrregularID가 없으면 에러 (안전장치)
+            if not target_id and not irregular_id:
                 row_num = int(idx) + 2  # 엑셀 행 번호 (헤더 + 0-index)
                 raise HTTPException(400, f"행사ID를 생성할 수 없습니다. BrandCode, 행사유형, 시작일을 확인해주세요. (행 {row_num})")
 
             records.append({
-                'TargetPromotionID': target_id,
-                'PromotionID': promotion_id,
-                'PromotionName': str(row['PromotionName']) if pd.notna(row.get('PromotionName')) else None,
-                'PromotionType': promotion_type_val,
+                'TargetIrregularID': target_id,
+                'IrregularID': irregular_id,
+                'IrregularName': str(row['IrregularName']) if pd.notna(row.get('IrregularName')) else None,
+                'IrregularType': irregular_type_val,
                 'StartDate': row['StartDate'].strftime('%Y-%m-%d') if pd.notna(row['StartDate']) else None,
                 'StartTime': start_time_val,
                 'EndDate': row['EndDate'].strftime('%Y-%m-%d') if pd.notna(row['EndDate']) else None,
@@ -1749,7 +1745,7 @@ async def upload_target_promotion(
                 'Notes': str(row['Notes']) if pd.notna(row.get('Notes')) else None,
             })
 
-        result = target_promotion_repo.bulk_upsert(records)
+        result = target_irregular_repo.bulk_upsert(records)
 
         upload_end_time = datetime.now()
         duration = (upload_end_time - upload_start_time).total_seconds()
@@ -1760,7 +1756,7 @@ async def upload_target_promotion(
             error_messages = []
             for dup in duplicates[:10]:
                 error_messages.append(
-                    f"행 {dup['row']}: 중복 데이터 (시작일: {dup['start_date']}, 품목코드: {dup.get('erp_code', dup.get('unique_code'))}, 채널: {dup['channel_name']}, 행사유형: {dup['promotion_type']})"
+                    f"행 {dup['row']}: 중복 데이터 (시작일: {dup['start_date']}, 품목코드: {dup.get('erp_code', dup.get('unique_code'))}, 채널: {dup['channel_name']}, 행사유형: {dup['irregular_type']})"
                 )
             if len(duplicates) > 10:
                 error_messages.append(f"... 외 {len(duplicates) - 10}건 더 있음")
@@ -1770,7 +1766,7 @@ async def upload_target_promotion(
             activity_log_repo.log_action(
                 user_id=user.user_id,
                 action_type="CREATE",
-                target_table="TargetPromotionProduct",
+                target_table="TargetIrregularProduct",
                 details={
                     "action": "EXCEL_UPLOAD",
                     "filename": file.filename,

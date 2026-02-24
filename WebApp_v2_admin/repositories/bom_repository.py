@@ -4,7 +4,7 @@ BOM (ProductBOM) Repository
 """
 
 from typing import Dict, Any, Optional, List
-from core import BaseRepository, QueryBuilder, get_db_cursor
+from core import BaseRepository, QueryBuilder, get_db_cursor, log_changes
 
 
 class BOMRepository(BaseRepository):
@@ -274,21 +274,37 @@ class BOMRepository(BaseRepository):
 
             return int(bom_id)
 
-    def update(self, id_value: Any, data: Dict[str, Any]) -> bool:
+    def update(self, id_value: Any, data: Dict[str, Any], user_id: int = None) -> bool:
         """
         BOM 수정 (UpdatedDate 자동 갱신)
 
         Args:
             id_value: 수정할 BOMID
             data: 수정할 데이터 딕셔너리
+            user_id: 변경 이력 기록용 사용자 ID
 
         Returns:
             bool: 수정 성공 여부
         """
+        # ChangeLog용 추적 필드 (UpdatedDate 제외)
+        track_data = {k: v for k, v in data.items()}
+
         # UpdatedDate 자동 추가
         data['UpdatedDate'] = 'GETDATE()'
 
         with get_db_cursor(commit=True) as cursor:
+            # 변경 전 값 조회 (ChangeLog)
+            old_data = None
+            if user_id is not None:
+                columns_sql = ', '.join(track_data.keys())
+                cursor.execute(
+                    f"SELECT {columns_sql} FROM {self.table_name} WHERE {self.id_column} = ?",
+                    id_value
+                )
+                old_row = cursor.fetchone()
+                if old_row:
+                    old_data = {col: old_row[i] for i, col in enumerate(track_data.keys())}
+
             # UPDATE 쿼리 생성
             set_clauses = []
             params = []
@@ -309,7 +325,12 @@ class BOMRepository(BaseRepository):
             """
 
             cursor.execute(query, *params)
-            return cursor.rowcount > 0
+            updated = cursor.rowcount > 0
+
+            if user_id is not None and updated and old_data is not None:
+                log_changes(cursor, self.table_name, id_value, old_data, track_data, user_id)
+
+            return updated
 
     def get_metadata(self) -> Dict[str, list]:
         """BOM 메타데이터 조회 (필터용 + 추가용)"""

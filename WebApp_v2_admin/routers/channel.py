@@ -156,7 +156,7 @@ async def create_channel(
         if channel_repo.check_duplicate("Name", data.Name):
             raise HTTPException(400, f"중복된 채널명입니다: {data.Name}")
 
-        channel_id = channel_repo.create(data.dict(exclude_none=True))
+        channel_id = channel_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
 
         return {"ChannelID": channel_id, "Name": data.Name}
     except HTTPException:
@@ -209,7 +209,7 @@ async def update_channel(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = channel_repo.update(channel_id, update_data)
+        success = channel_repo.update(channel_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "채널 수정 실패")
 
@@ -296,7 +296,7 @@ async def create_channel_detail(
 
         detail_data = data.dict()
         detail_data['ChannelID'] = channel_id
-        detail_id = detail_repo.create(detail_data)
+        detail_id = detail_repo.create(detail_data, user_id=user.user_id)
 
         return {"ChannelDetailID": detail_id, "DetailName": data.DetailName, "ChannelID": channel_id}
     except HTTPException:
@@ -322,7 +322,7 @@ async def update_channel_detail(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = detail_repo.update(detail_id, update_data)
+        success = detail_repo.update(detail_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "채널 상세 수정 실패")
 
@@ -422,7 +422,7 @@ async def create_channeldetail_direct(
         if data.BizNumber and detail_repo.check_duplicate("BizNumber", data.BizNumber):
             raise HTTPException(400, f"중복된 사업자번호입니다: {data.BizNumber}")
 
-        detail_id = detail_repo.create(data.dict(exclude_none=True))
+        detail_id = detail_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
 
         return {"ChannelDetailID": detail_id, "DetailName": data.DetailName, "ChannelID": data.ChannelID}
     except HTTPException:
@@ -454,7 +454,7 @@ async def update_channeldetail_direct(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = detail_repo.update(detail_id, update_data)
+        success = detail_repo.update(detail_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "상세정보 수정 실패")
 

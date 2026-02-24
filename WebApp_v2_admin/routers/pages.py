@@ -91,14 +91,14 @@ async def targets_page(request: Request, redirect = Depends(require_login_for_pa
     })
 
 
-@router.get("/promotions", response_class=HTMLResponse)
-async def promotions_page(request: Request, redirect = Depends(require_login_for_page)):
-    """행사 관리 페이지"""
+@router.get("/irregulars", response_class=HTMLResponse)
+async def irregulars_page(request: Request, redirect = Depends(require_login_for_page)):
+    """비정기 관리 페이지"""
     if redirect:
         return redirect
-    return templates.TemplateResponse("promotions.html", {
+    return templates.TemplateResponse("irregulars.html", {
         "request": request,
-        "active_page": "promotions"
+        "active_page": "irregulars"
     })
 
 

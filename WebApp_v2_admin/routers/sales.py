@@ -156,7 +156,7 @@ async def create_sales(
 ):
     """ERPSales 생성"""
     try:
-        idx = sales_repo.create(data.dict(exclude_none=True))
+        idx = sales_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
 
         return {"IDX": idx, "PRODUCT_NAME": data.PRODUCT_NAME, "ERPCode": data.ERPCode}
     except Exception as e:
@@ -180,7 +180,7 @@ async def update_sales(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = sales_repo.update(idx, update_data)
+        success = sales_repo.update(idx, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "판매 데이터 수정 실패")
 

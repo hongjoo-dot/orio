@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, List, Dict, Any, Optional, Tuple
 from .database import get_db_cursor, get_db_transaction
 from .query_builder import QueryBuilder, build_insert_query, build_update_query, build_delete_query
+from .changelog import log_changes
 
 T = TypeVar('T')
 
@@ -122,12 +123,13 @@ class BaseRepository(ABC, Generic[T]):
 
             return self._row_to_dict(row) if row else None
 
-    def create(self, data: Dict[str, Any]) -> int:
+    def create(self, data: Dict[str, Any], user_id: Optional[int] = None) -> int:
         """
         새 레코드 생성
 
         Args:
             data: 생성할 데이터 딕셔너리
+            user_id: 변경 이력 기록용 사용자 ID (None이면 ChangeLog 미기록)
 
         Returns:
             int: 생성된 레코드의 ID
@@ -140,22 +142,41 @@ class BaseRepository(ABC, Generic[T]):
             cursor.execute("SELECT @@IDENTITY")
             new_id = int(cursor.fetchone()[0])
 
+            if user_id is not None:
+                log_changes(cursor, self.table_name, new_id, None, data, user_id)
+
             return new_id
 
-    def update(self, id_value: Any, data: Dict[str, Any]) -> bool:
+    def update(self, id_value: Any, data: Dict[str, Any], user_id: Optional[int] = None) -> bool:
         """
         레코드 수정
 
         Args:
             id_value: 수정할 레코드의 ID
             data: 수정할 데이터 딕셔너리
+            user_id: 변경 이력 기록용 사용자 ID (None이면 ChangeLog 미기록)
 
         Returns:
             bool: 수정 성공 여부
         """
         with get_db_cursor() as cursor:
+            # 변경 전 값 조회 (ChangeLog 기록용)
+            old_data = None
+            if user_id is not None:
+                columns_sql = ', '.join(data.keys())
+                cursor.execute(
+                    f"SELECT {columns_sql} FROM {self.table_name} WHERE {self.id_column} = ?",
+                    id_value
+                )
+                old_row = cursor.fetchone()
+                if old_row:
+                    old_data = {col: old_row[i] for i, col in enumerate(data.keys())}
+
             query, params = build_update_query(self.table_name, self.id_column, id_value, data)
             cursor.execute(query, *params)
+
+            if user_id is not None and cursor.rowcount > 0 and old_data is not None:
+                log_changes(cursor, self.table_name, id_value, old_data, data, user_id)
 
             return cursor.rowcount > 0
 

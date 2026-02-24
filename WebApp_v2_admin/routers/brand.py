@@ -78,7 +78,7 @@ async def create_brand(
 ):
     """Brand 생성"""
     try:
-        brand_id = brand_repo.create(data.dict(exclude_none=True))
+        brand_id = brand_repo.create(data.dict(exclude_none=True), user_id=user.user_id)
         return {"BrandID": brand_id, "Name": data.Name, "Title": data.Title}
     except Exception as e:
         raise HTTPException(500, f"브랜드 생성 실패: {str(e)}")
@@ -101,7 +101,7 @@ async def update_brand(
         if not update_data:
             raise HTTPException(400, "수정할 데이터가 없습니다")
 
-        success = brand_repo.update(brand_id, update_data)
+        success = brand_repo.update(brand_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "브랜드 수정 실패")
 

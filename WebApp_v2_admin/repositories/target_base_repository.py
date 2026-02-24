@@ -4,7 +4,7 @@ TargetBaseProduct Repository
 """
 
 from typing import Dict, Any, Optional, List
-from core import BaseRepository, QueryBuilder, get_db_cursor
+from core import BaseRepository, QueryBuilder, get_db_cursor, log_changes_bulk
 from utils.helpers import calculate_amount_ex_vat
 
 
@@ -292,11 +292,15 @@ class TargetBaseRepository(BaseRepository):
             cursor.execute(query, *params)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
-    def bulk_update_amounts(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def bulk_update_amounts(self, records: List[Dict[str, Any]], user_id: int = None) -> Dict[str, Any]:
         """인라인 편집 일괄 저장 (TargetAmount, TargetQuantity, Notes만 업데이트)"""
         total_updated = 0
+        track_fields = ['TargetAmount', 'TargetQuantity', 'Notes']
 
         with get_db_cursor() as cursor:
+            if user_id is not None:
+                log_changes_bulk(cursor, self.table_name, 'TargetBaseID', records, track_fields, user_id)
+
             for record in records:
                 target_id = record.get('TargetBaseID')
                 if not target_id:

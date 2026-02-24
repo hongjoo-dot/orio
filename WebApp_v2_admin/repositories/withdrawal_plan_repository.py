@@ -5,7 +5,7 @@ WithdrawalPlan Repository
 """
 
 from typing import Dict, Any, Optional, List
-from core import BaseRepository, QueryBuilder, get_db_cursor
+from core import BaseRepository, QueryBuilder, get_db_cursor, log_changes_bulk
 
 
 class WithdrawalPlanRepository(BaseRepository):
@@ -152,8 +152,10 @@ class WithdrawalPlanRepository(BaseRepository):
 
     # ========== CRUD 메서드 ==========
 
-    def create(self, data: Dict[str, Any]) -> int:
+    def create(self, data: Dict[str, Any], user_id: int = None) -> int:
         """새 WithdrawalPlan 생성"""
+        from core.changelog import log_changes
+
         with get_db_cursor() as cursor:
             columns = list(data.keys())
             placeholders = ', '.join(['?' for _ in columns])
@@ -162,7 +164,12 @@ class WithdrawalPlanRepository(BaseRepository):
             params = [data[col] for col in columns]
             cursor.execute(query, *params)
             row = cursor.fetchone()
-            return row[0] if row else None
+            plan_id = row[0] if row else None
+
+            if user_id is not None and plan_id is not None:
+                log_changes(cursor, self.table_name, plan_id, None, data, user_id)
+
+            return plan_id
 
     def bulk_upsert(self, records: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, Any]:
         """
@@ -257,11 +264,15 @@ class WithdrawalPlanRepository(BaseRepository):
             cursor.execute(query, *ids)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
-    def bulk_update_items(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def bulk_update_items(self, records: List[Dict[str, Any]], user_id: int = None) -> Dict[str, Any]:
         """인라인 편집 일괄 저장 (PlannedQty, Notes 업데이트)"""
         total_updated = 0
+        track_fields = ['PlannedQty', 'Notes']
 
         with get_db_cursor() as cursor:
+            if user_id is not None:
+                log_changes_bulk(cursor, self.table_name, 'PlanID', records, track_fields, user_id)
+
             for record in records:
                 plan_id = record.get('PlanID')
                 if not plan_id:

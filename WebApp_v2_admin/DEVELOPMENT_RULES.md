@@ -100,17 +100,18 @@ new_entity_repo = NewEntityRepository()
 
 **엔드포인트별 필수 패턴:**
 
-| 동작 | 메서드 | 경로 | 권한 | 활동 로깅 |
-|------|--------|------|------|-----------|
-| 목록 조회 | GET | `""` | READ | 불필요 |
-| 단건 조회 | GET | `"/{id}"` | READ | 불필요 |
-| 메타데이터 | GET | `"/metadata"` | READ | 불필요 |
-| 생성 | POST | `""` | CREATE | **필수** `@log_activity` |
-| 수정 | PUT | `"/{id}"` | UPDATE | **필수** `@log_activity` |
-| 삭제 | DELETE | `"/{id}"` | DELETE | **필수** `@log_delete` |
-| 일괄 삭제 | POST | `"/bulk-delete"` | DELETE | **필수** `@log_bulk_delete` |
-| 엑셀 다운로드 | GET | `"/download/excel"` | EXPORT | 불필요 |
-| 엑셀 업로드 | POST | `"/upload/excel"` | IMPORT | 불필요 |
+| 동작 | 메서드 | 경로 | 권한 | 활동 로깅 | 변경 이력 |
+|------|--------|------|------|-----------|-----------|
+| 목록 조회 | GET | `""` | READ | 불필요 | 불필요 |
+| 단건 조회 | GET | `"/{id}"` | READ | 불필요 | 불필요 |
+| 메타데이터 | GET | `"/metadata"` | READ | 불필요 | 불필요 |
+| 생성 | POST | `""` | CREATE | **필수** `@log_activity` | **필수** `log_changes()` |
+| 수정 | PUT | `"/{id}"` | UPDATE | **필수** `@log_activity` | **필수** `log_changes()` |
+| 일괄 수정 | PUT | `"/bulk-update"` | UPDATE | **필수** `@log_activity` | **필수** `log_changes()` |
+| 삭제 | DELETE | `"/{id}"` | DELETE | **필수** `@log_delete` | 불필요 |
+| 일괄 삭제 | POST | `"/bulk-delete"` | DELETE | **필수** `@log_bulk_delete` | 불필요 |
+| 엑셀 다운로드 | GET | `"/download/excel"` | EXPORT | 불필요 | 불필요 |
+| 엑셀 업로드 | POST | `"/upload/excel"` | IMPORT | 불필요 | 불필요 (ActivityLog 요약으로 대체) |
 
 ### 2-3. 활동 로깅 (Activity Logging) - 필수
 
@@ -265,6 +266,74 @@ app.include_router(new_entity.router)
 # 서브 라우터가 있는 경우:
 app.include_router(new_entity.detail_router)
 ```
+
+### 2-9. 변경 이력 (ChangeLog) - 필수
+
+**데이터 INSERT/UPDATE 시 필드별 변경 전/후 값을 `ChangeLog` 테이블에 기록합니다.**
+
+ActivityLog(행위 로그)와는 별개로, 필드 단위의 상세 변경 이력을 남깁니다.
+
+```
+ActivityLog  →  "누가 무엇을 했는가" (행위 로그, 기존 유지)
+ChangeLog    →  "어떤 값이 어떻게 바뀌었는가" (필드별 이력, 독립 테이블)
+```
+
+#### ChangeLog 테이블 구조
+
+```sql
+CREATE TABLE [dbo].[ChangeLog] (
+    ChangeID    BIGINT IDENTITY(1,1) PRIMARY KEY,
+    TableName   NVARCHAR(100) NOT NULL,    -- 대상 테이블명
+    RecordID    NVARCHAR(50) NOT NULL,     -- 대상 레코드 PK
+    FieldName   NVARCHAR(100) NOT NULL,    -- 변경된 필드명
+    OldValue    NVARCHAR(500) NULL,        -- 변경 전 값 (INSERT 시 NULL)
+    NewValue    NVARCHAR(500) NULL,        -- 변경 후 값
+    ChangedBy   INT NOT NULL,              -- UserID
+    ChangedDate DATETIME DEFAULT GETDATE()
+);
+```
+
+#### 공통 함수 사용법
+
+```python
+from core.changelog import log_changes
+
+# UPDATE 시: 변경 전 값 조회 → UPDATE 실행 → 변경 이력 기록
+def bulk_update_items(self, records, user_id):
+    with get_db_cursor() as cursor:
+        for record in records:
+            id_val = record['PlanID']
+
+            # 1) 변경 전 값 조회
+            cursor.execute("SELECT PlannedQty, Notes FROM [dbo].[WithdrawalPlan] WHERE PlanID = ?", id_val)
+            old_row = cursor.fetchone()
+            old_data = {"PlannedQty": old_row[0], "Notes": old_row[1]}
+
+            # 2) UPDATE 실행
+            cursor.execute("UPDATE [dbo].[WithdrawalPlan] SET PlannedQty=?, Notes=? WHERE PlanID=?", ...)
+
+            # 3) 변경 이력 기록 (변경된 필드만 자동 비교하여 INSERT)
+            new_data = {"PlannedQty": record['PlannedQty'], "Notes": record['Notes']}
+            log_changes(cursor, "WithdrawalPlan", "PlanID", id_val, old_data, new_data, user_id)
+
+# INSERT 시: old_data=None 으로 호출
+log_changes(cursor, "WithdrawalPlan", "PlanID", new_id, None, new_data, user_id)
+```
+
+#### 적용 대상
+
+| 동작 | ChangeLog 기록 |
+|------|---------------|
+| 생성 (POST) | `OldValue=NULL`, `NewValue=입력값` |
+| 수정 (PUT, bulk-update) | `OldValue=변경전`, `NewValue=변경후` (변경된 필드만) |
+| 엑셀 업로드 (INSERT/UPDATE) | 불필요 (ActivityLog에 파일명/건수 요약 기록) |
+| 삭제 (DELETE) | 불필요 (ActivityLog에서 처리) |
+
+#### 규칙
+
+- `log_changes()`는 **값이 실제로 변경된 필드만** 기록 (동일 값이면 SKIP)
+- `user_id`는 라우터에서 받아 repository 메서드에 전달
+- Notes 등 빈 문자열과 NULL은 동일하게 취급
 
 ---
 
@@ -557,7 +626,25 @@ async function bulkDelete() {
 }
 ```
 
-### 3-4. 사용 가능한 공통 모듈
+### 3-4. 인라인 편집 페이지 필수 패턴
+
+마스터-디테일 레이아웃에서 인라인 편집(dirtyRows)을 사용하는 페이지는 아래를 **반드시** 구현합니다.
+
+```javascript
+// DOMContentLoaded 내부에서 등록
+window.addEventListener('beforeunload', (e) => {
+    if (dirtyRows.size > 0) {
+        e.preventDefault();
+    }
+});
+```
+
+**필수 이탈 방지 체크포인트:**
+- `beforeunload`: 브라우저 탭 닫기/새로고침/URL 이동
+- 마스터 행 클릭 시: `dirtyRows.size > 0`이면 `showConfirm()` 후 처리
+- 정렬/필터 변경 시: `dirtyRows.size > 0`이면 `showConfirm()` 후 처리
+
+### 3-5. 사용 가능한 공통 모듈
 
 | 모듈 | 전역 변수/클래스 | 주요 메서드 |
 |------|-----------------|-------------|
@@ -567,7 +654,7 @@ async function bulkDelete() {
 | `modal-manager.js` | `ModalManager` | `show()`, `hide()`, `toggle()`, `isVisible()`, `resetForm()` |
 | `ui-utils.js` | `showAlert()`, `showConfirm()` | `showAlert(msg, type)` type: success/error/warning/info |
 
-### 3-5. CSS 사용 가능한 클래스
+### 3-6. CSS 사용 가능한 클래스
 
 **버튼:** `.btn`, `.btn-primary`, `.btn-success`, `.btn-danger`, `.btn-secondary`, `.btn-sm`, `.btn-lg`
 **폼:** `.form-group`, `.form-label`, `.form-label.required`, `.form-input`, `.form-select`
@@ -577,7 +664,7 @@ async function bulkDelete() {
 **알림:** `.alert`, `.alert-success`, `.alert-warning`, `.alert-danger`
 **텍스트:** `.text-muted`, `.text-success`, `.text-warning`, `.text-danger`
 
-### 3-6. CSS 변수 (커스텀 스타일 시)
+### 3-7. CSS 변수 (커스텀 스타일 시)
 
 ```css
 /* 색상 */
@@ -710,6 +797,7 @@ cursor.execute(f"SELECT * FROM [dbo].[Table] WHERE Name = '{name}'")
 
 - [ ] `require_permission()` 적용했는가
 - [ ] CUD 작업에 활동 로깅 데코레이터 적용했는가
+- [ ] INSERT/UPDATE 작업에 `log_changes()` 변경 이력을 기록했는가
 - [ ] 에러 처리 패턴(try/except HTTPException/except Exception) 적용했는가
 - [ ] 정렬 파라미터에 화이트리스트 적용했는가
 - [ ] Pydantic 모델로 요청 본문을 정의했는가
@@ -726,6 +814,7 @@ cursor.execute(f"SELECT * FROM [dbo].[Table] WHERE Name = '{name}'")
 - [ ] 새로운 유틸리티를 만들지 않고 기존 것을 사용했는가
 - [ ] CSS 변수를 사용했는가 (하드코딩된 색상 금지)
 - [ ] 컬럼 정의 객체를 사용하여 테이블을 렌더링했는가
+- [ ] 인라인 편집 페이지에 `beforeunload` 이탈 방지를 적용했는가
 
 ---
 

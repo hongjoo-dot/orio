@@ -174,7 +174,7 @@ async def update_user(
             detail="수정할 데이터가 없습니다"
         )
 
-    success = user_repo.update(user_id, update_data)
+    success = user_repo.update(user_id, update_data, user_id=admin.user_id)
 
     if not success:
         raise HTTPException(

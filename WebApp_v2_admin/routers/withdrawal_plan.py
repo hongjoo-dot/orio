@@ -537,7 +537,7 @@ async def bulk_update_withdrawal_plans_inline(
     """불출 계획 인라인 편집 일괄 저장"""
     try:
         items = [item.dict() for item in data.items]
-        result = plan_repo.bulk_update_items(items)
+        result = plan_repo.bulk_update_items(items, user_id=user.user_id)
         return result
     except HTTPException:
         raise
@@ -600,7 +600,7 @@ async def create_withdrawal_plan(
             'CreatedBy': user.user_id if user else None,
         }
 
-        plan_id = plan_repo.create(create_data)
+        plan_id = plan_repo.create(create_data, user_id=user.user_id)
         return {"PlanID": plan_id, "message": "생성 완료"}
     except HTTPException:
         raise
@@ -641,7 +641,7 @@ async def update_withdrawal_plan(
                 update_data['UniqueCode'] = row[1]
                 update_data['ProductName'] = row[2]
 
-        plan_repo.update(plan_id, update_data)
+        plan_repo.update(plan_id, update_data, user_id=user.user_id)
         return {"PlanID": plan_id, "message": "수정 완료"}
     except HTTPException:
         raise

@@ -1,20 +1,20 @@
 """
-PromotionProduct Repository
-- 행사 상품 테이블 CRUD 작업
+IrregularProduct Repository
+- 비정기 상품 테이블 CRUD 작업
 """
 
 from typing import Dict, Any, Optional, List
-from core import BaseRepository, QueryBuilder, get_db_cursor
+from core import BaseRepository, QueryBuilder, get_db_cursor, log_changes_bulk
 
 
-class PromotionProductRepository(BaseRepository):
-    """PromotionProduct 테이블 Repository"""
+class IrregularProductRepository(BaseRepository):
+    """IrregularProduct 테이블 Repository"""
 
     # SELECT 컬럼 상수 (순서 변경 금지 - _row_to_dict 인덱스와 일치해야 함)
     SELECT_COLUMNS = (
-        "pp.PromotionProductID", "pp.PromotionID",
+        "pp.IrregularProductID", "pp.IrregularID",
         "pp.ERPCode", "pp.UniqueCode", "pp.ProductName",
-        "pp.SellingPrice", "pp.PromotionPrice", "pp.SupplyPrice",
+        "pp.SellingPrice", "pp.IrregularPrice", "pp.SupplyPrice",
         "pp.CouponDiscountRate",
         "pp.UnitCost", "pp.LogisticsCost", "pp.ManagementCost",
         "pp.WarehouseCost", "pp.EDICost", "pp.MisCost",
@@ -23,9 +23,9 @@ class PromotionProductRepository(BaseRepository):
         "pp.CreatedDate", "pp.UpdatedDate"
     )
 
-    # JOIN 시 추가 컬럼 (행사 상품 탭에서 Promotion 정보 표시)
+    # JOIN 시 추가 컬럼 (비정기 상품 탭에서 Irregular 정보 표시)
     JOIN_COLUMNS = (
-        "p.PromotionName", "p.PromotionType",
+        "p.IrregularName", "p.IrregularType",
         "p.StartDate", "p.EndDate",
         "p.BrandID", "p.BrandName",
         "p.ChannelID", "p.ChannelName",
@@ -33,27 +33,27 @@ class PromotionProductRepository(BaseRepository):
     )
 
     def __init__(self):
-        super().__init__(table_name="[dbo].[PromotionProduct]", id_column="PromotionProductID")
+        super().__init__(table_name="[dbo].[IrregularProduct]", id_column="IrregularProductID")
 
     def get_select_query(self) -> str:
-        """PromotionProduct 조회 쿼리 (Promotion JOIN 포함)"""
+        """IrregularProduct 조회 쿼리 (Irregular JOIN 포함)"""
         columns = ", ".join(self.SELECT_COLUMNS) + ", " + ", ".join(self.JOIN_COLUMNS)
         return (
             f"SELECT {columns} "
-            f"FROM [dbo].[PromotionProduct] pp "
-            f"JOIN [dbo].[Promotion] p ON pp.PromotionID = p.PromotionID"
+            f"FROM [dbo].[IrregularProduct] pp "
+            f"JOIN [dbo].[Irregular] p ON pp.IrregularID = p.IrregularID"
         )
 
     def _row_to_dict(self, row) -> Dict[str, Any]:
         """Row를 Dictionary로 변환 (JOIN 컬럼 포함)"""
         return {
-            "PromotionProductID": row[0],
-            "PromotionID": row[1],
+            "IrregularProductID": row[0],
+            "IrregularID": row[1],
             "ERPCode": row[2],
             "UniqueCode": row[3],
             "ProductName": row[4],
             "SellingPrice": float(row[5]) if row[5] else 0,
-            "PromotionPrice": float(row[6]) if row[6] else 0,
+            "IrregularPrice": float(row[6]) if row[6] else 0,
             "SupplyPrice": float(row[7]) if row[7] else 0,
             "CouponDiscountRate": float(row[8]) if row[8] else None,
             "UnitCost": float(row[9]) if row[9] else 0,
@@ -68,8 +68,8 @@ class PromotionProductRepository(BaseRepository):
             "CreatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None,
             "UpdatedDate": row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else None,
             # JOIN 컬럼
-            "PromotionName": row[20],
-            "PromotionType": row[21],
+            "IrregularName": row[20],
+            "IrregularType": row[21],
             "StartDate": row[22].strftime('%Y-%m-%d') if row[22] else None,
             "EndDate": row[23].strftime('%Y-%m-%d') if row[23] else None,
             "BrandID": row[24],
@@ -81,18 +81,18 @@ class PromotionProductRepository(BaseRepository):
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
         """
-        PromotionProduct 전용 필터 로직
+        IrregularProduct 전용 필터 로직
 
         지원하는 필터:
-        - promotion_id: PromotionID 정확히 매칭
-        - year_month: Promotion.StartDate 기준 년월
-        - brand_id: Promotion.BrandID
-        - channel_id: Promotion.ChannelID
-        - promotion_type: Promotion.PromotionType
-        - status: Promotion.Status
+        - irregular_id: IrregularID 정확히 매칭
+        - year_month: Irregular.StartDate 기준 년월
+        - brand_id: Irregular.BrandID
+        - channel_id: Irregular.ChannelID
+        - irregular_type: Irregular.IrregularType
+        - status: Irregular.Status
         """
-        if filters.get('promotion_id'):
-            builder.where_equals("pp.PromotionID", filters['promotion_id'])
+        if filters.get('irregular_id'):
+            builder.where_equals("pp.IrregularID", filters['irregular_id'])
 
         if filters.get('year_month'):
             builder.where("FORMAT(p.StartDate, 'yyyy-MM') = ?", filters['year_month'])
@@ -103,18 +103,18 @@ class PromotionProductRepository(BaseRepository):
         if filters.get('channel_id'):
             builder.where_equals("p.ChannelID", filters['channel_id'])
 
-        if filters.get('promotion_type'):
-            builder.where_equals("p.PromotionType", filters['promotion_type'])
+        if filters.get('irregular_type'):
+            builder.where_equals("p.IrregularType", filters['irregular_type'])
 
         if filters.get('status'):
             builder.where_equals("p.Status", filters['status'])
 
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
-        """PromotionProduct 전용 QueryBuilder 생성 (JOIN 포함)"""
+        """IrregularProduct 전용 QueryBuilder 생성 (JOIN 포함)"""
         all_columns = list(self.SELECT_COLUMNS) + list(self.JOIN_COLUMNS)
         builder = QueryBuilder(
-            "[dbo].[PromotionProduct] pp "
-            "JOIN [dbo].[Promotion] p ON pp.PromotionID = p.PromotionID"
+            "[dbo].[IrregularProduct] pp "
+            "JOIN [dbo].[Irregular] p ON pp.IrregularID = p.IrregularID"
         )
         builder.select(*all_columns)
 
@@ -126,8 +126,8 @@ class PromotionProductRepository(BaseRepository):
     def bulk_upsert(self, records: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, Any]:
         """
         일괄 INSERT/UPDATE
-        - PromotionProductID가 있으면: ID 기반 UPDATE
-        - PromotionProductID가 없으면: 복합키(PromotionID+UniqueCode) 중복 체크 후 INSERT
+        - IrregularProductID가 있으면: ID 기반 UPDATE
+        - IrregularProductID가 없으면: 복합키(IrregularID+UniqueCode) 중복 체크 후 INSERT
 
         Returns:
             Dict: {"inserted": N, "updated": M, "duplicates": [...]}
@@ -139,16 +139,16 @@ class PromotionProductRepository(BaseRepository):
         # 1단계: 신규 레코드(ID 없음)에 대해 중복 체크 먼저 수행
         with get_db_cursor(commit=False) as cursor:
             for idx, record in enumerate(records):
-                product_id = record.get('PromotionProductID')
+                product_id = record.get('IrregularProductID')
                 row_num = record.get('_row_num', idx + 2)
 
                 if not product_id:
                     check_query = """
-                        SELECT PromotionProductID FROM [dbo].[PromotionProduct]
-                        WHERE PromotionID = ? AND UniqueCode = ?
+                        SELECT IrregularProductID FROM [dbo].[IrregularProduct]
+                        WHERE IrregularID = ? AND UniqueCode = ?
                     """
                     cursor.execute(check_query,
-                        record.get('PromotionID'),
+                        record.get('IrregularID'),
                         record.get('UniqueCode')
                     )
                     existing = cursor.fetchone()
@@ -156,7 +156,7 @@ class PromotionProductRepository(BaseRepository):
                     if existing:
                         duplicates.append({
                             'row': row_num,
-                            'promotion_id': record.get('PromotionID'),
+                            'irregular_id': record.get('IrregularID'),
                             'unique_code': record.get('UniqueCode'),
                             'existing_id': existing[0]
                         })
@@ -171,16 +171,16 @@ class PromotionProductRepository(BaseRepository):
                 batch = records[i:i + batch_size]
 
                 for record in batch:
-                    product_id = record.get('PromotionProductID')
+                    product_id = record.get('IrregularProductID')
 
                     if product_id:
                         # ID 기반 UPDATE (가격/비용 + 예상매출/수량 + 비고)
                         update_query = """
-                            UPDATE [dbo].[PromotionProduct]
+                            UPDATE [dbo].[IrregularProduct]
                             SET ERPCode = ?,
                                 ProductName = ?,
                                 SellingPrice = ?,
-                                PromotionPrice = ?,
+                                IrregularPrice = ?,
                                 SupplyPrice = ?,
                                 CouponDiscountRate = ?,
                                 UnitCost = ?,
@@ -193,13 +193,13 @@ class PromotionProductRepository(BaseRepository):
                                 ExpectedQuantity = ?,
                                 Notes = ?,
                                 UpdatedDate = GETDATE()
-                            WHERE PromotionProductID = ?
+                            WHERE IrregularProductID = ?
                         """
                         params = [
                             record.get('ERPCode'),
                             record.get('ProductName'),
                             record.get('SellingPrice'),
-                            record.get('PromotionPrice'),
+                            record.get('IrregularPrice'),
                             record.get('SupplyPrice'),
                             record.get('CouponDiscountRate'),
                             record.get('UnitCost'),
@@ -219,21 +219,21 @@ class PromotionProductRepository(BaseRepository):
                     else:
                         # 신규 INSERT
                         insert_query = """
-                            INSERT INTO [dbo].[PromotionProduct]
-                                (PromotionID, ERPCode, UniqueCode, ProductName,
-                                 SellingPrice, PromotionPrice, SupplyPrice,
+                            INSERT INTO [dbo].[IrregularProduct]
+                                (IrregularID, ERPCode, UniqueCode, ProductName,
+                                 SellingPrice, IrregularPrice, SupplyPrice,
                                  CouponDiscountRate, UnitCost, LogisticsCost,
                                  ManagementCost, WarehouseCost, EDICost, MisCost,
                                  ExpectedSalesAmount, ExpectedQuantity, Notes)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
-                            record.get('PromotionID'),
+                            record.get('IrregularID'),
                             record.get('ERPCode'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
                             record.get('SellingPrice'),
-                            record.get('PromotionPrice'),
+                            record.get('IrregularPrice'),
                             record.get('SupplyPrice'),
                             record.get('CouponDiscountRate'),
                             record.get('UnitCost'),
@@ -262,67 +262,71 @@ class PromotionProductRepository(BaseRepository):
             all_columns = ", ".join(self.SELECT_COLUMNS) + ", " + ", ".join(self.JOIN_COLUMNS)
             query = f"""
                 SELECT {all_columns}
-                FROM [dbo].[PromotionProduct] pp
-                JOIN [dbo].[Promotion] p ON pp.PromotionID = p.PromotionID
-                WHERE pp.PromotionProductID IN ({placeholders})
-                ORDER BY pp.PromotionID, pp.UniqueCode
+                FROM [dbo].[IrregularProduct] pp
+                JOIN [dbo].[Irregular] p ON pp.IrregularID = p.IrregularID
+                WHERE pp.IrregularProductID IN ({placeholders})
+                ORDER BY pp.IrregularID, pp.UniqueCode
             """
             cursor.execute(query, *ids)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
-    def get_by_promotion_id(self, promotion_id: str) -> List[Dict[str, Any]]:
+    def get_by_irregular_id(self, irregular_id: str) -> List[Dict[str, Any]]:
         """특정 행사의 전체 상품 목록 조회"""
         with get_db_cursor(commit=False) as cursor:
             all_columns = ", ".join(self.SELECT_COLUMNS) + ", " + ", ".join(self.JOIN_COLUMNS)
             query = f"""
                 SELECT {all_columns}
-                FROM [dbo].[PromotionProduct] pp
-                JOIN [dbo].[Promotion] p ON pp.PromotionID = p.PromotionID
-                WHERE pp.PromotionID = ?
+                FROM [dbo].[IrregularProduct] pp
+                JOIN [dbo].[Irregular] p ON pp.IrregularID = p.IrregularID
+                WHERE pp.IrregularID = ?
                 ORDER BY pp.UniqueCode
             """
-            cursor.execute(query, promotion_id)
+            cursor.execute(query, irregular_id)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
-    def get_by_promotion_ids(self, promotion_ids: List[str]) -> List[Dict[str, Any]]:
+    def get_by_irregular_ids(self, irregular_ids: List[str]) -> List[Dict[str, Any]]:
         """여러 행사의 상품 목록 조회"""
-        if not promotion_ids:
+        if not irregular_ids:
             return []
 
         with get_db_cursor(commit=False) as cursor:
-            placeholders = ','.join(['?' for _ in promotion_ids])
+            placeholders = ','.join(['?' for _ in irregular_ids])
             all_columns = ", ".join(self.SELECT_COLUMNS) + ", " + ", ".join(self.JOIN_COLUMNS)
             query = f"""
                 SELECT {all_columns}
-                FROM [dbo].[PromotionProduct] pp
-                JOIN [dbo].[Promotion] p ON pp.PromotionID = p.PromotionID
-                WHERE pp.PromotionID IN ({placeholders})
-                ORDER BY pp.PromotionID, pp.UniqueCode
+                FROM [dbo].[IrregularProduct] pp
+                JOIN [dbo].[Irregular] p ON pp.IrregularID = p.IrregularID
+                WHERE pp.IrregularID IN ({placeholders})
+                ORDER BY pp.IrregularID, pp.UniqueCode
             """
-            cursor.execute(query, *promotion_ids)
+            cursor.execute(query, *irregular_ids)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
-    def bulk_update_products(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """인라인 편집 일괄 저장 (PromotionPrice, ExpectedSalesAmount, ExpectedQuantity, Notes 업데이트)"""
+    def bulk_update_products(self, records: List[Dict[str, Any]], user_id: int = None) -> Dict[str, Any]:
+        """인라인 편집 일괄 저장 (IrregularPrice, ExpectedSalesAmount, ExpectedQuantity, Notes 업데이트)"""
         total_updated = 0
+        track_fields = ['IrregularPrice', 'ExpectedSalesAmount', 'ExpectedQuantity', 'Notes']
 
         with get_db_cursor() as cursor:
+            if user_id is not None:
+                log_changes_bulk(cursor, self.table_name, 'IrregularProductID', records, track_fields, user_id)
+
             for record in records:
-                product_id = record.get('PromotionProductID')
+                product_id = record.get('IrregularProductID')
                 if not product_id:
                     continue
 
                 query = """
-                    UPDATE [dbo].[PromotionProduct]
-                    SET PromotionPrice = ?,
+                    UPDATE [dbo].[IrregularProduct]
+                    SET IrregularPrice = ?,
                         ExpectedSalesAmount = ?,
                         ExpectedQuantity = ?,
                         Notes = ?,
                         UpdatedDate = GETDATE()
-                    WHERE PromotionProductID = ?
+                    WHERE IrregularProductID = ?
                 """
                 cursor.execute(query,
-                    float(record.get('PromotionPrice', 0) or 0),
+                    float(record.get('IrregularPrice', 0) or 0),
                     float(record.get('ExpectedSalesAmount', 0) or 0),
                     int(record.get('ExpectedQuantity', 0) or 0),
                     record.get('Notes'),
@@ -333,11 +337,11 @@ class PromotionProductRepository(BaseRepository):
 
         return {"updated": total_updated}
 
-    def delete_by_promotion_id(self, promotion_id: str) -> int:
+    def delete_by_irregular_id(self, irregular_id: str) -> int:
         """특정 행사의 전체 상품 삭제"""
         with get_db_cursor() as cursor:
             cursor.execute(
-                "DELETE FROM [dbo].[PromotionProduct] WHERE PromotionID = ?",
-                promotion_id
+                "DELETE FROM [dbo].[IrregularProduct] WHERE IrregularID = ?",
+                irregular_id
             )
             return cursor.rowcount

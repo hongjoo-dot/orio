@@ -13,8 +13,8 @@
     <button class="tab-btn active" data-tab="base" onclick="switchTab('base')">
         <i class="fa-solid fa-bullseye"></i> 정기 목표
     </button>
-    <button class="tab-btn" data-tab="promotion" onclick="switchTab('promotion')">
-        <i class="fa-solid fa-calendar-star"></i> 비정기 목표
+    <button class="tab-btn" data-tab="irregular" onclick="switchTab('irregular')">
+        <i class="fa-solid fa-calendar-check"></i> 비정기 목표
     </button>
 </div>
 
@@ -49,9 +49,9 @@
             </select>
         </div>
         <!-- 비정기 목표 탭에서만 보이는 필터 -->
-        <div id="promotionFilterWrap" style="display:none;">
+        <div id="irregularFilterWrap" style="display:none;">
             <label class="form-label">행사유형</label>
-            <select id="searchPromotionType" class="form-select">
+            <select id="searchIrregularType" class="form-select">
                 <option value="">전체</option>
             </select>
         </div>

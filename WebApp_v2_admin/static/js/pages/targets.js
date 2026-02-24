@@ -27,8 +27,8 @@ let promoGroupDataMap = {};          // {GroupKey: groupObj}
 let currentPromoGroups = [];         // 마스터 데이터 (정렬용)
 let currentPromoGroupKey = null;
 let currentPromoGroupData = null;
-let promoOriginalData = {};          // {TargetPromotionID: {TargetAmount, TargetQuantity, Notes}}
-let promoDirtyRows = new Map();      // Map<TargetPromotionID, {TargetAmount, TargetQuantity, Notes}>
+let promoOriginalData = {};          // {TargetIrregularID: {TargetAmount, TargetQuantity, Notes}}
+let promoDirtyRows = new Map();      // Map<TargetIrregularID, {TargetAmount, TargetQuantity, Notes}>
 let currentPromoDetailItems = [];    // 디테일 데이터 (정렬용)
 
 // ==================== 정기 목표 마스터 컬럼 정의 ====================
@@ -120,8 +120,8 @@ const promoMasterColumns = [
         header: '채널',
         sortKey: 'ChannelName',
         render: (row) => `<div class="group-info">
-            <span class="group-title">${escapeHtml(row.PromotionName)}</span>
-            <span class="group-meta">${escapeHtml(row.ChannelName)} · ${escapeHtml(row.PromotionType)}</span>
+            <span class="group-title">${escapeHtml(row.IrregularName)}</span>
+            <span class="group-meta">${escapeHtml(row.ChannelName)} · ${escapeHtml(row.IrregularType)}</span>
         </div>`
     },
     {
@@ -157,12 +157,12 @@ const promoDetailColumns = [
         header: '목표금액(VAT포함)',
         sortKey: 'TargetAmount',
         render: (row) => {
-            const dirty = promoDirtyRows.get(row.TargetPromotionID);
+            const dirty = promoDirtyRows.get(row.TargetIrregularID);
             const val = dirty && dirty.TargetAmount !== undefined ? dirty.TargetAmount : (row.TargetAmount || 0);
-            const original = promoOriginalData[row.TargetPromotionID];
+            const original = promoOriginalData[row.TargetIrregularID];
             const isDirty = original && val !== original.TargetAmount;
             return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
-                data-id="${row.TargetPromotionID}" data-field="TargetAmount" data-tab="promotion"
+                data-id="${row.TargetIrregularID}" data-field="TargetAmount" data-tab="irregular"
                 value="${val.toLocaleString()}"
                 onfocus="onInlineFocus(this)" onblur="onAmountBlur(this)">`;
         }
@@ -172,12 +172,12 @@ const promoDetailColumns = [
         header: '목표수량',
         sortKey: 'TargetQuantity',
         render: (row) => {
-            const dirty = promoDirtyRows.get(row.TargetPromotionID);
+            const dirty = promoDirtyRows.get(row.TargetIrregularID);
             const val = dirty && dirty.TargetQuantity !== undefined ? dirty.TargetQuantity : (row.TargetQuantity || 0);
-            const original = promoOriginalData[row.TargetPromotionID];
+            const original = promoOriginalData[row.TargetIrregularID];
             const isDirty = original && val !== original.TargetQuantity;
             return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
-                data-id="${row.TargetPromotionID}" data-field="TargetQuantity" data-tab="promotion"
+                data-id="${row.TargetIrregularID}" data-field="TargetQuantity" data-tab="irregular"
                 value="${val.toLocaleString()}"
                 onfocus="onInlineFocus(this)" onblur="onQuantityBlur(this)">`;
         }
@@ -186,12 +186,12 @@ const promoDetailColumns = [
         key: 'Notes',
         header: '비고',
         render: (row) => {
-            const dirty = promoDirtyRows.get(row.TargetPromotionID);
+            const dirty = promoDirtyRows.get(row.TargetIrregularID);
             const val = dirty && dirty.Notes !== undefined ? dirty.Notes : (row.Notes || '');
-            const original = promoOriginalData[row.TargetPromotionID];
+            const original = promoOriginalData[row.TargetIrregularID];
             const isDirty = original && val !== (original.Notes || '');
             return `<input type="text" class="inline-input${isDirty ? ' dirty' : ''}"
-                data-id="${row.TargetPromotionID}" data-field="Notes" data-tab="promotion"
+                data-id="${row.TargetIrregularID}" data-field="Notes" data-tab="irregular"
                 value="${escapeHtml(val)}"
                 oninput="onNotesInput(this)">`;
         }
@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 비정기 목표 디테일 테이블 매니저
     promoDetailTableManager = new TableManager('promo-detail-table', {
         selectable: true,
-        idKey: 'TargetPromotionID',
+        idKey: 'TargetIrregularID',
         onSelectionChange: (selectedIds) => {
             updatePromoDetailActionButtons(selectedIds);
         },
@@ -365,18 +365,18 @@ function doSwitchTab(tab) {
 
     // 컨테이너 토글
     document.getElementById('baseMasterDetail').style.display = tab === 'base' ? 'grid' : 'none';
-    document.getElementById('promoMasterDetail').style.display = tab === 'promotion' ? 'grid' : 'none';
+    document.getElementById('promoMasterDetail').style.display = tab === 'irregular' ? 'grid' : 'none';
 
     // 필터 표시/숨김
-    document.getElementById('channelFilterWrap').style.display = tab === 'promotion' ? '' : 'none';
-    document.getElementById('promotionFilterWrap').style.display = tab === 'promotion' ? '' : 'none';
+    document.getElementById('channelFilterWrap').style.display = tab === 'irregular' ? '' : 'none';
+    document.getElementById('irregularFilterWrap').style.display = tab === 'irregular' ? '' : 'none';
 
     // 업로드 모달 제목
     document.getElementById('uploadModalTitle').textContent =
         tab === 'base' ? '정기 목표 데이터 업로드' : '비정기 목표 데이터 업로드';
 
-    if (tab === 'promotion') {
-        loadPromotionTypes();
+    if (tab === 'irregular') {
+        loadIrregularTypes();
         loadPromoGroupMaster();
     }
 }
@@ -705,15 +705,15 @@ async function loadPromoGroupMaster() {
     try {
         const brandId = document.getElementById('searchBrand').value;
         const channelId = document.getElementById('searchChannel').value;
-        const promotionType = document.getElementById('searchPromotionType').value;
+        const irregularType = document.getElementById('searchIrregularType').value;
 
         const params = { year_month: yearMonth };
         if (brandId) params.brand_id = brandId;
         if (channelId) params.channel_id = channelId;
-        if (promotionType) params.promotion_type = promotionType;
+        if (irregularType) params.irregular_type = irregularType;
         const queryString = api.buildQueryString(params);
 
-        const result = await api.get(`/api/targets/promotion/groups${queryString}`);
+        const result = await api.get(`/api/targets/irregular/groups${queryString}`);
         const groups = result.data || [];
 
         currentPromoGroups = groups;
@@ -786,14 +786,14 @@ async function loadPromoGroupDetail(group) {
 
         const params = {
             channel_id: group.ChannelID,
-            promotion_name: group.PromotionName,
-            promotion_type: group.PromotionType,
+            irregular_name: group.IrregularName,
+            irregular_type: group.IrregularType,
             year_month: yearMonth
         };
         if (brandId) params.brand_id = brandId;
         const queryString = api.buildQueryString(params);
 
-        const result = await api.get(`/api/targets/promotion/group-items${queryString}`);
+        const result = await api.get(`/api/targets/irregular/group-items${queryString}`);
         const items = result.data || [];
 
         currentPromoDetailItems = items;
@@ -803,7 +803,7 @@ async function loadPromoGroupDetail(group) {
 
         promoOriginalData = {};
         items.forEach(item => {
-            promoOriginalData[item.TargetPromotionID] = {
+            promoOriginalData[item.TargetIrregularID] = {
                 TargetAmount: item.TargetAmount || 0,
                 TargetQuantity: item.TargetQuantity || 0,
                 Notes: item.Notes || ''
@@ -838,12 +838,12 @@ function renderPromoGroupSummary(group) {
     document.getElementById('promoGroupSummary').innerHTML = `
         <div class="group-summary-title">
             <i class="fa-solid fa-chart-bar" style="color:var(--accent);"></i>
-            ${escapeHtml(group.ChannelName)} · ${escapeHtml(group.PromotionName)} 목표 요약
+            ${escapeHtml(group.ChannelName)} · ${escapeHtml(group.IrregularName)} 목표 요약
         </div>
         <div class="group-summary-grid">
             <div class="summary-item">
                 <span class="summary-label">행사유형</span>
-                <span class="summary-value">${escapeHtml(group.PromotionType)}</span>
+                <span class="summary-value">${escapeHtml(group.IrregularType)}</span>
             </div>
             <div class="summary-item">
                 <span class="summary-label">기간</span>
@@ -919,16 +919,16 @@ async function downloadPromoMasterEditForm() {
 
             const params = {
                 channel_id: group.ChannelID,
-                promotion_name: group.PromotionName,
-                promotion_type: group.PromotionType,
+                irregular_name: group.IrregularName,
+                irregular_type: group.IrregularType,
                 year_month: yearMonth
             };
             if (brandId) params.brand_id = brandId;
             const queryString = api.buildQueryString(params);
 
-            const result = await api.get(`/api/targets/promotion/group-items${queryString}`);
+            const result = await api.get(`/api/targets/irregular/group-items${queryString}`);
             const items = result.data || [];
-            items.forEach(item => allIds.push(item.TargetPromotionID));
+            items.forEach(item => allIds.push(item.TargetIrregularID));
         }
 
         if (allIds.length === 0) {
@@ -938,7 +938,7 @@ async function downloadPromoMasterEditForm() {
 
         const params = { ids: allIds.join(',') };
         const queryString = api.buildQueryString(params);
-        window.location.href = `/api/targets/promotion/download${queryString}`;
+        window.location.href = `/api/targets/irregular/download${queryString}`;
 
     } catch (e) {
         console.error('수정 양식 다운로드 실패:', e);
@@ -975,7 +975,7 @@ async function bulkDeletePromoItems() {
 
     showConfirm(`${selectedIds.length}개 항목을 삭제하시겠습니까?`, async () => {
         try {
-            const result = await api.post('/api/targets/promotion/bulk-delete', { ids: selectedIds });
+            const result = await api.post('/api/targets/irregular/bulk-delete', { ids: selectedIds });
 
             showAlert(`${result.deleted_count}개 항목이 삭제되었습니다.`, 'success');
 
@@ -1001,7 +1001,7 @@ async function savePromoChanges() {
     const items = [];
     promoDirtyRows.forEach((data, id) => {
         items.push({
-            TargetPromotionID: id,
+            TargetIrregularID: id,
             TargetAmount: data.TargetAmount,
             TargetQuantity: data.TargetQuantity,
             Notes: data.Notes
@@ -1009,16 +1009,16 @@ async function savePromoChanges() {
     });
 
     try {
-        const result = await api.put('/api/targets/promotion/bulk-update', { items });
+        const result = await api.put('/api/targets/irregular/bulk-update', { items });
         showAlert(`${result.updated}건이 저장되었습니다.`, 'success');
 
         items.forEach(item => {
-            promoOriginalData[item.TargetPromotionID] = {
+            promoOriginalData[item.TargetIrregularID] = {
                 TargetAmount: item.TargetAmount,
                 TargetQuantity: item.TargetQuantity,
                 Notes: item.Notes
             };
-            const detailItem = currentPromoDetailItems.find(d => d.TargetPromotionID === item.TargetPromotionID);
+            const detailItem = currentPromoDetailItems.find(d => d.TargetIrregularID === item.TargetIrregularID);
             if (detailItem) {
                 detailItem.TargetAmount = item.TargetAmount;
                 detailItem.TargetQuantity = item.TargetQuantity;
@@ -1182,15 +1182,15 @@ async function loadYearMonths() {
     }
 }
 
-async function loadPromotionTypes() {
+async function loadIrregularTypes() {
     try {
-        const result = await api.get('/api/targets/promotion/promotion-types');
-        const promotionTypes = result.promotion_types || [];
+        const result = await api.get('/api/targets/irregular/irregular-types');
+        const irregularTypes = result.irregular_types || [];
 
-        const select = document.getElementById('searchPromotionType');
+        const select = document.getElementById('searchIrregularType');
         select.innerHTML = '<option value="">전체</option>';
 
-        promotionTypes.forEach(type => {
+        irregularTypes.forEach(type => {
             const option = document.createElement('option');
             option.value = type;
             option.textContent = type;
@@ -1237,7 +1237,7 @@ function resetFilters() {
     document.getElementById('searchYearMonth').value = '';
     document.getElementById('searchBrand').value = '';
     document.getElementById('searchChannel').value = '';
-    document.getElementById('searchPromotionType').value = '';
+    document.getElementById('searchIrregularType').value = '';
 
     currentFilters = {};
 
@@ -1254,7 +1254,7 @@ function resetFilters() {
 function downloadTemplate() {
     const endpoint = currentTab === 'base'
         ? '/api/targets/base/download'
-        : '/api/targets/promotion/download';
+        : '/api/targets/irregular/download';
 
     window.location.href = endpoint;
 }
@@ -1282,7 +1282,7 @@ function downloadPromoDetailEditForm() {
 
     const params = { ids: selectedIds.join(',') };
     const queryString = api.buildQueryString(params);
-    window.location.href = `/api/targets/promotion/download${queryString}`;
+    window.location.href = `/api/targets/irregular/download${queryString}`;
 }
 
 // ==================== 업로드 ====================
@@ -1333,7 +1333,7 @@ async function uploadFile() {
 
         const endpoint = currentTab === 'base'
             ? '/api/targets/base/upload'
-            : '/api/targets/promotion/upload';
+            : '/api/targets/irregular/upload';
 
         const token = localStorage.getItem('access_token');
         const response = await fetch(endpoint, {

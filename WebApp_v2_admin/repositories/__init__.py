@@ -9,9 +9,9 @@ from .bom_repository import BOMRepository
 from .user_repository import UserRepository, RoleRepository
 from .activity_log_repository import ActivityLogRepository
 from .target_base_repository import TargetBaseRepository
-from .target_promotion_repository import TargetPromotionRepository
-from .promotion_repository import PromotionRepository
-from .promotion_product_repository import PromotionProductRepository
+from .target_irregular_repository import TargetIrregularRepository
+from .irregular_repository import IrregularRepository
+from .irregular_product_repository import IrregularProductRepository
 from .withdrawal_plan_repository import WithdrawalPlanRepository
 from .permission_repository import (
     PermissionRepository,
@@ -36,9 +36,9 @@ __all__ = [
     'RoleRepository',
     'ActivityLogRepository',
     'TargetBaseRepository',
-    'TargetPromotionRepository',
-    'PromotionRepository',
-    'PromotionProductRepository',
+    'TargetIrregularRepository',
+    'IrregularRepository',
+    'IrregularProductRepository',
     'WithdrawalPlanRepository',
     'PermissionRepository',
     'RolePermissionRepository',
@@ -49,4 +49,3 @@ __all__ = [
     'user_permission_repo',
     'effective_permission_service',
 ]
-
