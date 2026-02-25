@@ -237,11 +237,13 @@ class TargetIrregularRepository(BaseRepository):
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
     def get_year_months(self) -> List[str]:
-        """저장된 데이터의 년월 목록 조회 (StartDate 기준)"""
+        """저장된 데이터의 년월 목록 조회 (StartDate 기준, 위탁 3P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
             query = """
-                SELECT DISTINCT FORMAT(StartDate, 'yyyy-MM') as YearMonth
-                FROM [dbo].[TargetIrregularProduct]
+                SELECT DISTINCT FORMAT(t.StartDate, 'yyyy-MM') as YearMonth
+                FROM [dbo].[TargetIrregularProduct] t
+                INNER JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
+                WHERE c.ContractType = '3P'
                 ORDER BY YearMonth DESC
             """
             cursor.execute(query)
@@ -250,9 +252,9 @@ class TargetIrregularRepository(BaseRepository):
     def get_groups_summary(self, year_month: str, brand_id: Optional[int] = None,
                            channel_id: Optional[int] = None,
                            irregular_type: Optional[str] = None) -> List[Dict[str, Any]]:
-        """그룹별 요약 조회 (채널+행사명+행사유형 기준, 마스터 패널용)"""
+        """그룹별 요약 조회 (채널+행사명+행사유형 기준, 마스터 패널용, 위탁 3P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
-            where_clauses = ["FORMAT(t.StartDate, 'yyyy-MM') = ?"]
+            where_clauses = ["FORMAT(t.StartDate, 'yyyy-MM') = ?", "c.ContractType = '3P'"]
             params = [year_month]
 
             if brand_id is not None:
@@ -277,6 +279,7 @@ class TargetIrregularRepository(BaseRepository):
                        MIN(t.StartDate) as StartDate,
                        MAX(t.EndDate) as EndDate
                 FROM [dbo].[TargetIrregularProduct] t
+                INNER JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
                 WHERE {where_sql}
                 GROUP BY t.ChannelID, t.ChannelName, t.IrregularName, t.IrregularType
                 ORDER BY t.ChannelName ASC, t.IrregularName ASC

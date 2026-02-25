@@ -84,15 +84,28 @@ class ChannelRepository(BaseRepository):
 
         return builder
 
-    def get_channel_list(self) -> list:
-        """채널 목록 조회 (드롭다운용) - ChannelID와 Name만 반환"""
+    def get_channel_list(self, contract_type: str = None) -> list:
+        """채널 목록 조회 (드롭다운용) - ChannelID와 Name만 반환
+
+        Args:
+            contract_type: 계약유형 필터 (예: '3P'=위탁, '1P'/'2P'=사입)
+        """
         with get_db_cursor(commit=False) as cursor:
-            cursor.execute("""
+            where_clauses = ["Name IS NOT NULL", "Name != ''"]
+            params = []
+
+            if contract_type:
+                where_clauses.append("ContractType = ?")
+                params.append(contract_type)
+
+            where_sql = " AND ".join(where_clauses)
+            query = f"""
                 SELECT ChannelID, Name
                 FROM [dbo].[Channel]
-                WHERE Name IS NOT NULL AND Name != ''
+                WHERE {where_sql}
                 ORDER BY Name
-            """)
+            """
+            cursor.execute(query, *params)
             return [{"ChannelID": row[0], "Name": row[1]} for row in cursor.fetchall()]
 
     def get_metadata(self) -> Dict[str, list]:

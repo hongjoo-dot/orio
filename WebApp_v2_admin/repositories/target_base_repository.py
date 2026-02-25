@@ -229,20 +229,22 @@ class TargetBaseRepository(BaseRepository):
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
     def get_year_months(self) -> List[str]:
-        """저장된 데이터의 년월 목록 조회"""
+        """저장된 데이터의 년월 목록 조회 (위탁 3P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
             query = """
-                SELECT DISTINCT FORMAT([Date], 'yyyy-MM') as YearMonth
-                FROM [dbo].[TargetBaseProduct]
+                SELECT DISTINCT FORMAT(t.[Date], 'yyyy-MM') as YearMonth
+                FROM [dbo].[TargetBaseProduct] t
+                INNER JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
+                WHERE c.ContractType = '3P'
                 ORDER BY YearMonth DESC
             """
             cursor.execute(query)
             return [row[0] for row in cursor.fetchall()]
 
     def get_channels_summary(self, year_month: str, brand_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """채널별 목표 요약 조회 (마스터 패널용)"""
+        """채널별 목표 요약 조회 (마스터 패널용, 위탁 3P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
-            where_clauses = ["FORMAT(t.[Date], 'yyyy-MM') = ?"]
+            where_clauses = ["FORMAT(t.[Date], 'yyyy-MM') = ?", "c.ContractType = '3P'"]
             params = [year_month]
 
             if brand_id is not None:
@@ -257,6 +259,7 @@ class TargetBaseRepository(BaseRepository):
                        ISNULL(SUM(t.TargetAmount), 0) as TotalAmount,
                        ISNULL(SUM(t.TargetQuantity), 0) as TotalQuantity
                 FROM [dbo].[TargetBaseProduct] t
+                INNER JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
                 WHERE {where_sql}
                 GROUP BY t.ChannelID, t.ChannelName
                 ORDER BY t.ChannelName ASC

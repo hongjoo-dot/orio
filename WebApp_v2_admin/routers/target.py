@@ -292,8 +292,8 @@ async def download_target_base(
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
 
-        # 드롭다운용 목록 조회
-        channels = channel_repo.get_channel_list()
+        # 드롭다운용 목록 조회 (위탁 3P 채널만)
+        channels = channel_repo.get_channel_list(contract_type='3P')
         brands = brand_repo.get_all_brands()
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
@@ -656,16 +656,19 @@ async def upload_target_base(
                     row_nums = df[df['BrandName'] == name].index.tolist()
                     errors['brand'][name] = [r + 2 for r in row_nums]
 
-        # 채널명 → ChannelID 매핑 테이블 생성
+        # 채널명 → ChannelID 매핑 테이블 생성 (위탁 3P 채널만 허용)
         channel_names = df['ChannelName'].dropna().unique().tolist()
         channel_names = [n for n in channel_names if n and n != 'nan']
         channel_map = {}
         for name in channel_names:
             with get_db_cursor() as cursor:
-                cursor.execute("SELECT ChannelID, Name FROM Channel WHERE Name = ?", (name,))
+                cursor.execute("SELECT ChannelID, Name, ContractType FROM Channel WHERE Name = ?", (name,))
                 row = cursor.fetchone()
-                if row:
+                if row and row[2] == '3P':
                     channel_map[name] = {'ChannelID': row[0], 'ChannelName': row[1]}
+                elif row:
+                    row_nums = df[df['ChannelName'] == name].index.tolist()
+                    errors['channel'][f"{name} (위탁 채널이 아님)"] = [r + 2 for r in row_nums]
                 else:
                     row_nums = df[df['ChannelName'] == name].index.tolist()
                     errors['channel'][name] = [r + 2 for r in row_nums]
@@ -1100,8 +1103,8 @@ async def download_target_irregular(
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
 
-        # 드롭다운용 목록 조회
-        channels = channel_repo.get_channel_list()
+        # 드롭다운용 목록 조회 (위탁 3P 채널만)
+        channels = channel_repo.get_channel_list(contract_type='3P')
         brands = brand_repo.get_all_brands()
         channel_names = [ch['Name'] for ch in channels]
         brand_names = [br['Name'] for br in brands]
@@ -1515,16 +1518,19 @@ async def upload_target_irregular(
         if missing_brand_codes:
             raise HTTPException(400, f"BrandCode가 설정되지 않은 브랜드가 있습니다: {', '.join(missing_brand_codes)}. 브랜드 설정에서 BrandCode를 입력해주세요.")
 
-        # 채널명 → ChannelID 매핑 테이블 생성
+        # 채널명 → ChannelID 매핑 테이블 생성 (위탁 3P 채널만 허용)
         channel_names = df['ChannelName'].dropna().unique().tolist()
         channel_names = [n for n in channel_names if n and n != 'nan']
         channel_map = {}
         for name in channel_names:
             with get_db_cursor() as cursor:
-                cursor.execute("SELECT ChannelID, Name FROM Channel WHERE Name = ?", (name,))
+                cursor.execute("SELECT ChannelID, Name, ContractType FROM Channel WHERE Name = ?", (name,))
                 row = cursor.fetchone()
-                if row:
+                if row and row[2] == '3P':
                     channel_map[name] = {'ChannelID': row[0], 'ChannelName': row[1]}
+                elif row:
+                    row_nums = df[df['ChannelName'] == name].index.tolist()
+                    errors['channel'][f"{name} (위탁 채널이 아님)"] = [r + 2 for r in row_nums]
                 else:
                     row_nums = df[df['ChannelName'] == name].index.tolist()
                     errors['channel'][name] = [r + 2 for r in row_nums]
