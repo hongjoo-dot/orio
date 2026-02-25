@@ -26,7 +26,8 @@ class Expected1PIrregularRepository(BaseRepository):
         "p.CompanyShare", "p.ChannelShare",
         "p.ExpectedSalesAmount", "p.ExpectedQuantity",
         "p.Notes",
-        "p.CreatedDate", "p.UpdatedDate"
+        "p.CreatedDate", "p.UpdatedDate",
+        "p.InputMonth"
     )
 
     def __init__(self):
@@ -61,6 +62,7 @@ class Expected1PIrregularRepository(BaseRepository):
             "Notes": row[18],
             "CreatedDate": row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else None,
             "UpdatedDate": row[20].strftime('%Y-%m-%d %H:%M:%S') if row[20] else None,
+            "InputMonth": row[21],
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -76,6 +78,9 @@ class Expected1PIrregularRepository(BaseRepository):
 
         if filters.get('irregular_type'):
             builder.where_equals("p.IrregularType", filters['irregular_type'])
+
+        if filters.get('input_month'):
+            builder.where_equals("p.InputMonth", filters['input_month'])
 
         if filters.get('status'):
             status_val = filters['status']
@@ -183,6 +188,7 @@ class Expected1PIrregularRepository(BaseRepository):
                                 ExpectedSalesAmount = ?,
                                 ExpectedQuantity = ?,
                                 Notes = ?,
+                                InputMonth = ?,
                                 UpdatedDate = GETDATE()
                             WHERE Expected1PIrregularID = ?
                         """
@@ -198,6 +204,7 @@ class Expected1PIrregularRepository(BaseRepository):
                             record.get('ExpectedSalesAmount'),
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
+                            record.get('InputMonth'),
                             expected_1p_irregular_id
                         ]
                         cursor.execute(update_query, *params)
@@ -210,8 +217,8 @@ class Expected1PIrregularRepository(BaseRepository):
                                  StartDate, StartTime, EndDate, EndTime,
                                  Status, BrandID, BrandName, ChannelID, ChannelName,
                                  CommissionRate, DiscountOwner, CompanyShare, ChannelShare,
-                                 ExpectedSalesAmount, ExpectedQuantity, Notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 ExpectedSalesAmount, ExpectedQuantity, Notes, InputMonth)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('Expected1PIrregularID'),
@@ -233,6 +240,7 @@ class Expected1PIrregularRepository(BaseRepository):
                             record.get('ExpectedSalesAmount'),
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
+                            record.get('InputMonth'),
                         ]
                         cursor.execute(insert_query, *params)
                         if cursor.rowcount > 0:
@@ -332,6 +340,27 @@ class Expected1PIrregularRepository(BaseRepository):
 
         return total_deleted
 
+    def get_input_months(self, year_month: Optional[str] = None) -> List[str]:
+        """InputMonth 목록 조회 (사입 1P/2P 채널만)"""
+        with get_db_cursor(commit=False) as cursor:
+            where_clauses = ["c.ContractType IN ('1P', '2P')"]
+            params = []
+
+            if year_month:
+                where_clauses.append("FORMAT(p.StartDate, 'yyyy-MM') = ?")
+                params.append(year_month)
+
+            where_sql = " AND ".join(where_clauses)
+            query = f"""
+                SELECT DISTINCT p.InputMonth
+                FROM [dbo].[Expected1PIrregular] p
+                INNER JOIN [dbo].[Channel] c ON p.ChannelID = c.ChannelID
+                WHERE {where_sql}
+                ORDER BY p.InputMonth DESC
+            """
+            cursor.execute(query, *params)
+            return [row[0] for row in cursor.fetchall() if row[0]]
+
     def get_master_summary(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """마스터 패널용 - 비정기 목록 + 상품 수 + 상품 예상매출/수량 합계 (사입 1P/2P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
@@ -351,6 +380,9 @@ class Expected1PIrregularRepository(BaseRepository):
                 if filters.get('irregular_type'):
                     where_clauses.append("p.IrregularType = ?")
                     params.append(filters['irregular_type'])
+                if filters.get('input_month'):
+                    where_clauses.append("p.InputMonth = ?")
+                    params.append(filters['input_month'])
                 if filters.get('status'):
                     status_val = filters['status']
                     if status_val == 'CANCELLED':

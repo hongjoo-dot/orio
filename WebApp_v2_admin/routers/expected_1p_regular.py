@@ -41,6 +41,7 @@ class Expected1PRegularCreate(BaseModel):
     ExpectedAmount: Optional[float] = None
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
+    InputMonth: Optional[str] = None
 
 
 class Expected1PRegularUpdate(BaseModel):
@@ -54,12 +55,14 @@ class Expected1PRegularUpdate(BaseModel):
     ExpectedAmount: Optional[float] = None
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
+    InputMonth: Optional[str] = None
 
 
 class FilterDeleteRequest(BaseModel):
     year_month: str
     brand_id: Optional[int] = None
     channel_id: Optional[int] = None
+    input_month: Optional[str] = None
 
 
 class Expected1PRegularBulkUpdateItem(BaseModel):
@@ -82,6 +85,7 @@ async def get_expected_1p_regular_list(
     year_month: Optional[str] = None,
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
+    input_month: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "READ"))
@@ -107,6 +111,8 @@ async def get_expected_1p_regular_list(
             filters['brand_id'] = brand_id
         if channel_id is not None:
             filters['channel_id'] = channel_id
+        if input_month:
+            filters['input_month'] = input_month
 
         result = expected_1p_regular_repo.get_list(
             page=page,
@@ -130,17 +136,31 @@ async def get_expected_1p_regular_year_months(user: CurrentUser = Depends(requir
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
 
 
+@router.get("/input-months")
+async def get_expected_1p_regular_input_months(
+    year_month: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Expected1PRegular", "READ"))
+):
+    """사입 정기 예상 InputMonth(입력월) 목록 조회"""
+    try:
+        input_months = expected_1p_regular_repo.get_input_months(year_month)
+        return {"input_months": input_months}
+    except Exception as e:
+        raise HTTPException(500, f"입력월 목록 조회 실패: {str(e)}")
+
+
 @router.get("/channels")
 async def get_expected_1p_regular_channels(
     year_month: str,
     brand_id: Optional[int] = None,
+    input_month: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "READ"))
 ):
     """채널별 사입 정기 예상 요약 조회 (마스터 패널용)"""
     try:
         if not year_month:
             raise HTTPException(400, "년월은 필수입니다")
-        channels = expected_1p_regular_repo.get_channels_summary(year_month, brand_id)
+        channels = expected_1p_regular_repo.get_channels_summary(year_month, brand_id, input_month)
         return {"data": channels, "total": len(channels)}
     except HTTPException:
         raise
@@ -153,13 +173,14 @@ async def get_expected_1p_regular_channel_items(
     channel_id: int,
     year_month: str,
     brand_id: Optional[int] = None,
+    input_month: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "READ"))
 ):
     """특정 채널의 사입 정기 예상 상품 목록 조회 (디테일 패널용)"""
     try:
         if not year_month:
             raise HTTPException(400, "년월은 필수입니다")
-        items = expected_1p_regular_repo.get_by_channel(channel_id, year_month, brand_id)
+        items = expected_1p_regular_repo.get_by_channel(channel_id, year_month, brand_id, input_month)
         return {"data": items, "total": len(items)}
     except HTTPException:
         raise
@@ -182,6 +203,18 @@ async def bulk_update_expected_1p_regular(
         records = [item.dict() for item in request_body.items]
         result = expected_1p_regular_repo.bulk_update_amounts(records, user_id=user.user_id)
 
+        # Slack 알림 (비동기)
+        try:
+            from utils.slack_notifier import send_expected_upload_notification_async
+            send_expected_upload_notification_async(
+                sales_type="사입(1P)", data_type="정기",
+                total_rows=result['updated'], inserted=0, updated=result['updated'],
+                username=user.username if user else None,
+                action="인라인 수정"
+            )
+        except Exception:
+            pass
+
         return {
             "message": f"{result['updated']}건 수정 완료",
             "updated": result['updated']
@@ -198,6 +231,7 @@ async def download_expected_1p_regular(
     brand_id: Optional[int] = None,
     channel_id: Optional[int] = None,
     channel_ids: Optional[str] = None,
+    input_month: Optional[str] = None,
     ids: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "EXPORT"))
 ):
@@ -213,7 +247,7 @@ async def download_expected_1p_regular(
             # 다중 채널 선택 시 각 채널의 상품을 합산
             ch_id_list = [int(c.strip()) for c in channel_ids.split(',') if c.strip()]
             for ch_id in ch_id_list:
-                items = expected_1p_regular_repo.get_by_channel(ch_id, year_month, brand_id)
+                items = expected_1p_regular_repo.get_by_channel(ch_id, year_month, brand_id, input_month)
                 data.extend(items)
         elif year_month or brand_id is not None or channel_id is not None:
             # 필터 조건이 있으면 해당 조건으로 조회
@@ -224,15 +258,18 @@ async def download_expected_1p_regular(
                 filters['brand_id'] = brand_id
             if channel_id is not None:
                 filters['channel_id'] = channel_id
+            if input_month:
+                filters['input_month'] = input_month
 
             result = expected_1p_regular_repo.get_list(page=1, limit=100000, filters=filters)
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '비고']
-        # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID 제외
-        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 품목코드
+        export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '입력월(수정X)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '비고']
+        # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID, 입력월 제외
+        readonly_columns = [1, 3, 4, 5]  # 날짜, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
+        input_month_column_idx = 2  # 입력월 컬럼도 빨간색으로 별도 처리
 
         if not data:
             # 데이터가 없으면 헤더만 있는 빈 양식 반환
@@ -245,6 +282,7 @@ async def download_expected_1p_regular(
             column_map = {
                 'Expected1PRegularID': 'ID(수정X)',
                 'Date': '날짜(YYYY-MM-01)',
+                'InputMonth': '입력월(수정X)',
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
                 'ERPCode': '품목코드',
@@ -335,27 +373,27 @@ async def download_expected_1p_regular(
             # 드롭다운 적용 범위 (2행~1000행)
             max_row = max(len(df) + 100, 1000)  # 데이터 + 여유분
 
-            # 채널명 드롭다운 (D열, 인덱스 3)
+            # 채널명 드롭다운 (E열, 인덱스 4)
             if channel_names:
-                worksheet.data_validation(1, 3, max_row, 3, {
+                worksheet.data_validation(1, 4, max_row, 4, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 브랜드명 드롭다운 (C열, 인덱스 2)
+            # 브랜드명 드롭다운 (D열, 인덱스 3)
             if brand_names:
-                worksheet.data_validation(1, 2, max_row, 2, {
+                worksheet.data_validation(1, 3, max_row, 3, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 품목코드 드롭다운 (E열, 인덱스 4)
+            # 품목코드 드롭다운 (F열, 인덱스 5)
             if erp_codes:
-                worksheet.data_validation(1, 4, max_row, 4, {
+                worksheet.data_validation(1, 5, max_row, 5, {
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(erp_codes)}',
                     'input_message': '품목코드를 선택하세요',
@@ -386,7 +424,7 @@ async def download_expected_1p_regular(
 
             # 헤더 서식 적용
             for col_idx, col_name in enumerate(export_columns):
-                if col_idx == id_column_idx:
+                if col_idx in (id_column_idx, input_month_column_idx):
                     worksheet.write(0, col_idx, col_name, id_header_format)
                 elif col_idx in readonly_columns:
                     worksheet.write(0, col_idx, col_name, readonly_header_format)
@@ -410,11 +448,12 @@ async def download_expected_1p_regular(
             # 데이터 행에 서식 적용
             if len(df) > 0:
                 for row_idx in range(len(df)):
-                    # ID 컬럼 빨간색 적용
-                    col_name = export_columns[id_column_idx]
-                    if col_name in df.columns:
-                        value = df.iloc[row_idx][col_name]
-                        worksheet.write(row_idx + 1, id_column_idx, value, id_data_format)
+                    # ID, 입력월 컬럼 빨간색 적용
+                    for red_col_idx in (id_column_idx, input_month_column_idx):
+                        col_name = export_columns[red_col_idx]
+                        if col_name in df.columns:
+                            value = df.iloc[row_idx][col_name]
+                            worksheet.write(row_idx + 1, red_col_idx, value, id_data_format)
 
                     # 수정 불가 컬럼 검정색 적용
                     for col_idx in readonly_columns:
@@ -564,7 +603,8 @@ async def filter_delete_expected_1p_regular(
         deleted_count = expected_1p_regular_repo.delete_by_filter(
             year_month=request_body.year_month,
             brand_id=request_body.brand_id,
-            channel_id=request_body.channel_id
+            channel_id=request_body.channel_id,
+            input_month=request_body.input_month
         )
 
         return {
@@ -580,10 +620,11 @@ async def filter_delete_expected_1p_regular(
 @router.post("/upload")
 async def upload_expected_1p_regular(
     file: UploadFile = File(...),
+    input_month: Optional[str] = None,
     request: Request = None,
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "UPLOAD"))
 ):
-    """사입 정기 예상 엑셀 업로드"""
+    """사입 정기 예상 엑셀 업로드 (input_month: 입력월 YYYY-MM)"""
     try:
         upload_start_time = datetime.now()
 
@@ -603,10 +644,12 @@ async def upload_expected_1p_regular(
         column_map = {
             'ID(수정X)': 'Expected1PRegularID',
             '날짜(YYYY-MM-01)': 'Date',
+            '입력월(수정X)': 'InputMonth',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
             '품목코드': 'ERPCode',
             '예상금액(+VAT)': 'ExpectedAmount',
+            '예상금액(VAT포함)': 'ExpectedAmount',
             '예상수량': 'ExpectedQuantity',
             '비고': 'Notes'
         }
@@ -702,6 +745,9 @@ async def upload_expected_1p_regular(
                 error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
+        # InputMonth 결정: 폼 파라미터 > 엑셀 컬럼 > 현재 월
+        default_input_month = input_month or datetime.now().strftime('%Y-%m')
+
         # 레코드 준비
         records = []
         for _, row in df.iterrows():
@@ -718,6 +764,11 @@ async def upload_expected_1p_regular(
             if 'Expected1PRegularID' in row and pd.notna(row['Expected1PRegularID']):
                 target_id = int(row['Expected1PRegularID'])
 
+            # InputMonth: 엑셀 컬럼이 있으면 사용, 없으면 기본값
+            row_input_month = default_input_month
+            if 'InputMonth' in row and pd.notna(row.get('InputMonth')) and str(row['InputMonth']).strip():
+                row_input_month = str(row['InputMonth']).strip()
+
             records.append({
                 'Expected1PRegularID': target_id,
                 'Date': row['Date'].strftime('%Y-%m-%d') if pd.notna(row['Date']) else None,
@@ -731,6 +782,7 @@ async def upload_expected_1p_regular(
                 'ExpectedAmount': float(row['ExpectedAmount']) if pd.notna(row.get('ExpectedAmount')) else 0,
                 'ExpectedQuantity': int(row['ExpectedQuantity']) if pd.notna(row.get('ExpectedQuantity')) else 0,
                 'Notes': str(row['Notes']) if pd.notna(row.get('Notes')) else None,
+                'InputMonth': row_input_month,
             })
 
         # UPSERT 실행
@@ -769,6 +821,21 @@ async def upload_expected_1p_regular(
             )
 
         print(f"   업로드 완료: {result['inserted']}건 삽입, {result['updated']}건 수정")
+
+        # Slack 알림 (비동기 - 응답 지연 없음)
+        try:
+            from utils.slack_notifier import send_expected_upload_notification_async
+            send_expected_upload_notification_async(
+                sales_type="사입(1P)",
+                data_type="정기",
+                total_rows=len(df),
+                inserted=result['inserted'],
+                updated=result['updated'],
+                input_month=default_input_month,
+                username=user.username if user else None
+            )
+        except Exception:
+            pass  # 알림 실패해도 업로드 결과에 영향 없음
 
         return {
             "message": "업로드 완료",

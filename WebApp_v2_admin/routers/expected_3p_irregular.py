@@ -4,7 +4,7 @@ Expected3PIrregular (위탁 비정기 관리) Router
 - 위탁 비정기 상품 (Expected3PIrregularProduct) CRUD
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
@@ -50,6 +50,7 @@ class Expected3PIrregularCreate(BaseModel):
     ExpectedSalesAmount: Optional[float] = None
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
+    InputMonth: Optional[str] = None
 
 
 class Expected3PIrregularUpdate(BaseModel):
@@ -65,6 +66,7 @@ class Expected3PIrregularUpdate(BaseModel):
     ExpectedSalesAmount: Optional[float] = None
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
+    InputMonth: Optional[str] = None
 
 
 # ========== Pydantic Models — Expected3PIrregularProduct ==========
@@ -134,6 +136,7 @@ async def get_expected_3p_irregular_list(
     channel_id: Optional[int] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
+    input_month: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Expected3PIrregular", "READ"))
@@ -168,6 +171,8 @@ async def get_expected_3p_irregular_list(
             filters['irregular_type'] = irregular_type
         if status:
             filters['status'] = status
+        if input_month:
+            filters['input_month'] = input_month
 
         result = expected_3p_irregular_repo.get_list(
             page=page,
@@ -189,6 +194,19 @@ async def get_expected_3p_irregular_year_months(user: CurrentUser = Depends(requ
         return {"year_months": year_months}
     except Exception as e:
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
+
+
+@router.get("/input-months")
+async def get_expected_3p_irregular_input_months(
+    year_month: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Expected3PIrregular", "READ"))
+):
+    """위탁 비정기 InputMonth(입력월) 목록 조회"""
+    try:
+        input_months = expected_3p_irregular_repo.get_input_months(year_month)
+        return {"input_months": input_months}
+    except Exception as e:
+        raise HTTPException(500, f"입력월 목록 조회 실패: {str(e)}")
 
 
 @router.get("/irregular-types")
@@ -220,6 +238,7 @@ async def get_expected_3p_irregular_master_summary(
     channel_id: Optional[int] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
+    input_month: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected3PIrregular", "READ"))
 ):
     """마스터 패널용 비정기 목록 + 상품 수 조회"""
@@ -235,6 +254,8 @@ async def get_expected_3p_irregular_master_summary(
             filters['irregular_type'] = irregular_type
         if status:
             filters['status'] = status
+        if input_month:
+            filters['input_month'] = input_month
 
         data = expected_3p_irregular_repo.get_master_summary(filters)
         return {"data": data, "total": len(data)}
@@ -314,6 +335,7 @@ async def download_expected_3p_irregulars(
                         '할인부담': irreg['DiscountOwner'],
                         '자사분담율': irreg['CompanyShare'],
                         '채널분담율': irreg['ChannelShare'],
+                        '입력월': irreg.get('InputMonth'),
                         '비고(행사)': irreg['Notes'],
                         '상품ID': prod['Expected3PIrregularProductID'],
                         '품목코드': prod['ERPCode'],
@@ -347,6 +369,7 @@ async def download_expected_3p_irregulars(
                     '할인부담': irreg['DiscountOwner'],
                     '자사분담율': irreg['CompanyShare'],
                     '채널분담율': irreg['ChannelShare'],
+                    '입력월': irreg.get('InputMonth'),
                     '비고(행사)': irreg['Notes'],
                     '상품ID': None,
                     '품목코드': None,
@@ -369,7 +392,7 @@ async def download_expected_3p_irregulars(
         export_columns = [
             '행사ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
-            '비고(행사)',
+            '입력월', '비고(행사)',
             '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
             '예상매출(상품)', '예상수량(상품)', '비고(상품)'
@@ -377,12 +400,12 @@ async def download_expected_3p_irregulars(
 
         # ID 컬럼 인덱스 (빨간색)
         promo_id_col_idx = 0   # 행사ID
-        product_id_col_idx = 14  # 상품ID
+        product_id_col_idx = 15  # 상품ID
         id_column_indices = [promo_id_col_idx, product_id_col_idx]
 
         # 수정 불가 (복합키) 컬럼 인덱스 (검정색)
-        # 행사명(1), 행사유형(2), 시작일(3), 브랜드명(7), 채널명(8), 품목코드(15)
-        readonly_columns = [1, 2, 3, 7, 8, 15]
+        # 행사명(1), 행사유형(2), 시작일(3), 브랜드명(7), 채널명(8), 품목코드(16)
+        readonly_columns = [1, 2, 3, 7, 8, 16]
 
         if not rows:
             df = pd.DataFrame(columns=export_columns)
@@ -417,6 +440,7 @@ async def download_expected_3p_irregulars(
             ['할인부담', 'COMPANY / CHANNEL / BOTH'],
             ['자사분담율', '숫자 (예: 50.0)'],
             ['채널분담율', '숫자 (예: 50.0)'],
+            ['입력월', 'YYYY-MM 형식 (업로드 시 자동 설정)'],
             ['비고(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
             ['품목코드 (검정)', 'ProductBox 테이블의 품목코드 (수정 불가)'],
@@ -518,9 +542,9 @@ async def download_expected_3p_irregulars(
                 'error_message': '목록에서 선택해주세요'
             })
 
-            # 품목코드 드롭다운 (인덱스 15)
+            # 품목코드 드롭다운 (인덱스 16)
             if erp_codes:
-                worksheet.data_validation(1, 15, max_row, 15, {
+                worksheet.data_validation(1, 16, max_row, 16, {
                     'validate': 'list',
                     'source': f'=목록!$E$1:$E${len(erp_codes)}',
                     'input_message': '품목코드를 선택하세요',
@@ -619,12 +643,14 @@ async def download_expected_3p_irregulars(
 @router.post("/upload")
 async def upload_expected_3p_irregulars(
     file: UploadFile = File(...),
+    input_month: Optional[str] = Form(None),
     request: Request = None,
     user: CurrentUser = Depends(require_permission("Expected3PIrregular", "UPLOAD"))
 ):
     """행사 + 행사 상품 통합 엑셀 업로드"""
     try:
         upload_start_time = datetime.now()
+        default_input_month = input_month or datetime.now().strftime('%Y-%m')
 
         # 1. 파일 확장자 검증
         if not file.filename.endswith(('.xlsx', '.xls')):
@@ -652,6 +678,7 @@ async def upload_expected_3p_irregulars(
             '할인부담': 'DiscountOwner',
             '자사분담율': 'CompanyShare',
             '채널분담율': 'ChannelShare',
+            '입력월': 'InputMonth',
             '비고(행사)': 'PromoNotes',
             '상품ID': 'Expected3PIrregularProductID',
             '품목코드': 'ERPCode',
@@ -1011,6 +1038,7 @@ async def upload_expected_3p_irregulars(
                 'ExpectedSalesAmount': sum_sales if sum_sales > 0 else None,
                 'ExpectedQuantity': sum_qty if sum_qty > 0 else None,
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
+                'InputMonth': default_input_month,
             })
 
         promo_result = expected_3p_irregular_repo.bulk_upsert(irregular_records)
@@ -1105,6 +1133,23 @@ async def upload_expected_3p_irregulars(
             )
 
         print(f"   업로드 완료: 행사 {promo_result['inserted']}건 삽입/{promo_result['updated']}건 수정, 상품 {prod_result['inserted']}건 삽입/{prod_result['updated']}건 수정")
+
+        # Slack 알림 (비동기 - 응답 지연 없음)
+        try:
+            from utils.slack_notifier import send_expected_upload_notification_async
+            total_inserted = promo_result['inserted'] + prod_result['inserted']
+            total_updated = promo_result['updated'] + prod_result['updated']
+            send_expected_upload_notification_async(
+                sales_type="위탁(3P)",
+                data_type="비정기",
+                total_rows=len(df),
+                inserted=total_inserted,
+                updated=total_updated,
+                input_month=input_month,
+                username=user.username if user else None
+            )
+        except Exception:
+            pass
 
         # 12. 결과 반환
         return {
@@ -1213,6 +1258,18 @@ async def update_expected_3p_irregular(
         success = expected_3p_irregular_repo.update(expected_3p_irregular_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "행사 수정 실패")
+
+        # Slack 알림 (비동기)
+        try:
+            from utils.slack_notifier import send_expected_upload_notification_async
+            send_expected_upload_notification_async(
+                sales_type="위탁(3P)", data_type="비정기",
+                total_rows=1, inserted=0, updated=1,
+                username=user.username if user else None,
+                action="인라인 수정"
+            )
+        except Exception:
+            pass
 
         return {"IrregularID": expected_3p_irregular_id, **update_data}
     except HTTPException:
@@ -1326,6 +1383,20 @@ async def bulk_update_expected_3p_irregular_products_inline(
     try:
         items = [item.dict() for item in data.items]
         result = expected_3p_irregular_product_repo.bulk_update_products(items, user_id=user.user_id)
+
+        # Slack 알림 (비동기)
+        try:
+            from utils.slack_notifier import send_expected_upload_notification_async
+            updated_count = result.get('updated', len(items))
+            send_expected_upload_notification_async(
+                sales_type="위탁(3P)", data_type="비정기",
+                total_rows=updated_count, inserted=0, updated=updated_count,
+                username=user.username if user else None,
+                action="인라인 수정"
+            )
+        except Exception:
+            pass
+
         return result
     except HTTPException:
         raise

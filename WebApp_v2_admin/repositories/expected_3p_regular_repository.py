@@ -18,7 +18,8 @@ class Expected3PRegularRepository(BaseRepository):
         "t.ChannelID", "t.ChannelName",
         "t.ERPCode", "t.UniqueCode", "t.ProductName",
         "t.ExpectedAmount", "t.ExpectedAmountExVAT", "t.ExpectedQuantity",
-        "t.Notes", "t.CreatedDate", "t.UpdatedDate"
+        "t.Notes", "t.CreatedDate", "t.UpdatedDate",
+        "t.InputMonth"
     )
 
     def __init__(self):
@@ -47,6 +48,7 @@ class Expected3PRegularRepository(BaseRepository):
             "Notes": row[12],
             "CreatedDate": row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
             "UpdatedDate": row[14].strftime('%Y-%m-%d %H:%M:%S') if row[14] else None,
+            "InputMonth": row[15],
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -57,6 +59,7 @@ class Expected3PRegularRepository(BaseRepository):
         - year_month: 년월 (YYYY-MM 형식)
         - brand_id: BrandID 정확히 매칭
         - channel_id: ChannelID 정확히 매칭
+        - input_month: InputMonth 정확히 매칭 (YYYY-MM 형식)
         """
         if filters.get('year_month'):
             year_month = filters['year_month']
@@ -67,6 +70,9 @@ class Expected3PRegularRepository(BaseRepository):
 
         if 'channel_id' in filters:
             builder.where_equals("t.ChannelID", filters['channel_id'])
+
+        if filters.get('input_month'):
+            builder.where_equals("t.InputMonth", filters['input_month'])
 
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
         """Expected3PRegular 전용 QueryBuilder 생성"""
@@ -105,12 +111,13 @@ class Expected3PRegularRepository(BaseRepository):
                 if not record_id:
                     check_query = """
                         SELECT Expected3PRegularID FROM [dbo].[Expected3PRegularProduct]
-                        WHERE [Date] = ? AND UniqueCode = ? AND ChannelID = ?
+                        WHERE [Date] = ? AND UniqueCode = ? AND ChannelID = ? AND InputMonth = ?
                     """
                     cursor.execute(check_query,
                         record.get('Date'),
                         record.get('UniqueCode'),
-                        record.get('ChannelID')
+                        record.get('ChannelID'),
+                        record.get('InputMonth')
                     )
                     existing = cursor.fetchone()
 
@@ -155,6 +162,7 @@ class Expected3PRegularRepository(BaseRepository):
                                 ExpectedAmountExVAT = ?,
                                 ExpectedQuantity = ?,
                                 Notes = ?,
+                                InputMonth = ?,
                                 UpdatedDate = GETDATE()
                             WHERE Expected3PRegularID = ?
                         """
@@ -171,6 +179,7 @@ class Expected3PRegularRepository(BaseRepository):
                             expected_amount_ex_vat,
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
+                            record.get('InputMonth'),
                             record_id
                         ]
                         cursor.execute(update_query, *params)
@@ -181,8 +190,9 @@ class Expected3PRegularRepository(BaseRepository):
                         insert_query = """
                             INSERT INTO [dbo].[Expected3PRegularProduct]
                             ([Date], BrandID, BrandName, ChannelID, ChannelName,
-                             ERPCode, UniqueCode, ProductName, ExpectedAmount, ExpectedAmountExVAT, ExpectedQuantity, Notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             ERPCode, UniqueCode, ProductName, ExpectedAmount, ExpectedAmountExVAT,
+                             ExpectedQuantity, Notes, InputMonth)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('Date'),
@@ -197,6 +207,7 @@ class Expected3PRegularRepository(BaseRepository):
                             expected_amount_ex_vat,
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
+                            record.get('InputMonth'),
                         ]
                         cursor.execute(insert_query, *params)
                         total_inserted += 1
@@ -241,7 +252,7 @@ class Expected3PRegularRepository(BaseRepository):
             cursor.execute(query)
             return [row[0] for row in cursor.fetchall()]
 
-    def get_channels_summary(self, year_month: str, brand_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_channels_summary(self, year_month: str, brand_id: Optional[int] = None, input_month: Optional[str] = None) -> List[Dict[str, Any]]:
         """채널별 예상 매출 요약 조회 (마스터 패널용, 위탁 3P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
             where_clauses = ["FORMAT(t.[Date], 'yyyy-MM') = ?", "c.ContractType = '3P'"]
@@ -250,6 +261,10 @@ class Expected3PRegularRepository(BaseRepository):
             if brand_id is not None:
                 where_clauses.append("t.BrandID = ?")
                 params.append(brand_id)
+
+            if input_month:
+                where_clauses.append("t.InputMonth = ?")
+                params.append(input_month)
 
             where_sql = " AND ".join(where_clauses)
 
@@ -273,7 +288,7 @@ class Expected3PRegularRepository(BaseRepository):
                 "TotalQuantity": int(row[4]) if row[4] else 0,
             } for row in cursor.fetchall()]
 
-    def get_by_channel(self, channel_id: int, year_month: str, brand_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_by_channel(self, channel_id: int, year_month: str, brand_id: Optional[int] = None, input_month: Optional[str] = None) -> List[Dict[str, Any]]:
         """특정 채널의 예상 매출 상품 목록 조회 (디테일 패널용)"""
         with get_db_cursor(commit=False) as cursor:
             columns = ", ".join(self.SELECT_COLUMNS)
@@ -283,6 +298,10 @@ class Expected3PRegularRepository(BaseRepository):
             if brand_id is not None:
                 where_clauses.append("t.BrandID = ?")
                 params.append(brand_id)
+
+            if input_month:
+                where_clauses.append("t.InputMonth = ?")
+                params.append(input_month)
 
             where_sql = " AND ".join(where_clauses)
 
@@ -333,8 +352,89 @@ class Expected3PRegularRepository(BaseRepository):
 
         return {"updated": total_updated}
 
+    def get_input_months(self, year_month: Optional[str] = None) -> List[str]:
+        """InputMonth 목록 조회 (위탁 3P 채널만)"""
+        with get_db_cursor(commit=False) as cursor:
+            where_clauses = ["c.ContractType = '3P'"]
+            params = []
+
+            if year_month:
+                where_clauses.append("FORMAT(t.[Date], 'yyyy-MM') = ?")
+                params.append(year_month)
+
+            where_sql = " AND ".join(where_clauses)
+            query = f"""
+                SELECT DISTINCT t.InputMonth
+                FROM [dbo].[Expected3PRegularProduct] t
+                INNER JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
+                WHERE {where_sql}
+                ORDER BY t.InputMonth DESC
+            """
+            cursor.execute(query, *params)
+            return [row[0] for row in cursor.fetchall()]
+
+    def get_previous_round_data(self, year_month: str, input_month: str,
+                                 channel_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """이전 라운드 데이터 조회 (변동 비교용)
+
+        Args:
+            year_month: 대상 년월 (YYYY-MM)
+            input_month: 현재 InputMonth
+            channel_id: 채널 ID (선택)
+
+        Returns:
+            List[Dict]: 직전 InputMonth의 데이터 (UniqueCode+ChannelID 기준 매핑용)
+        """
+        with get_db_cursor(commit=False) as cursor:
+            where_clauses = [
+                "FORMAT(t.[Date], 'yyyy-MM') = ?",
+                "t.InputMonth < ?",
+            ]
+            params = [year_month, input_month]
+
+            if channel_id:
+                where_clauses.append("t.ChannelID = ?")
+                params.append(channel_id)
+
+            where_sql = " AND ".join(where_clauses)
+            columns = ", ".join(self.SELECT_COLUMNS)
+
+            query = f"""
+                WITH RankedData AS (
+                    SELECT {columns},
+                           ROW_NUMBER() OVER (
+                               PARTITION BY t.UniqueCode, t.ChannelID, FORMAT(t.[Date], 'yyyy-MM')
+                               ORDER BY t.InputMonth DESC
+                           ) as rn
+                    FROM [dbo].[Expected3PRegularProduct] t
+                    WHERE {where_sql}
+                )
+                SELECT {', '.join(['t.' + c.split('.')[-1] if '.' in c else c for c in self.SELECT_COLUMNS]).replace('t.', '')}
+                FROM RankedData t
+                WHERE rn = 1
+            """
+            # 간소화: 직전 라운드만 가져오기
+            simple_query = f"""
+                SELECT {columns}
+                FROM [dbo].[Expected3PRegularProduct] t
+                WHERE {where_sql}
+                  AND t.InputMonth = (
+                      SELECT MAX(t2.InputMonth)
+                      FROM [dbo].[Expected3PRegularProduct] t2
+                      WHERE FORMAT(t2.[Date], 'yyyy-MM') = ?
+                        AND t2.InputMonth < ?
+                  )
+            """
+            params_simple = [year_month, input_month, year_month, input_month]
+            if channel_id:
+                params_simple = [year_month, input_month, channel_id, year_month, input_month]
+
+            cursor.execute(simple_query, *params_simple)
+            return [self._row_to_dict(row) for row in cursor.fetchall()]
+
     def delete_by_filter(self, year_month: str, brand_id: Optional[int] = None,
-                         channel_id: Optional[int] = None) -> int:
+                         channel_id: Optional[int] = None,
+                         input_month: Optional[str] = None) -> int:
         """
         필터 조건으로 일괄 삭제
 
@@ -342,6 +442,7 @@ class Expected3PRegularRepository(BaseRepository):
             year_month: 년월 (YYYY-MM)
             brand_id: 브랜드 ID (선택)
             channel_id: 채널 ID (선택)
+            input_month: InputMonth (선택)
 
         Returns:
             int: 삭제된 레코드 수
@@ -357,6 +458,10 @@ class Expected3PRegularRepository(BaseRepository):
             if channel_id:
                 conditions.append("ChannelID = ?")
                 params.append(channel_id)
+
+            if input_month:
+                conditions.append("InputMonth = ?")
+                params.append(input_month)
 
             where_clause = " AND ".join(conditions)
             query = f"DELETE FROM [dbo].[Expected3PRegularProduct] WHERE {where_clause}"

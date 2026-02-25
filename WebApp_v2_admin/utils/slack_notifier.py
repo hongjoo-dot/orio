@@ -2,6 +2,7 @@
 Slack 알림 모듈 (범용)
 - 다양한 알림 유형 지원
 - 포맷 템플릿 제공
+- SystemConfig에서 webhook URL 조회 지원
 """
 
 import os
@@ -10,23 +11,54 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 
+def _get_webhook_url_from_config() -> Optional[str]:
+    """SystemConfig에서 Slack Webhook URL 조회 (실패 시 None)"""
+    try:
+        from repositories.system_config_repository import SystemConfigRepository
+        repo = SystemConfigRepository()
+        config = repo.get_config_by_key('Notification', 'SlackWebhookURL')
+        if config and config.get('IsActive') and config.get('ConfigValue'):
+            return config['ConfigValue']
+    except Exception:
+        pass
+    return None
+
+
+def _is_notification_enabled(config_key: str = 'ExpectedSalesNotification') -> bool:
+    """SystemConfig에서 알림 활성화 여부 확인"""
+    try:
+        from repositories.system_config_repository import SystemConfigRepository
+        repo = SystemConfigRepository()
+        config = repo.get_config_by_key('Notification', config_key)
+        if config:
+            if not config.get('IsActive'):
+                return False
+            return config.get('ConfigValue', '').lower() in ('true', '1', 'yes', 'on')
+    except Exception:
+        pass
+    return True  # 기본값: 활성
+
+
 def send_slack_notification(message: str, webhook_url: Optional[str] = None) -> bool:
     """
     Slack으로 메시지 전송 (범용)
 
     Args:
         message: 전송할 메시지 (Markdown 지원)
-        webhook_url: Slack Webhook URL (없으면 환경변수에서 로드)
+        webhook_url: Slack Webhook URL (없으면 SystemConfig → 환경변수 순서로 로드)
 
     Returns:
         bool: 전송 성공 여부
     """
     try:
         if not webhook_url:
+            webhook_url = _get_webhook_url_from_config()
+
+        if not webhook_url:
             webhook_url = os.getenv('SLACK_WEBHOOK_URL')
 
         if not webhook_url:
-            print("[경고] SLACK_WEBHOOK_URL 환경변수가 설정되지 않았습니다.")
+            print("[경고] Slack Webhook URL이 설정되지 않았습니다. (SystemConfig 또는 환경변수)")
             return False
 
         payload = {"text": message}
@@ -229,3 +261,117 @@ def send_sync_notification(
     message += f"\n\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
     return send_slack_notification(message)
+
+
+# ========== 예상 매출 업로드/수정 알림 ==========
+
+def send_expected_upload_notification(
+    sales_type: str,
+    data_type: str,
+    total_rows: int,
+    inserted: int,
+    updated: int,
+    year_month: Optional[str] = None,
+    input_month: Optional[str] = None,
+    username: Optional[str] = None,
+    change_summary: Optional[Dict[str, Any]] = None,
+    action: str = "업로드"
+) -> bool:
+    """
+    예상 매출 업로드 완료 알림
+
+    Args:
+        sales_type: '위탁(3P)' 또는 '사입(1P)'
+        data_type: '정기' 또는 '비정기'
+        total_rows: 총 행 수
+        inserted: 신규 삽입 수
+        updated: 수정 수
+        year_month: 대상 년월
+        input_month: 입력월(Round)
+        username: 업로드한 사용자
+        change_summary: 변동 요약 {'before_amount': ..., 'after_amount': ..., 'before_qty': ..., 'after_qty': ...}
+
+    Returns:
+        bool: 전송 성공 여부
+    """
+    if not _is_notification_enabled('ExpectedSalesNotification'):
+        print("[Slack] 예상 매출 알림이 비활성화되어 있습니다.")
+        return False
+
+    label = f"{sales_type} {data_type}"
+    message = f"📊 *[{label}] 예상매출 {action}*\n"
+
+    # 년월 / 입력월
+    meta_parts = []
+    if year_month:
+        meta_parts.append(f"년월: {year_month}")
+    if input_month:
+        meta_parts.append(f"입력월: {input_month}")
+    if meta_parts:
+        message += " | ".join(meta_parts) + "\n"
+
+    # 건수
+    message += f"신규 {inserted:,} / 수정 {updated:,} / 총 {total_rows:,}건\n"
+
+    # 변동률
+    if change_summary:
+        before_amt = change_summary.get('before_amount', 0) or 0
+        after_amt = change_summary.get('after_amount', 0) or 0
+        before_qty = change_summary.get('before_qty', 0) or 0
+        after_qty = change_summary.get('after_qty', 0) or 0
+
+        parts = []
+        if before_amt > 0:
+            amt_change = ((after_amt - before_amt) / before_amt) * 100
+            sign = "+" if amt_change >= 0 else ""
+            parts.append(f"예상금액 {sign}{amt_change:.1f}%")
+        elif after_amt > 0:
+            parts.append(f"예상금액 신규({after_amt:,.0f})")
+
+        if before_qty > 0:
+            qty_change = ((after_qty - before_qty) / before_qty) * 100
+            sign = "+" if qty_change >= 0 else ""
+            parts.append(f"예상수량 {sign}{qty_change:.1f}%")
+        elif after_qty > 0:
+            parts.append(f"예상수량 신규({after_qty:,.0f})")
+
+        if parts:
+            message += "변동: " + ", ".join(parts) + "\n"
+
+    # 담당자 + 시간
+    who = username or "시스템"
+    message += f"담당: {who} | {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+    return send_slack_notification(message)
+
+
+def send_expected_upload_notification_async(
+    sales_type: str,
+    data_type: str,
+    total_rows: int,
+    inserted: int,
+    updated: int,
+    year_month: Optional[str] = None,
+    input_month: Optional[str] = None,
+    username: Optional[str] = None,
+    change_summary: Optional[Dict[str, Any]] = None,
+    action: str = "업로드"
+) -> None:
+    """
+    예상 매출 업로드/수정 알림 (비동기, 실패해도 무시)
+    응답을 지연시키지 않기 위해 threading 사용
+    """
+    import threading
+    thread = threading.Thread(
+        target=send_expected_upload_notification,
+        args=(sales_type, data_type, total_rows, inserted, updated),
+        kwargs={
+            'year_month': year_month,
+            'input_month': input_month,
+            'username': username,
+            'change_summary': change_summary,
+            'action': action
+        },
+        daemon=True
+    )
+    thread.start()

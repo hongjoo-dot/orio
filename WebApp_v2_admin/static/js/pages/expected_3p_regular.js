@@ -305,6 +305,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     loadBrands();
     loadChannels();
     await loadYearMonths();
+    await loadInputMonths();
+
+    // 년월 변경 시 입력월 목록 갱신
+    document.getElementById('searchYearMonth').addEventListener('change', async () => {
+        await loadInputMonths();
+    });
 
     // 정기 마스터 로드
     loadChannelMaster();
@@ -405,8 +411,10 @@ async function loadChannelMaster() {
 
     try {
         const brandId = document.getElementById('searchBrand').value;
+        const inputMonth = document.getElementById('searchInputMonth').value;
         const params = { year_month: yearMonth };
         if (brandId) params.brand_id = brandId;
+        if (inputMonth) params.input_month = inputMonth;
         const queryString = api.buildQueryString(params);
 
         const result = await api.get(`/api/expected/3p/regular/channels${queryString}`);
@@ -468,6 +476,7 @@ function doSelectChannel(channelId, tr) {
 async function loadChannelDetail(channel) {
     const yearMonth = document.getElementById('searchYearMonth').value;
     const brandId = document.getElementById('searchBrand').value;
+    const inputMonth = document.getElementById('searchInputMonth').value;
 
     try {
         document.getElementById('baseDetailPlaceholder').style.display = 'none';
@@ -476,6 +485,7 @@ async function loadChannelDetail(channel) {
 
         const params = { year_month: yearMonth };
         if (brandId) params.brand_id = brandId;
+        if (inputMonth) params.input_month = inputMonth;
         const queryString = api.buildQueryString(params);
 
         const result = await api.get(`/api/expected/3p/regular/channel/${channel.ChannelID}/items${queryString}`);
@@ -663,12 +673,14 @@ async function loadIrregMaster() {
         const channelId = document.getElementById('searchChannel').value;
         const irregularType = document.getElementById('searchIrregularType').value;
         const status = document.getElementById('searchStatus').value;
+        const inputMonth = document.getElementById('searchInputMonth').value;
 
         if (yearMonth) params.year_month = yearMonth;
         if (brandId) params.brand_id = brandId;
         if (channelId) params.channel_id = channelId;
         if (irregularType) params.irregular_type = irregularType;
         if (status) params.status = status;
+        if (inputMonth) params.input_month = inputMonth;
 
         const queryString = api.buildQueryString(params);
         const result = await api.get(`/api/expected/3p/irregular/master-summary${queryString}`);
@@ -1055,6 +1067,35 @@ async function loadYearMonths() {
     }
 }
 
+async function loadInputMonths() {
+    try {
+        const yearMonth = document.getElementById('searchYearMonth').value;
+        const params = {};
+        if (yearMonth) params.year_month = yearMonth;
+        const queryString = api.buildQueryString(params);
+
+        const result = await api.get(`/api/expected/3p/regular/input-months${queryString}`);
+        const inputMonths = result.input_months || [];
+
+        const select = document.getElementById('searchInputMonth');
+        select.innerHTML = '<option value="">전체</option>';
+
+        inputMonths.forEach(im => {
+            const option = document.createElement('option');
+            option.value = im;
+            option.textContent = im;
+            select.appendChild(option);
+        });
+
+        // 가장 최근 입력월을 기본 선택
+        if (inputMonths.length > 0) {
+            select.value = inputMonths[0];
+        }
+    } catch (e) {
+        console.error('입력월 목록 로드 실패:', e);
+    }
+}
+
 async function loadIrregularTypes() {
     try {
         const result = await api.get('/api/expected/3p/irregular/irregular-types');
@@ -1120,6 +1161,8 @@ function doApplyFilters() {
 
 function resetFilters() {
     document.getElementById('searchYearMonth').value = '';
+    document.getElementById('searchInputMonth').value = '';
+    document.getElementById('searchInputMonth').innerHTML = '<option value="">전체</option>';
     document.getElementById('searchBrand').value = '';
     document.getElementById('searchChannel').value = '';
     document.getElementById('searchIrregularType').value = '';
@@ -1157,7 +1200,9 @@ function downloadMasterEditForm() {
 
     const params = { year_month: yearMonth, channel_ids: selectedIds.join(',') };
     const brandId = document.getElementById('searchBrand').value;
+    const inputMonth = document.getElementById('searchInputMonth').value;
     if (brandId) params.brand_id = brandId;
+    if (inputMonth) params.input_month = inputMonth;
 
     const queryString = api.buildQueryString(params);
     window.location.href = `/api/expected/3p/regular/download${queryString}`;
@@ -1211,6 +1256,11 @@ function showUploadModal() {
     document.getElementById('uploadModalTitle').textContent =
         currentTab === 'base' ? '정기 예상 매출 데이터 업로드' : '비정기 데이터 업로드';
 
+    // 입력월 기본값: 현재 월
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('uploadInputMonth').value = currentMonth;
+
     uploadModal.show();
 }
 
@@ -1246,6 +1296,12 @@ async function uploadFile() {
 
         const formData = new FormData();
         formData.append('file', file);
+
+        // 입력월(Round) 추가
+        const uploadInputMonth = document.getElementById('uploadInputMonth').value;
+        if (uploadInputMonth) {
+            formData.append('input_month', uploadInputMonth);
+        }
 
         const endpoint = currentTab === 'base'
             ? '/api/expected/3p/regular/upload'

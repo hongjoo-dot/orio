@@ -4,7 +4,7 @@ Expected1PIrregular (사입 비정기 관리) Router
 - 사입 비정기 상품 (Expected1PIrregularProduct) CRUD
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
@@ -50,6 +50,7 @@ class Expected1PIrregularCreate(BaseModel):
     ExpectedSalesAmount: Optional[float] = None
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
+    InputMonth: Optional[str] = None
 
 
 class Expected1PIrregularUpdate(BaseModel):
@@ -65,6 +66,7 @@ class Expected1PIrregularUpdate(BaseModel):
     ExpectedSalesAmount: Optional[float] = None
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
+    InputMonth: Optional[str] = None
 
 
 # ========== Pydantic Models — Expected1PIrregularProduct ==========
@@ -134,6 +136,7 @@ async def get_expected_1p_irregular_list(
     channel_id: Optional[int] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
+    input_month: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("Expected1PIrregular", "READ"))
@@ -168,6 +171,8 @@ async def get_expected_1p_irregular_list(
             filters['irregular_type'] = irregular_type
         if status:
             filters['status'] = status
+        if input_month:
+            filters['input_month'] = input_month
 
         result = expected_1p_irregular_repo.get_list(
             page=page,
@@ -189,6 +194,19 @@ async def get_expected_1p_irregular_year_months(user: CurrentUser = Depends(requ
         return {"year_months": year_months}
     except Exception as e:
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
+
+
+@router.get("/input-months")
+async def get_expected_1p_irregular_input_months(
+    year_month: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Expected1PIrregular", "READ"))
+):
+    """사입 비정기 InputMonth(입력월) 목록 조회"""
+    try:
+        input_months = expected_1p_irregular_repo.get_input_months(year_month)
+        return {"input_months": input_months}
+    except Exception as e:
+        raise HTTPException(500, f"입력월 목록 조회 실패: {str(e)}")
 
 
 @router.get("/irregular-types")
@@ -220,6 +238,7 @@ async def get_expected_1p_irregular_master_summary(
     channel_id: Optional[int] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
+    input_month: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PIrregular", "READ"))
 ):
     """마스터 패널용 비정기 목록 + 상품 수 조회"""
@@ -235,6 +254,8 @@ async def get_expected_1p_irregular_master_summary(
             filters['irregular_type'] = irregular_type
         if status:
             filters['status'] = status
+        if input_month:
+            filters['input_month'] = input_month
 
         data = expected_1p_irregular_repo.get_master_summary(filters)
         return {"data": data, "total": len(data)}
@@ -621,10 +642,11 @@ async def download_expected_1p_irregulars(
 @router.post("/upload")
 async def upload_expected_1p_irregulars(
     file: UploadFile = File(...),
+    input_month: Optional[str] = Form(None),
     request: Request = None,
     user: CurrentUser = Depends(require_permission("Expected1PIrregular", "UPLOAD"))
 ):
-    """행사 + 행사 상품 통합 엑셀 업로드"""
+    """행사 + 행사 상품 통합 엑셀 업로드 (input_month: 입력월 YYYY-MM)"""
     try:
         upload_start_time = datetime.now()
 
@@ -1013,6 +1035,7 @@ async def upload_expected_1p_irregulars(
                 'ExpectedSalesAmount': sum_sales if sum_sales > 0 else None,
                 'ExpectedQuantity': sum_qty if sum_qty > 0 else None,
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
+                'InputMonth': input_month or datetime.now().strftime('%Y-%m'),
             })
 
         promo_result = expected_1p_irregular_repo.bulk_upsert(irregular_records)
@@ -1107,6 +1130,23 @@ async def upload_expected_1p_irregulars(
             )
 
         print(f"   업로드 완료: 행사 {promo_result['inserted']}건 삽입/{promo_result['updated']}건 수정, 상품 {prod_result['inserted']}건 삽입/{prod_result['updated']}건 수정")
+
+        # Slack 알림 (비동기 - 응답 지연 없음)
+        try:
+            from utils.slack_notifier import send_expected_upload_notification_async
+            total_inserted = promo_result['inserted'] + prod_result['inserted']
+            total_updated = promo_result['updated'] + prod_result['updated']
+            send_expected_upload_notification_async(
+                sales_type="사입(1P)",
+                data_type="비정기",
+                total_rows=len(df),
+                inserted=total_inserted,
+                updated=total_updated,
+                input_month=input_month,
+                username=user.username if user else None
+            )
+        except Exception:
+            pass
 
         # 12. 결과 반환
         return {
@@ -1215,6 +1255,18 @@ async def update_expected_1p_irregular(
         success = expected_1p_irregular_repo.update(expected_1p_irregular_id, update_data, user_id=user.user_id)
         if not success:
             raise HTTPException(500, "행사 수정 실패")
+
+        # Slack 알림 (비동기)
+        try:
+            from utils.slack_notifier import send_expected_upload_notification_async
+            send_expected_upload_notification_async(
+                sales_type="사입(1P)", data_type="비정기",
+                total_rows=1, inserted=0, updated=1,
+                username=user.username if user else None,
+                action="인라인 수정"
+            )
+        except Exception:
+            pass
 
         return {"IrregularID": expected_1p_irregular_id, **update_data}
     except HTTPException:
@@ -1328,6 +1380,20 @@ async def bulk_update_expected_1p_irregular_products_inline(
     try:
         items = [item.dict() for item in data.items]
         result = expected_1p_irregular_product_repo.bulk_update_products(items, user_id=user.user_id)
+
+        # Slack 알림 (비동기)
+        try:
+            from utils.slack_notifier import send_expected_upload_notification_async
+            updated_count = result.get('updated', len(items))
+            send_expected_upload_notification_async(
+                sales_type="사입(1P)", data_type="비정기",
+                total_rows=updated_count, inserted=0, updated=updated_count,
+                username=user.username if user else None,
+                action="인라인 수정"
+            )
+        except Exception:
+            pass
+
         return result
     except HTTPException:
         raise
