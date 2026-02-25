@@ -122,10 +122,10 @@ async def get_channel_metadata(user: CurrentUser = Depends(require_permission("C
 
 
 @router.get("/list")
-async def get_channel_list(user: CurrentUser = Depends(require_permission("Channel", "READ"))):
+async def get_channel_list(contract_type: Optional[str] = None, user: CurrentUser = Depends(require_permission("Channel", "READ"))):
     """채널 목록 조회 (드롭다운용) - ChannelID와 Name만 반환"""
     try:
-        return channel_repo.get_channel_list()
+        return channel_repo.get_channel_list(contract_type=contract_type)
     except Exception as e:
         raise HTTPException(500, f"채널 목록 조회 실패: {str(e)}")
 

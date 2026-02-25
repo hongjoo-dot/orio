@@ -11,22 +11,23 @@
                 <i class="fa-solid fa-chart-line"></i> <span class="nav-text">대시보드</span>
             </a>
 
-            <!-- 판매 관리 드롭다운 -->
-            <div class="nav-dropdown {% if active_page in ['sales', 'targets', 'expected', 'irregulars'] %}active{% endif %}">
-                <div class="nav-item nav-dropdown-toggle {% if active_page in ['sales', 'targets', 'expected', 'irregulars'] %}active{% endif %}">
-                    <i class="fa-solid fa-won-sign"></i>
-                    <span class="nav-text">판매 관리</span>
+            <a href="/sales" class="nav-item {% if active_page == 'sales' %}active{% endif %}">
+                <i class="fa-solid fa-won-sign"></i> <span class="nav-text">판매 관리</span>
+            </a>
+
+            <!-- 예상 매출 관리 드롭다운 -->
+            <div class="nav-dropdown {% if active_page in ['expected-3p', 'expected-1p'] %}active{% endif %}">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['expected-3p', 'expected-1p'] %}active{% endif %}">
+                    <i class="fa-solid fa-chart-bar"></i>
+                    <span class="nav-text">예상 매출</span>
                     <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
                 </div>
                 <div class="nav-dropdown-menu">
-                    <a href="/sales" class="nav-dropdown-item {% if active_page == 'sales' %}active{% endif %}">
-                        <i class="fa-solid fa-receipt"></i> 판매 현황
+                    <a href="/expected-3p" class="nav-dropdown-item {% if active_page == 'expected-3p' %}active{% endif %}">
+                        <i class="fa-solid fa-store"></i> 위탁 예상 매출
                     </a>
-                    <a href="/targets" class="nav-dropdown-item {% if active_page == 'targets' %}active{% endif %}">
-                        <i class="fa-solid fa-bullseye"></i> 목표 관리
-                    </a>
-                    <a href="/irregulars" class="nav-dropdown-item {% if active_page == 'irregulars' %}active{% endif %}">
-                        <i class="fa-solid fa-tags"></i> 비정기 관리
+                    <a href="/expected-1p" class="nav-dropdown-item {% if active_page == 'expected-1p' %}active{% endif %}">
+                        <i class="fa-solid fa-truck"></i> 사입 예상 매출
                     </a>
                 </div>
             </div>

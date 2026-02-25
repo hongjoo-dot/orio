@@ -1,11 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %}비정기 관리 - Orio ERP v2{% endblock %}
+{% block title %}위탁 예상 매출 - Orio ERP v2{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">비정기 관리</h1>
-    <p class="page-subtitle">비정기 및 비정기 상품 관리</p>
+    <h1 class="page-title">위탁 예상 매출</h1>
+    <p class="page-subtitle">위탁(3P) 채널 예상 매출 관리</p>
+</div>
+
+<!-- Tab Buttons -->
+<div class="tab-container">
+    <button class="tab-btn active" data-tab="base" onclick="switchTab('base')">
+        <i class="fa-solid fa-calendar-check"></i> 정기
+    </button>
+    <button class="tab-btn" data-tab="irregular" onclick="switchTab('irregular')">
+        <i class="fa-solid fa-tags"></i> 비정기
+    </button>
 </div>
 
 <!-- Search Filters -->
@@ -32,19 +42,19 @@
                 <option value="">전체</option>
             </select>
         </div>
-        <div>
+        <div id="channelFilterWrap" style="display:none;">
             <label class="form-label">채널</label>
             <select id="searchChannel" class="form-select">
                 <option value="">전체</option>
             </select>
         </div>
-        <div>
+        <div id="irregularTypeFilterWrap" style="display:none;">
             <label class="form-label">비정기유형</label>
             <select id="searchIrregularType" class="form-select">
                 <option value="">전체</option>
             </select>
         </div>
-        <div>
+        <div id="statusFilterWrap" style="display:none;">
             <label class="form-label">상태</label>
             <select id="searchStatus" class="form-select">
                 <option value="">전체</option>
@@ -53,21 +63,20 @@
     </div>
 </div>
 
-<!-- Master-Detail Layout -->
-<div id="promoMasterDetail" class="master-detail-container">
-    <!-- 마스터 패널 (비정기 목록) -->
+<!-- ========== 정기: 마스터-디테일 ========== -->
+<div id="baseMasterDetail" class="master-detail-container">
     <div class="card master-panel">
         <div class="panel-header">
             <div class="panel-title">
-                <i class="fa-solid fa-calendar-days"></i>
-                비정기 목록
-                <span id="masterCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                <i class="fa-solid fa-store"></i>
+                채널 목록
+                <span id="channelCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
             </div>
             <div class="panel-actions">
                 <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
                     <i class="fa-solid fa-file-excel"></i> 엑셀 양식
                 </button>
-                <button class="btn btn-sm btn-disabled" onclick="downloadEditForm()" id="editDownloadButton" disabled style="background:#3b82f6;color:white;">
+                <button class="btn btn-sm btn-disabled" onclick="downloadMasterEditForm()" id="masterEditDownloadButton" disabled style="background:#3b82f6;color:white;">
                     <i class="fa-solid fa-pen-to-square"></i> 수정 양식
                 </button>
                 <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
@@ -76,59 +85,115 @@
             </div>
         </div>
         <div class="table-wrapper">
-            <table class="table" id="master-table">
-                <thead>
-                    <tr></tr>
-                </thead>
+            <table class="table" id="base-master-table">
+                <thead><tr></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
     </div>
 
-    <!-- 패널 리사이즈 핸들 -->
-    <div class="panel-resize-handle" id="panelResizeHandle"></div>
+    <div class="panel-resize-handle" id="baseResizeHandle"></div>
 
-    <!-- 디테일 패널 (비정기 상품) -->
     <div class="card detail-panel">
-        <div id="detailPlaceholder" class="detail-placeholder">
+        <div id="baseDetailPlaceholder" class="detail-placeholder">
             <i class="fa-solid fa-hand-pointer"></i>
-            <p>좌측에서 비정기를 선택하세요</p>
+            <p>좌측에서 채널을 선택하세요</p>
         </div>
-
-        <div id="detailContainer" style="display:none;height:100%;flex-direction:column;">
+        <div id="baseDetailContainer" style="display:none;height:100%;flex-direction:column;">
             <div class="panel-header">
                 <div class="panel-title">
                     <i class="fa-solid fa-box"></i>
-                    비정기 상품
-                    <span id="detailItemCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                    상품 예상 매출
+                    <span id="baseItemCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
                 </div>
                 <div class="panel-actions">
-                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteDetail()" id="detailDeleteButton" disabled>
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteBaseItems()" id="baseDeleteButton" disabled>
                         <i class="fa-solid fa-trash"></i> 선택 삭제
                     </button>
-                    <button class="btn btn-sm btn-disabled" onclick="downloadDetailEditForm()" id="detailEditDownloadButton" disabled style="background:#3b82f6;color:white;">
+                    <button class="btn btn-sm btn-disabled" onclick="downloadChannelEditForm()" id="baseEditDownloadButton" disabled style="background:#3b82f6;color:white;">
                         <i class="fa-solid fa-pen-to-square"></i> 수정 양식
                     </button>
                 </div>
             </div>
-
-            <!-- 비정기 요약 -->
-            <div id="promoSummary" class="group-summary"></div>
-
-            <!-- 상품 테이블 -->
+            <div id="baseChannelSummary" class="group-summary"></div>
             <div class="table-wrapper">
-                <table class="table" id="detail-table">
-                    <thead>
-                        <tr></tr>
-                    </thead>
+                <table class="table" id="base-detail-table">
+                    <thead><tr></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
+            <div id="baseSaveBar" class="save-bar" style="display:none;">
+                <span id="baseDirtyCount">0건 변경됨</span>
+                <button class="btn btn-primary btn-sm" onclick="saveBaseChanges()">
+                    <i class="fa-solid fa-floppy-disk"></i> 저장
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
-            <!-- 저장 바 -->
-            <div id="saveBar" class="save-bar" style="display:none;">
-                <span id="dirtyCount">0건 변경됨</span>
-                <button class="btn btn-primary btn-sm" onclick="saveChanges()">
+<!-- ========== 비정기: 마스터-디테일 ========== -->
+<div id="irregMasterDetail" class="master-detail-container" style="display:none;">
+    <div class="card master-panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa-solid fa-calendar-days"></i>
+                비정기 목록
+                <span id="irregMasterCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+            </div>
+            <div class="panel-actions">
+                <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
+                    <i class="fa-solid fa-file-excel"></i> 엑셀 양식
+                </button>
+                <button class="btn btn-sm btn-disabled" onclick="downloadIrregEditForm()" id="irregEditDownloadButton" disabled style="background:#3b82f6;color:white;">
+                    <i class="fa-solid fa-pen-to-square"></i> 수정 양식
+                </button>
+                <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
+                    <i class="fa-solid fa-upload"></i> 엑셀 업로드
+                </button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table class="table" id="irreg-master-table">
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel-resize-handle" id="irregResizeHandle"></div>
+
+    <div class="card detail-panel">
+        <div id="irregDetailPlaceholder" class="detail-placeholder">
+            <i class="fa-solid fa-hand-pointer"></i>
+            <p>좌측에서 비정기를 선택하세요</p>
+        </div>
+        <div id="irregDetailContainer" style="display:none;height:100%;flex-direction:column;">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-box"></i>
+                    비정기 상품
+                    <span id="irregDetailItemCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                </div>
+                <div class="panel-actions">
+                    <button class="btn btn-danger btn-sm btn-disabled" onclick="bulkDeleteIrregItems()" id="irregDeleteButton" disabled>
+                        <i class="fa-solid fa-trash"></i> 선택 삭제
+                    </button>
+                    <button class="btn btn-sm btn-disabled" onclick="downloadIrregDetailEditForm()" id="irregDetailEditDownloadButton" disabled style="background:#3b82f6;color:white;">
+                        <i class="fa-solid fa-pen-to-square"></i> 수정 양식
+                    </button>
+                </div>
+            </div>
+            <div id="irregSummary" class="group-summary"></div>
+            <div class="table-wrapper">
+                <table class="table" id="irreg-detail-table">
+                    <thead><tr></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div id="irregSaveBar" class="save-bar" style="display:none;">
+                <span id="irregDirtyCount">0건 변경됨</span>
+                <button class="btn btn-primary btn-sm" onclick="saveIrregChanges()">
                     <i class="fa-solid fa-floppy-disk"></i> 저장
                 </button>
             </div>
@@ -140,7 +205,7 @@
 <div id="uploadModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 class="modal-title">비정기 데이터 업로드</h2>
+            <h2 class="modal-title" id="uploadModalTitle">예상 매출 데이터 업로드</h2>
             <button class="modal-close" data-modal-close>&times;</button>
         </div>
         <div class="modal-body">
@@ -191,43 +256,62 @@
                         </div>
                     </div>
                 </div>
-                <div style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                <!-- 정기 통계 -->
+                <div id="uploadRegularStats" style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:20px;">
+                    <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
+                        <i class="fa-solid fa-chart-bar"></i> 업로드 통계
+                    </h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">총 행 수</div>
+                            <div style="font-size:20px;font-weight:600;" id="regTotalRows">0</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">신규 삽입</div>
+                            <div style="font-size:20px;font-weight:600;color:var(--success);" id="regInserted">0</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">기존 수정</div>
+                            <div style="font-size:20px;font-weight:600;color:#3b82f6;" id="regUpdated">0</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 비정기 통계 -->
+                <div id="uploadIrregularStats" style="background:rgba(99,102,241,0.1);border-radius:12px;padding:20px;margin-bottom:20px;display:none;">
                     <h4 style="font-size:15px;margin-bottom:16px;color:var(--accent);">
                         <i class="fa-solid fa-chart-bar"></i> 업로드 통계
                     </h4>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-                        <!-- 비정기 통계 -->
                         <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:16px;">
                             <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">비정기(Irregular)</div>
                             <div style="display:flex;gap:16px;">
                                 <div>
                                     <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">신규</div>
-                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="promoInserted">0</div>
+                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="irregInserted">0</div>
                                 </div>
                                 <div>
                                     <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">수정</div>
-                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="promoUpdated">0</div>
+                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="irregUpdated">0</div>
                                 </div>
                             </div>
                         </div>
-                        <!-- 상품 통계 -->
                         <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:16px;">
                             <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">상품(Product)</div>
                             <div style="display:flex;gap:16px;">
                                 <div>
                                     <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">신규</div>
-                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="prodInserted">0</div>
+                                    <div style="font-size:18px;font-weight:600;color:var(--success);" id="irregProdInserted">0</div>
                                 </div>
                                 <div>
                                     <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">수정</div>
-                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="prodUpdated">0</div>
+                                    <div style="font-size:18px;font-weight:600;color:#3b82f6;" id="irregProdUpdated">0</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div style="margin-top:12px;text-align:center;">
                         <span style="font-size:12px;color:var(--text-muted);">총 행 수: </span>
-                        <span style="font-size:14px;font-weight:600;" id="uploadTotalRows">0</span>
+                        <span style="font-size:14px;font-weight:600;" id="irregTotalRows">0</span>
                     </div>
                 </div>
             </div>
@@ -261,17 +345,50 @@
 
 {% block extra_css %}
 <style>
+    /* Tab */
+    .tab-container {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 24px;
+        border-bottom: 2px solid var(--border);
+        padding-bottom: 0;
+    }
+    .tab-btn {
+        padding: 10px 24px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .tab-btn:hover {
+        color: var(--text-primary);
+    }
+    .tab-btn.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        font-weight: 600;
+    }
+
     /* Master Table Rows */
-    #master-table tbody tr {
+    #base-master-table tbody tr,
+    #irreg-master-table tbody tr {
         cursor: pointer;
         transition: background 0.15s;
     }
-
-    #master-table tbody tr:hover {
+    #base-master-table tbody tr:hover,
+    #irreg-master-table tbody tr:hover {
         background: rgba(99, 102, 241, 0.1);
     }
-
-    #master-table tbody tr.selected {
+    #base-master-table tbody tr.selected,
+    #irreg-master-table tbody tr.selected {
         background: rgba(99, 102, 241, 0.15);
         border-left: 3px solid var(--accent);
     }
@@ -292,5 +409,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/pages/irregulars.js"></script>
+<script src="/static/js/pages/expected_3p_regular.js"></script>
 {% endblock %}

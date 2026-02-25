@@ -1,6 +1,6 @@
 """
-TargetBaseProduct Repository
-- 정기 목표 Regular 테이블 CRUD 작업
+Expected3PRegularProduct Repository
+- 위탁(3P) 정기 예상 매출 테이블 CRUD 작업
 """
 
 from typing import Dict, Any, Optional, List
@@ -8,31 +8,31 @@ from core import BaseRepository, QueryBuilder, get_db_cursor, log_changes_bulk
 from utils.helpers import calculate_amount_ex_vat
 
 
-class TargetBaseRepository(BaseRepository):
-    """TargetBaseProduct 테이블 Repository"""
+class Expected3PRegularRepository(BaseRepository):
+    """Expected3PRegularProduct 테이블 Repository"""
 
     # SELECT 컬럼 상수 (순서 변경 금지 - _row_to_dict 인덱스와 일치해야 함)
     SELECT_COLUMNS = (
-        "t.TargetBaseID", "t.[Date]",
+        "t.Expected3PRegularID", "t.[Date]",
         "t.BrandID", "t.BrandName",
         "t.ChannelID", "t.ChannelName",
         "t.ERPCode", "t.UniqueCode", "t.ProductName",
-        "t.TargetAmount", "t.TargetAmountExVAT", "t.TargetQuantity",
+        "t.ExpectedAmount", "t.ExpectedAmountExVAT", "t.ExpectedQuantity",
         "t.Notes", "t.CreatedDate", "t.UpdatedDate"
     )
 
     def __init__(self):
-        super().__init__(table_name="[dbo].[TargetBaseProduct]", id_column="TargetBaseID")
+        super().__init__(table_name="[dbo].[Expected3PRegularProduct]", id_column="Expected3PRegularID")
 
     def get_select_query(self) -> str:
-        """TargetBaseProduct 조회 쿼리"""
+        """Expected3PRegularProduct 조회 쿼리"""
         columns = ", ".join(self.SELECT_COLUMNS)
-        return f"SELECT {columns} FROM [dbo].[TargetBaseProduct] t"
+        return f"SELECT {columns} FROM [dbo].[Expected3PRegularProduct] t"
 
     def _row_to_dict(self, row) -> Dict[str, Any]:
         """Row를 Dictionary로 변환"""
         return {
-            "TargetBaseID": row[0],
+            "Expected3PRegularID": row[0],
             "Date": row[1].strftime('%Y-%m-%d') if row[1] else None,
             "BrandID": row[2],
             "BrandName": row[3],
@@ -41,9 +41,9 @@ class TargetBaseRepository(BaseRepository):
             "ERPCode": row[6],
             "UniqueCode": row[7],
             "ProductName": row[8],
-            "TargetAmount": float(row[9]) if row[9] else 0,
-            "TargetAmountExVAT": float(row[10]) if row[10] else 0,
-            "TargetQuantity": int(row[11]) if row[11] else 0,
+            "ExpectedAmount": float(row[9]) if row[9] else 0,
+            "ExpectedAmountExVAT": float(row[10]) if row[10] else 0,
+            "ExpectedQuantity": int(row[11]) if row[11] else 0,
             "Notes": row[12],
             "CreatedDate": row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
             "UpdatedDate": row[14].strftime('%Y-%m-%d %H:%M:%S') if row[14] else None,
@@ -51,7 +51,7 @@ class TargetBaseRepository(BaseRepository):
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
         """
-        TargetBase 전용 필터 로직
+        Expected3PRegular 전용 필터 로직
 
         지원하는 필터:
         - year_month: 년월 (YYYY-MM 형식)
@@ -69,8 +69,8 @@ class TargetBaseRepository(BaseRepository):
             builder.where_equals("t.ChannelID", filters['channel_id'])
 
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
-        """TargetBase 전용 QueryBuilder 생성"""
-        builder = QueryBuilder("[dbo].[TargetBaseProduct] t")
+        """Expected3PRegular 전용 QueryBuilder 생성"""
+        builder = QueryBuilder("[dbo].[Expected3PRegularProduct] t")
         builder.select(*self.SELECT_COLUMNS)
 
         if filters:
@@ -98,13 +98,13 @@ class TargetBaseRepository(BaseRepository):
         # 1단계: 신규 레코드(ID 없음)에 대해 중복 체크 먼저 수행
         with get_db_cursor() as cursor:
             for idx, record in enumerate(records):
-                target_id = record.get('TargetBaseID')
+                record_id = record.get('Expected3PRegularID')
                 row_num = idx + 2  # 엑셀 행 번호 (헤더 제외)
 
                 # ID가 없는 경우만 중복 체크
-                if not target_id:
+                if not record_id:
                     check_query = """
-                        SELECT TargetBaseID FROM [dbo].[TargetBaseProduct]
+                        SELECT Expected3PRegularID FROM [dbo].[Expected3PRegularProduct]
                         WHERE [Date] = ? AND UniqueCode = ? AND ChannelID = ?
                     """
                     cursor.execute(check_query,
@@ -133,16 +133,16 @@ class TargetBaseRepository(BaseRepository):
                 batch = records[i:i + batch_size]
 
                 for record in batch:
-                    target_id = record.get('TargetBaseID')
+                    record_id = record.get('Expected3PRegularID')
 
-                    # TargetAmountExVAT 자동 계산 (VAT 10% 제외)
-                    target_amount = record.get('TargetAmount') or 0
-                    target_amount_ex_vat = calculate_amount_ex_vat(target_amount)
+                    # ExpectedAmountExVAT 자동 계산 (VAT 10% 제외)
+                    expected_amount = record.get('ExpectedAmount') or 0
+                    expected_amount_ex_vat = calculate_amount_ex_vat(expected_amount)
 
-                    if target_id:
+                    if record_id:
                         # ID 기반 UPDATE
                         update_query = """
-                            UPDATE [dbo].[TargetBaseProduct]
+                            UPDATE [dbo].[Expected3PRegularProduct]
                             SET [Date] = ?,
                                 BrandID = ?,
                                 BrandName = ?,
@@ -151,12 +151,12 @@ class TargetBaseRepository(BaseRepository):
                                 ERPCode = ?,
                                 UniqueCode = ?,
                                 ProductName = ?,
-                                TargetAmount = ?,
-                                TargetAmountExVAT = ?,
-                                TargetQuantity = ?,
+                                ExpectedAmount = ?,
+                                ExpectedAmountExVAT = ?,
+                                ExpectedQuantity = ?,
                                 Notes = ?,
                                 UpdatedDate = GETDATE()
-                            WHERE TargetBaseID = ?
+                            WHERE Expected3PRegularID = ?
                         """
                         params = [
                             record.get('Date'),
@@ -167,11 +167,11 @@ class TargetBaseRepository(BaseRepository):
                             record.get('ERPCode'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
-                            target_amount,
-                            target_amount_ex_vat,
-                            record.get('TargetQuantity'),
+                            expected_amount,
+                            expected_amount_ex_vat,
+                            record.get('ExpectedQuantity'),
                             record.get('Notes'),
-                            target_id
+                            record_id
                         ]
                         cursor.execute(update_query, *params)
                         if cursor.rowcount > 0:
@@ -179,9 +179,9 @@ class TargetBaseRepository(BaseRepository):
                     else:
                         # 신규 INSERT
                         insert_query = """
-                            INSERT INTO [dbo].[TargetBaseProduct]
+                            INSERT INTO [dbo].[Expected3PRegularProduct]
                             ([Date], BrandID, BrandName, ChannelID, ChannelName,
-                             ERPCode, UniqueCode, ProductName, TargetAmount, TargetAmountExVAT, TargetQuantity, Notes)
+                             ERPCode, UniqueCode, ProductName, ExpectedAmount, ExpectedAmountExVAT, ExpectedQuantity, Notes)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
@@ -193,9 +193,9 @@ class TargetBaseRepository(BaseRepository):
                             record.get('ERPCode'),
                             record.get('UniqueCode'),
                             record.get('ProductName'),
-                            target_amount,
-                            target_amount_ex_vat,
-                            record.get('TargetQuantity'),
+                            expected_amount,
+                            expected_amount_ex_vat,
+                            record.get('ExpectedQuantity'),
                             record.get('Notes'),
                         ]
                         cursor.execute(insert_query, *params)
@@ -221,8 +221,8 @@ class TargetBaseRepository(BaseRepository):
             columns = ", ".join(self.SELECT_COLUMNS)
             query = f"""
                 SELECT {columns}
-                FROM [dbo].[TargetBaseProduct] t
-                WHERE t.TargetBaseID IN ({placeholders})
+                FROM [dbo].[Expected3PRegularProduct] t
+                WHERE t.Expected3PRegularID IN ({placeholders})
                 ORDER BY t.[Date] DESC
             """
             cursor.execute(query, *ids)
@@ -233,7 +233,7 @@ class TargetBaseRepository(BaseRepository):
         with get_db_cursor(commit=False) as cursor:
             query = """
                 SELECT DISTINCT FORMAT(t.[Date], 'yyyy-MM') as YearMonth
-                FROM [dbo].[TargetBaseProduct] t
+                FROM [dbo].[Expected3PRegularProduct] t
                 INNER JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
                 WHERE c.ContractType = '3P'
                 ORDER BY YearMonth DESC
@@ -242,7 +242,7 @@ class TargetBaseRepository(BaseRepository):
             return [row[0] for row in cursor.fetchall()]
 
     def get_channels_summary(self, year_month: str, brand_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """채널별 목표 요약 조회 (마스터 패널용, 위탁 3P 채널만)"""
+        """채널별 예상 매출 요약 조회 (마스터 패널용, 위탁 3P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
             where_clauses = ["FORMAT(t.[Date], 'yyyy-MM') = ?", "c.ContractType = '3P'"]
             params = [year_month]
@@ -256,9 +256,9 @@ class TargetBaseRepository(BaseRepository):
             query = f"""
                 SELECT t.ChannelID, t.ChannelName,
                        COUNT(*) as ProductCount,
-                       ISNULL(SUM(t.TargetAmount), 0) as TotalAmount,
-                       ISNULL(SUM(t.TargetQuantity), 0) as TotalQuantity
-                FROM [dbo].[TargetBaseProduct] t
+                       ISNULL(SUM(t.ExpectedAmount), 0) as TotalAmount,
+                       ISNULL(SUM(t.ExpectedQuantity), 0) as TotalQuantity
+                FROM [dbo].[Expected3PRegularProduct] t
                 INNER JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
                 WHERE {where_sql}
                 GROUP BY t.ChannelID, t.ChannelName
@@ -274,7 +274,7 @@ class TargetBaseRepository(BaseRepository):
             } for row in cursor.fetchall()]
 
     def get_by_channel(self, channel_id: int, year_month: str, brand_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """특정 채널의 목표 상품 목록 조회 (디테일 패널용)"""
+        """특정 채널의 예상 매출 상품 목록 조회 (디테일 패널용)"""
         with get_db_cursor(commit=False) as cursor:
             columns = ", ".join(self.SELECT_COLUMNS)
             where_clauses = ["t.ChannelID = ?", "FORMAT(t.[Date], 'yyyy-MM') = ?"]
@@ -288,7 +288,7 @@ class TargetBaseRepository(BaseRepository):
 
             query = f"""
                 SELECT {columns}
-                FROM [dbo].[TargetBaseProduct] t
+                FROM [dbo].[Expected3PRegularProduct] t
                 WHERE {where_sql}
                 ORDER BY t.ERPCode ASC
             """
@@ -296,37 +296,37 @@ class TargetBaseRepository(BaseRepository):
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
     def bulk_update_amounts(self, records: List[Dict[str, Any]], user_id: int = None) -> Dict[str, Any]:
-        """인라인 편집 일괄 저장 (TargetAmount, TargetQuantity, Notes만 업데이트)"""
+        """인라인 편집 일괄 저장 (ExpectedAmount, ExpectedQuantity, Notes만 업데이트)"""
         total_updated = 0
-        track_fields = ['TargetAmount', 'TargetQuantity', 'Notes']
+        track_fields = ['ExpectedAmount', 'ExpectedQuantity', 'Notes']
 
         with get_db_cursor() as cursor:
             if user_id is not None:
-                log_changes_bulk(cursor, self.table_name, 'TargetBaseID', records, track_fields, user_id)
+                log_changes_bulk(cursor, self.table_name, 'Expected3PRegularID', records, track_fields, user_id)
 
             for record in records:
-                target_id = record.get('TargetBaseID')
-                if not target_id:
+                record_id = record.get('Expected3PRegularID')
+                if not record_id:
                     continue
 
-                target_amount = record.get('TargetAmount', 0) or 0
-                target_amount_ex_vat = calculate_amount_ex_vat(target_amount)
+                expected_amount = record.get('ExpectedAmount', 0) or 0
+                expected_amount_ex_vat = calculate_amount_ex_vat(expected_amount)
 
                 query = """
-                    UPDATE [dbo].[TargetBaseProduct]
-                    SET TargetAmount = ?,
-                        TargetAmountExVAT = ?,
-                        TargetQuantity = ?,
+                    UPDATE [dbo].[Expected3PRegularProduct]
+                    SET ExpectedAmount = ?,
+                        ExpectedAmountExVAT = ?,
+                        ExpectedQuantity = ?,
                         Notes = ?,
                         UpdatedDate = GETDATE()
-                    WHERE TargetBaseID = ?
+                    WHERE Expected3PRegularID = ?
                 """
                 cursor.execute(query,
-                    float(target_amount),
-                    target_amount_ex_vat,
-                    int(record.get('TargetQuantity', 0) or 0),
+                    float(expected_amount),
+                    expected_amount_ex_vat,
+                    int(record.get('ExpectedQuantity', 0) or 0),
                     record.get('Notes'),
-                    target_id
+                    record_id
                 )
                 if cursor.rowcount > 0:
                     total_updated += 1
@@ -359,7 +359,7 @@ class TargetBaseRepository(BaseRepository):
                 params.append(channel_id)
 
             where_clause = " AND ".join(conditions)
-            query = f"DELETE FROM [dbo].[TargetBaseProduct] WHERE {where_clause}"
+            query = f"DELETE FROM [dbo].[Expected3PRegularProduct] WHERE {where_clause}"
 
             cursor.execute(query, *params)
             return cursor.rowcount

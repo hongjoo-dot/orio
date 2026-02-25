@@ -80,25 +80,25 @@ async def bom_page(request: Request, redirect = Depends(require_login_for_page))
     })
 
 
-@router.get("/targets", response_class=HTMLResponse)
-async def targets_page(request: Request, redirect = Depends(require_login_for_page)):
-    """목표 관리 페이지"""
+@router.get("/expected-3p", response_class=HTMLResponse)
+async def expected_3p_page(request: Request, redirect = Depends(require_login_for_page)):
+    """위탁 예상 매출 페이지 (정기/비정기 탭)"""
     if redirect:
         return redirect
-    return templates.TemplateResponse("targets.html", {
+    return templates.TemplateResponse("expected_3p_regular.html", {
         "request": request,
-        "active_page": "targets"
+        "active_page": "expected-3p"
     })
 
 
-@router.get("/irregulars", response_class=HTMLResponse)
-async def irregulars_page(request: Request, redirect = Depends(require_login_for_page)):
-    """비정기 관리 페이지"""
+@router.get("/expected-1p", response_class=HTMLResponse)
+async def expected_1p_page(request: Request, redirect = Depends(require_login_for_page)):
+    """사입 예상 매출 페이지 (정기/비정기 탭)"""
     if redirect:
         return redirect
-    return templates.TemplateResponse("irregulars.html", {
+    return templates.TemplateResponse("expected_1p_regular.html", {
         "request": request,
-        "active_page": "irregulars"
+        "active_page": "expected-1p"
     })
 
 

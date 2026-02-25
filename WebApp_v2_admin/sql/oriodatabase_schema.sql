@@ -234,17 +234,13 @@ CREATE TABLE oriodatabase.dbo.Cafe24Customers (
 	shop_no int NULL,
 	group_no int NULL,
 	member_authentication nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	use_blacklist nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	blacklist_type nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	authentication_method nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	sms nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	news_mail nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	gender nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	solar_calendar nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	total_points decimal(18,2) NULL,
 	available_points decimal(18,2) NULL,
 	used_points decimal(18,2) NULL,
-	available_credits decimal(18,2) NULL,
 	use_mobile_app nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	last_login_date datetime2 NULL,
 	created_date datetime2 NULL,
@@ -256,6 +252,8 @@ CREATE TABLE oriodatabase.dbo.Cafe24Customers (
 	required_purchase_count int NULL,
 	BlobPath nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CollectedDate datetime2 DEFAULT getdate() NULL,
+	phone nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	cellphone nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK__Cafe24Cu__A4AE64B8A716F9FD PRIMARY KEY (CustomerID),
 	CONSTRAINT UQ__Cafe24Cu__B29B85350550E86F UNIQUE (member_id)
 );
@@ -319,6 +317,34 @@ CREATE TABLE oriodatabase.dbo.Cafe24Orders (
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_Cafe24Orders_shipping_status ON oriodatabase.dbo.Cafe24Orders (  shipping_status ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.ChangeLog definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.ChangeLog;
+
+CREATE TABLE oriodatabase.dbo.ChangeLog (
+	ChangeID bigint IDENTITY(1,1) NOT NULL,
+	TableName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	RecordID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	FieldName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	OldValue nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	NewValue nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ChangedBy int NOT NULL,
+	ChangedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__ChangeLo__0E05C5B776674BA1 PRIMARY KEY (ChangeID)
+);
+ CREATE NONCLUSTERED INDEX IX_ChangeLog_ChangedBy ON oriodatabase.dbo.ChangeLog (  ChangedBy ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ChangeLog_ChangedDate ON oriodatabase.dbo.ChangeLog (  ChangedDate DESC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_ChangeLog_Table_Record ON oriodatabase.dbo.ChangeLog (  TableName ASC  , RecordID ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
 
@@ -399,6 +425,21 @@ CREATE TABLE oriodatabase.dbo.GoogleAdsSearchVolume (
 	 ON [PRIMARY ] ;
 
 
+-- oriodatabase.dbo.IrregularType definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.IrregularType;
+
+CREATE TABLE oriodatabase.dbo.IrregularType (
+	TypeCode nvarchar(5) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	TypeName nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	DisplayName nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	Category nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	CONSTRAINT PK__Promotio__3E1CDC7D5A999E83 PRIMARY KEY (TypeCode)
+);
+
+
 -- oriodatabase.dbo.Permission definition
 
 -- Drop table
@@ -418,21 +459,6 @@ CREATE TABLE oriodatabase.dbo.Permission (
  CREATE NONCLUSTERED INDEX IX_Permission_Module ON oriodatabase.dbo.Permission (  Module ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
-
-
--- oriodatabase.dbo.PromotionType definition
-
--- Drop table
-
--- DROP TABLE oriodatabase.dbo.PromotionType;
-
-CREATE TABLE oriodatabase.dbo.PromotionType (
-	TypeCode nvarchar(5) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	TypeName nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	DisplayName nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	Category nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	CONSTRAINT PK__Promotio__3E1CDC7D5A999E83 PRIMARY KEY (TypeCode)
-);
 
 
 -- oriodatabase.dbo.[Role] definition
@@ -525,20 +551,22 @@ CREATE TABLE oriodatabase.dbo.TargetBaseProduct (
 	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
+	TargetAmountExVAT decimal(18,2) NULL,
+	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK__TargetBa__2E1897593118F643 PRIMARY KEY (TargetBaseID)
 );
 
 
--- oriodatabase.dbo.TargetPromotionProduct definition
+-- oriodatabase.dbo.TargetIrregularProduct definition
 
 -- Drop table
 
--- DROP TABLE oriodatabase.dbo.TargetPromotionProduct;
+-- DROP TABLE oriodatabase.dbo.TargetIrregularProduct;
 
-CREATE TABLE oriodatabase.dbo.TargetPromotionProduct (
-	TargetPromotionID int IDENTITY(1,1) NOT NULL,
-	PromotionID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	PromotionName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+CREATE TABLE oriodatabase.dbo.TargetIrregularProduct (
+	TargetIrregularID int IDENTITY(1,1) NOT NULL,
+	IrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	IrregularName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	StartDate date NOT NULL,
 	StartTime time DEFAULT '00:00:00' NOT NULL,
 	EndDate date NOT NULL,
@@ -554,8 +582,10 @@ CREATE TABLE oriodatabase.dbo.TargetPromotionProduct (
 	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
-	PromotionType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CONSTRAINT PK__TargetPr__92432A9BED56D528 PRIMARY KEY (TargetPromotionID)
+	IrregularType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	TargetAmountExVAT decimal(18,2) NULL,
+	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__TargetPr__92432A9BED56D528 PRIMARY KEY (TargetIrregularID)
 );
 
 
@@ -578,6 +608,30 @@ CREATE TABLE oriodatabase.dbo.[User] (
 	CONSTRAINT UQ__User__A9D10534139AAD13 UNIQUE (Email)
 );
  CREATE NONCLUSTERED INDEX IX_User_Email ON oriodatabase.dbo.User (  Email ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.ViralKeywords definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.ViralKeywords;
+
+CREATE TABLE oriodatabase.dbo.ViralKeywords (
+	KeywordID int IDENTITY(1,1) NOT NULL,
+	BrandName nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	KeywordType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	Keyword nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	IsActive bit DEFAULT 1 NULL,
+	Description nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	UpdatedBy nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS DEFAULT 'SYSTEM' NULL,
+	CONSTRAINT PK__ViralKey__37C135C123F1C986 PRIMARY KEY (KeywordID)
+);
+ CREATE NONCLUSTERED INDEX IX_ViralKeywords_Brand_Type ON oriodatabase.dbo.ViralKeywords (  BrandName ASC  , KeywordType ASC  , IsActive ASC  )  
+	 INCLUDE ( Keyword ) 
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
 
@@ -615,6 +669,7 @@ CREATE TABLE oriodatabase.dbo.WithdrawalPlan (
 	CreatedBy int NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
+	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK__Withdraw__755C22D76E54EE77 PRIMARY KEY (PlanID)
 );
  CREATE NONCLUSTERED INDEX IX_WithdrawalPlan_Date ON oriodatabase.dbo.WithdrawalPlan (  Date ASC  )  
@@ -766,6 +821,72 @@ CREATE TABLE oriodatabase.dbo.ChannelDetail (
 	 ON [PRIMARY ] ;
 
 
+-- oriodatabase.dbo.Irregular definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Irregular;
+
+CREATE TABLE oriodatabase.dbo.Irregular (
+	IrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	IrregularName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	IrregularType nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	StartDate date NOT NULL,
+	StartTime time DEFAULT '00:00:00' NOT NULL,
+	EndDate date NOT NULL,
+	EndTime time DEFAULT '23:59:59' NOT NULL,
+	Status nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS DEFAULT 'SCHEDULED' NULL,
+	BrandID int NOT NULL,
+	BrandName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ChannelID int NOT NULL,
+	ChannelName nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CommissionRate decimal(5,2) NULL,
+	DiscountOwner nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CompanyShare decimal(5,2) NULL,
+	ChannelShare decimal(5,2) NULL,
+	ExpectedSalesAmount decimal(18,2) NULL,
+	ExpectedQuantity int NULL,
+	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Promotio__52C42F2FB81831C0 PRIMARY KEY (IrregularID),
+	CONSTRAINT FK_Promotion_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
+);
+
+
+-- oriodatabase.dbo.IrregularProduct definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.IrregularProduct;
+
+CREATE TABLE oriodatabase.dbo.IrregularProduct (
+	IrregularProductID int IDENTITY(1,1) NOT NULL,
+	IrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	UniqueCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ProductName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	SellingPrice decimal(18,2) NULL,
+	IrregularPrice decimal(18,2) NULL,
+	SupplyPrice decimal(18,2) NULL,
+	CouponDiscountRate decimal(5,2) NULL,
+	UnitCost decimal(18,2) NULL,
+	LogisticsCost decimal(18,2) NULL,
+	ManagementCost decimal(18,2) NULL,
+	WarehouseCost decimal(18,2) NULL,
+	EDICost decimal(18,2) NULL,
+	MisCost decimal(18,2) NULL,
+	ExpectedSalesAmount decimal(18,2) NULL,
+	ExpectedQuantity int NULL,
+	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__Promotio__C7B85D3CBB631920 PRIMARY KEY (IrregularProductID),
+	CONSTRAINT UQ_PromotionProduct UNIQUE (IrregularID,UniqueCode),
+	CONSTRAINT FK_IrregularProduct_Irregular FOREIGN KEY (IrregularID) REFERENCES oriodatabase.dbo.Irregular(IrregularID)
+);
+
+
 -- oriodatabase.dbo.Keyword definition
 
 -- Drop table
@@ -870,7 +991,7 @@ CREATE TABLE oriodatabase.dbo.Product (
 	Status nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	ReleaseDate datetime2 DEFAULT getdate() NULL,
 	UpdatedDate datetime2 DEFAULT getdate() NULL,
-	ProductType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ProductType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS DEFAULT 'SINGLE' NULL,
 	CONSTRAINT PK_Product PRIMARY KEY (ProductID),
 	CONSTRAINT FK_Product_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
 );
@@ -945,71 +1066,6 @@ CREATE TABLE oriodatabase.dbo.ProductDisbursement (
 	 ON [PRIMARY ] ;
 ALTER TABLE oriodatabase.dbo.ProductDisbursement WITH NOCHECK ADD CONSTRAINT CK_ProductDisbursement_Type CHECK (([Type]='OTHER' OR [Type]='INTERNAL' OR [Type]='SAMPLE' OR [Type]='SEEDING' OR [Type]='GIFT'));
 ALTER TABLE oriodatabase.dbo.ProductDisbursement WITH NOCHECK ADD CONSTRAINT CK_ProductDisbursement_Status CHECK (([Status]='COMPLETED' OR [Status]='REJECTED' OR [Status]='APPROVED' OR [Status]='PENDING' OR [Status]='DRAFT'));
-
-
--- oriodatabase.dbo.Promotion definition
-
--- Drop table
-
--- DROP TABLE oriodatabase.dbo.Promotion;
-
-CREATE TABLE oriodatabase.dbo.Promotion (
-	PromotionID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	PromotionName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	PromotionType nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	StartDate date NOT NULL,
-	StartTime time DEFAULT '00:00:00' NOT NULL,
-	EndDate date NOT NULL,
-	EndTime time DEFAULT '23:59:59' NOT NULL,
-	Status nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS DEFAULT 'SCHEDULED' NULL,
-	BrandID int NOT NULL,
-	BrandName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	ChannelID int NOT NULL,
-	ChannelName nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CommissionRate decimal(5,2) NULL,
-	DiscountOwner nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CompanyShare decimal(5,2) NULL,
-	ChannelShare decimal(5,2) NULL,
-	ExpectedSalesAmount decimal(18,2) NULL,
-	ExpectedQuantity int NULL,
-	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CreatedDate datetime DEFAULT getdate() NULL,
-	UpdatedDate datetime DEFAULT getdate() NULL,
-	CONSTRAINT PK__Promotio__52C42F2FB81831C0 PRIMARY KEY (PromotionID),
-	CONSTRAINT FK_Promotion_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
-);
-
-
--- oriodatabase.dbo.PromotionProduct definition
-
--- Drop table
-
--- DROP TABLE oriodatabase.dbo.PromotionProduct;
-
-CREATE TABLE oriodatabase.dbo.PromotionProduct (
-	PromotionProductID int IDENTITY(1,1) NOT NULL,
-	PromotionID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	UniqueCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	ProductName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	SellingPrice decimal(18,2) NULL,
-	PromotionPrice decimal(18,2) NULL,
-	SupplyPrice decimal(18,2) NULL,
-	CouponDiscountRate decimal(5,2) NULL,
-	UnitCost decimal(18,2) NULL,
-	LogisticsCost decimal(18,2) NULL,
-	ManagementCost decimal(18,2) NULL,
-	WarehouseCost decimal(18,2) NULL,
-	EDICost decimal(18,2) NULL,
-	MisCost decimal(18,2) NULL,
-	ExpectedSalesAmount decimal(18,2) NULL,
-	ExpectedQuantity int NULL,
-	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CreatedDate datetime DEFAULT getdate() NULL,
-	UpdatedDate datetime DEFAULT getdate() NULL,
-	CONSTRAINT PK__Promotio__C7B85D3CBB631920 PRIMARY KEY (PromotionProductID),
-	CONSTRAINT UQ_PromotionProduct UNIQUE (PromotionID,UniqueCode),
-	CONSTRAINT FK_PromotionProduct_Promotion FOREIGN KEY (PromotionID) REFERENCES oriodatabase.dbo.Promotion(PromotionID)
-);
 
 
 -- oriodatabase.dbo.RevenuePlan definition
@@ -1371,3 +1427,99 @@ LEFT JOIN dbo.AdContractNaver c
     ON ad.Date BETWEEN c.StartDate AND c.EndDate
     AND c.IsActive = 1
     AND c.BrandID = 3;
+
+
+-- dbo.vw_TargetAll source
+
+ALTER VIEW dbo.vw_TargetAll AS
+-- 정기 목표 - 단품
+SELECT
+    N'정기'                    AS 목표구분,
+    tbp.[Date]                AS StartDate,
+    tbp.[Date]                AS EndDate,
+    tbp.BrandID,
+    tbp.BrandName,
+    tbp.ChannelID,
+    tbp.ChannelName,
+    tbp.UniqueCode            AS OriginalUniqueCode,
+    tbp.ProductName           AS OriginalProductName,
+    N'단품'                   AS SourceType,
+    tbp.UniqueCode,
+    tbp.ProductName,
+    p.BaseBarcode,
+    tbp.TargetQuantity,
+    tbp.TargetQuantity        AS ComponentQuantity
+FROM oriodatabase.dbo.TargetBaseProduct tbp
+INNER JOIN oriodatabase.dbo.Product p ON tbp.UniqueCode = p.UniqueCode
+WHERE NOT EXISTS (
+    SELECT 1 FROM oriodatabase.dbo.ProductBOM bom
+    WHERE bom.ParentProductID = p.ProductID
+)
+UNION ALL
+-- 정기 목표 - 세트
+SELECT
+    N'정기',
+    tbp.[Date],
+    tbp.[Date],
+    tbp.BrandID,
+    tbp.BrandName,
+    tbp.ChannelID,
+    tbp.ChannelName,
+    tbp.UniqueCode,
+    tbp.ProductName,
+    N'세트',
+    cp.UniqueCode,
+    cp.Name,
+    cp.BaseBarcode,
+    tbp.TargetQuantity,
+    tbp.TargetQuantity * CAST(bom.QuantityRequired AS int)
+FROM oriodatabase.dbo.TargetBaseProduct tbp
+INNER JOIN oriodatabase.dbo.Product pp ON tbp.UniqueCode = pp.UniqueCode
+INNER JOIN oriodatabase.dbo.ProductBOM bom ON bom.ParentProductID = pp.ProductID
+INNER JOIN oriodatabase.dbo.Product cp ON bom.ChildProductID = cp.ProductID
+UNION ALL
+-- 비정기 목표 - 단품
+SELECT
+    N'비정기',
+    tpp.StartDate,
+    tpp.EndDate,
+    tpp.BrandID,
+    tpp.BrandName,
+    tpp.ChannelID,
+    tpp.ChannelName,
+    tpp.UniqueCode,
+    tpp.ProductName,
+    N'단품',
+    tpp.UniqueCode,
+    tpp.ProductName,
+    p.BaseBarcode,
+    tpp.TargetQuantity,
+    tpp.TargetQuantity
+FROM oriodatabase.dbo.TargetPromotionProduct tpp
+INNER JOIN oriodatabase.dbo.Product p ON tpp.UniqueCode = p.UniqueCode
+WHERE NOT EXISTS (
+    SELECT 1 FROM oriodatabase.dbo.ProductBOM bom
+    WHERE bom.ParentProductID = p.ProductID
+)
+UNION ALL
+-- 비정기 목표 - 세트
+SELECT
+    N'비정기',
+    tpp.StartDate,
+    tpp.EndDate,
+    tpp.BrandID,
+    tpp.BrandName,
+    tpp.ChannelID,
+    tpp.ChannelName,
+    tpp.UniqueCode,
+    tpp.ProductName,
+    N'세트',
+    cp.UniqueCode,
+    cp.Name,
+    cp.BaseBarcode,
+    tpp.TargetQuantity,
+    tpp.TargetQuantity * CAST(bom.QuantityRequired AS int)
+FROM oriodatabase.dbo.TargetPromotionProduct tpp
+INNER JOIN oriodatabase.dbo.Product pp ON tpp.UniqueCode = pp.UniqueCode
+INNER JOIN oriodatabase.dbo.ProductBOM bom ON bom.ParentProductID = pp.ProductID
+INNER JOIN oriodatabase.dbo.Product cp ON bom.ChildProductID = cp.ProductID;
