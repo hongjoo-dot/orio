@@ -336,7 +336,7 @@ async def download_expected_3p_irregulars(
                         '할인부담': irreg['DiscountOwner'],
                         '자사분담율': irreg['CompanyShare'],
                         '채널분담율': irreg['ChannelShare'],
-                        '비고(행사)': irreg['Notes'],
+                        '메모(행사)': irreg['Notes'],
                         '상품ID': prod['Expected3PIrregularProductID'],
                         '품목코드': prod['ERPCode'],
                         '판매가': prod['SellingPrice'],
@@ -351,7 +351,7 @@ async def download_expected_3p_irregulars(
                         '기타비': prod['MisCost'],
                         '예상매출(상품)': prod['ExpectedSalesAmount'],
                         '예상수량(상품)': prod['ExpectedQuantity'],
-                        '비고(상품)': prod['Notes'],
+                        '메모(상품)': prod['Notes'],
                     })
             else:
                 # 상품이 없는 행사도 출력 (상품 컬럼은 빈 값)
@@ -370,7 +370,7 @@ async def download_expected_3p_irregulars(
                     '할인부담': irreg['DiscountOwner'],
                     '자사분담율': irreg['CompanyShare'],
                     '채널분담율': irreg['ChannelShare'],
-                    '비고(행사)': irreg['Notes'],
+                    '메모(행사)': irreg['Notes'],
                     '상품ID': None,
                     '품목코드': None,
                     '판매가': None,
@@ -385,17 +385,17 @@ async def download_expected_3p_irregulars(
                     '기타비': None,
                     '예상매출(상품)': None,
                     '예상수량(상품)': None,
-                    '비고(상품)': None,
+                    '메모(상품)': None,
                 })
 
         # 컬럼 정의 (순서 중요)
         export_columns = [
             '행사ID', '입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
-            '비고(행사)',
+            '메모(행사)',
             '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
-            '예상매출(상품)', '예상수량(상품)', '비고(상품)'
+            '예상매출(상품)', '예상수량(상품)', '메모(상품)'
         ]
 
         # ID 컬럼 인덱스 (빨간색)
@@ -441,13 +441,13 @@ async def download_expected_3p_irregulars(
             ['자사분담율', '숫자 (예: 50.0)'],
             ['채널분담율', '숫자 (예: 50.0)'],
             ['입력월(YYYY-MM)', 'YYYY-MM 형식 (업로드 시 자동 설정)'],
-            ['비고(행사)', '메모'],
+            ['메모(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
             ['품목코드 (검정)', 'ProductBox 테이블의 품목코드 (수정 불가)'],
             ['판매가~기타비', '가격/비용 정보'],
             ['예상매출(상품)', '숫자'],
             ['예상수량(상품)', '숫자'],
-            ['비고(상품)', '메모'],
+            ['메모(상품)', '메모'],
             ['', ''],
             ['■ 주의사항', ''],
             ['1. 같은 행사의 여러 상품은 행사 정보가 동일하게 반복됩니다.', ''],
@@ -679,6 +679,7 @@ async def upload_expected_3p_irregulars(
             '자사분담율': 'CompanyShare',
             '채널분담율': 'ChannelShare',
             '입력월(YYYY-MM)': 'InputMonth',
+            '메모(행사)': 'PromoNotes',
             '비고(행사)': 'PromoNotes',
             '상품ID': 'Expected3PIrregularProductID',
             '품목코드': 'ERPCode',
@@ -696,6 +697,7 @@ async def upload_expected_3p_irregulars(
             '기타비': 'MisCost',
             '예상매출(상품)': 'ProdExpectedSalesAmount',
             '예상수량(상품)': 'ProdExpectedQuantity',
+            '메모(상품)': 'ProdNotes',
             '비고(상품)': 'ProdNotes',
         }
         df = df.rename(columns=column_map)

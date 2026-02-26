@@ -375,14 +375,75 @@ CREATE TABLE oriodatabase.dbo.Channel (
 	 ON [PRIMARY ] ;
 
 
--- oriodatabase.dbo.ExpectedBaseProduct definition
+-- oriodatabase.dbo.Expected1PIrregular definition
 
 -- Drop table
 
--- DROP TABLE oriodatabase.dbo.ExpectedBaseProduct;
+-- DROP TABLE oriodatabase.dbo.Expected1PIrregular;
 
-CREATE TABLE oriodatabase.dbo.ExpectedBaseProduct (
-	ExpectedBaseID int IDENTITY(1,1) NOT NULL,
+CREATE TABLE oriodatabase.dbo.Expected1PIrregular (
+	Expected1PIrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	IrregularName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	IrregularType nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	StartDate date NOT NULL,
+	StartTime time DEFAULT '00:00:00' NOT NULL,
+	EndDate date NOT NULL,
+	EndTime time DEFAULT '23:59:59' NOT NULL,
+	Status nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS DEFAULT 'SCHEDULED' NULL,
+	BrandID int NOT NULL,
+	BrandName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ChannelID int NOT NULL,
+	ChannelName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CommissionRate decimal(5,2) NULL,
+	DiscountOwner nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CompanyShare decimal(5,2) NULL,
+	ChannelShare decimal(5,2) NULL,
+	ExpectedSalesAmount decimal(18,2) NULL,
+	ExpectedQuantity int NULL,
+	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	InputMonth nvarchar(7) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	OliveyoungType nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__Expected__9FC72FAFC26B2D15 PRIMARY KEY (Expected1PIrregularID)
+);
+
+
+-- oriodatabase.dbo.Expected1PRegularProduct definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Expected1PRegularProduct;
+
+CREATE TABLE oriodatabase.dbo.Expected1PRegularProduct (
+	Expected1PRegularID int IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	BrandID int NOT NULL,
+	BrandName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ChannelID int NOT NULL,
+	ChannelName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	UniqueCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ProductName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ExpectedAmount decimal(18,2) NULL,
+	ExpectedAmountExVAT decimal(18,2) NULL,
+	ExpectedQuantity int NULL,
+	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Expected__6E569AF373146490 PRIMARY KEY (Expected1PRegularID),
+	CONSTRAINT UQ_Exp1PRegular UNIQUE ([Date],UniqueCode,ChannelID)
+);
+
+
+-- oriodatabase.dbo.Expected3PRegularProduct definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Expected3PRegularProduct;
+
+CREATE TABLE oriodatabase.dbo.Expected3PRegularProduct (
+	Expected3PRegularID int IDENTITY(1,1) NOT NULL,
 	[Date] date NOT NULL,
 	BrandID int NOT NULL,
 	BrandName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
@@ -395,8 +456,9 @@ CREATE TABLE oriodatabase.dbo.ExpectedBaseProduct (
 	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
-	CONSTRAINT PK__Expected__749A83172D22EC46 PRIMARY KEY (ExpectedBaseID),
-	CONSTRAINT UQ_ExpectedBase UNIQUE ([Date],UniqueCode,ChannelID)
+	ExpectedAmountExVAT decimal(18,2) NULL,
+	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__TargetBa__2E1897593118F643 PRIMARY KEY (Expected3PRegularID)
 );
 
 
@@ -529,64 +591,6 @@ CREATE TABLE oriodatabase.dbo.SystemConfigHistory (
  CREATE NONCLUSTERED INDEX IX_SystemConfigHistory_ConfigID ON oriodatabase.dbo.SystemConfigHistory (  ConfigID ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
-
-
--- oriodatabase.dbo.TargetBaseProduct definition
-
--- Drop table
-
--- DROP TABLE oriodatabase.dbo.TargetBaseProduct;
-
-CREATE TABLE oriodatabase.dbo.TargetBaseProduct (
-	TargetBaseID int IDENTITY(1,1) NOT NULL,
-	[Date] date NOT NULL,
-	BrandID int NOT NULL,
-	BrandName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	ChannelID int NOT NULL,
-	ChannelName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	UniqueCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	ProductName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	TargetAmount decimal(18,2) NULL,
-	TargetQuantity int NULL,
-	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CreatedDate datetime DEFAULT getdate() NULL,
-	UpdatedDate datetime DEFAULT getdate() NULL,
-	TargetAmountExVAT decimal(18,2) NULL,
-	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CONSTRAINT PK__TargetBa__2E1897593118F643 PRIMARY KEY (TargetBaseID)
-);
-
-
--- oriodatabase.dbo.TargetIrregularProduct definition
-
--- Drop table
-
--- DROP TABLE oriodatabase.dbo.TargetIrregularProduct;
-
-CREATE TABLE oriodatabase.dbo.TargetIrregularProduct (
-	TargetIrregularID int IDENTITY(1,1) NOT NULL,
-	IrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	IrregularName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	StartDate date NOT NULL,
-	StartTime time DEFAULT '00:00:00' NOT NULL,
-	EndDate date NOT NULL,
-	EndTime time DEFAULT '23:59:59' NOT NULL,
-	BrandID int NOT NULL,
-	BrandName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	ChannelID int NOT NULL,
-	ChannelName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	UniqueCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-	ProductName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	TargetAmount decimal(18,2) NULL,
-	TargetQuantity int NULL,
-	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CreatedDate datetime DEFAULT getdate() NULL,
-	UpdatedDate datetime DEFAULT getdate() NULL,
-	IrregularType nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	TargetAmountExVAT decimal(18,2) NULL,
-	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CONSTRAINT PK__TargetPr__92432A9BED56D528 PRIMARY KEY (TargetIrregularID)
-);
 
 
 -- oriodatabase.dbo.[User] definition
@@ -821,14 +825,46 @@ CREATE TABLE oriodatabase.dbo.ChannelDetail (
 	 ON [PRIMARY ] ;
 
 
--- oriodatabase.dbo.Irregular definition
+-- oriodatabase.dbo.Expected1PIrregularProduct definition
 
 -- Drop table
 
--- DROP TABLE oriodatabase.dbo.Irregular;
+-- DROP TABLE oriodatabase.dbo.Expected1PIrregularProduct;
 
-CREATE TABLE oriodatabase.dbo.Irregular (
-	IrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+CREATE TABLE oriodatabase.dbo.Expected1PIrregularProduct (
+	Expected1PIrregularProductID int IDENTITY(1,1) NOT NULL,
+	Expected1PIrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	UniqueCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ProductName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	SellingPrice decimal(18,2) NULL,
+	IrregularPrice decimal(18,2) NULL,
+	SupplyPrice decimal(18,2) NULL,
+	CouponDiscountRate decimal(5,2) NULL,
+	UnitCost decimal(18,2) NULL,
+	LogisticsCost decimal(18,2) NULL,
+	ManagementCost decimal(18,2) NULL,
+	WarehouseCost decimal(18,2) NULL,
+	EDICost decimal(18,2) NULL,
+	MisCost decimal(18,2) NULL,
+	ExpectedSalesAmount decimal(18,2) NULL,
+	ExpectedQuantity int NULL,
+	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Expected__470FEA24D92077A1 PRIMARY KEY (Expected1PIrregularProductID),
+	CONSTRAINT FK_Exp1PIrregProd_Irreg FOREIGN KEY (Expected1PIrregularID) REFERENCES oriodatabase.dbo.Expected1PIrregular(Expected1PIrregularID)
+);
+
+
+-- oriodatabase.dbo.Expected3PIrregular definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Expected3PIrregular;
+
+CREATE TABLE oriodatabase.dbo.Expected3PIrregular (
+	Expected3PIrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
 	IrregularName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
 	IrregularType nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	StartDate date NOT NULL,
@@ -849,20 +885,20 @@ CREATE TABLE oriodatabase.dbo.Irregular (
 	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
-	CONSTRAINT PK__Promotio__52C42F2FB81831C0 PRIMARY KEY (IrregularID),
+	CONSTRAINT PK__Promotio__52C42F2FB81831C0 PRIMARY KEY (Expected3PIrregularID),
 	CONSTRAINT FK_Promotion_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
 );
 
 
--- oriodatabase.dbo.IrregularProduct definition
+-- oriodatabase.dbo.Expected3PIrregularProduct definition
 
 -- Drop table
 
--- DROP TABLE oriodatabase.dbo.IrregularProduct;
+-- DROP TABLE oriodatabase.dbo.Expected3PIrregularProduct;
 
-CREATE TABLE oriodatabase.dbo.IrregularProduct (
-	IrregularProductID int IDENTITY(1,1) NOT NULL,
-	IrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+CREATE TABLE oriodatabase.dbo.Expected3PIrregularProduct (
+	Expected3PIrregularProductID int IDENTITY(1,1) NOT NULL,
+	Expected3PIrregularID nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
 	UniqueCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
 	ProductName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	SellingPrice decimal(18,2) NULL,
@@ -881,9 +917,9 @@ CREATE TABLE oriodatabase.dbo.IrregularProduct (
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
 	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CONSTRAINT PK__Promotio__C7B85D3CBB631920 PRIMARY KEY (IrregularProductID),
-	CONSTRAINT UQ_PromotionProduct UNIQUE (IrregularID,UniqueCode),
-	CONSTRAINT FK_IrregularProduct_Irregular FOREIGN KEY (IrregularID) REFERENCES oriodatabase.dbo.Irregular(IrregularID)
+	CONSTRAINT PK__Promotio__C7B85D3CBB631920 PRIMARY KEY (Expected3PIrregularProductID),
+	CONSTRAINT UQ_PromotionProduct UNIQUE (Expected3PIrregularID,UniqueCode),
+	CONSTRAINT FK_IrregularProduct_Irregular FOREIGN KEY (Expected3PIrregularID) REFERENCES oriodatabase.dbo.Expected3PIrregular(Expected3PIrregularID)
 );
 
 

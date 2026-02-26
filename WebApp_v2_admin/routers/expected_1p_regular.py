@@ -42,6 +42,7 @@ class Expected1PRegularCreate(BaseModel):
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
     InputMonth: Optional[str] = None
+    OliveyoungType: Optional[str] = None
 
 
 class Expected1PRegularUpdate(BaseModel):
@@ -56,6 +57,7 @@ class Expected1PRegularUpdate(BaseModel):
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
     InputMonth: Optional[str] = None
+    OliveyoungType: Optional[str] = None
 
 
 class FilterDeleteRequest(BaseModel):
@@ -265,7 +267,7 @@ async def download_expected_1p_regular(
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '비고']
+        export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '올리브영유형', '메모']
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용)
         readonly_columns = [1, 2, 3, 4, 5]  # 입력월, 날짜, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
@@ -287,7 +289,8 @@ async def download_expected_1p_regular(
                 'ERPCode': '품목코드',
                 'ExpectedAmount': '예상금액(VAT포함)',
                 'ExpectedQuantity': '예상수량',
-                'Notes': '비고'
+                'OliveyoungType': '올리브영유형',
+                'Notes': '메모'
             }
 
             # 필요한 컬럼만 선택
@@ -311,10 +314,10 @@ async def download_expected_1p_regular(
             ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
             ['예상금액(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
             ['예상수량', '숫자 (예: 100)'],
-            ['비고', '메모'],
+            ['메모', '메모/참고사항'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '예상금액(VAT포함), 예상수량, 비고'],
+            ['수정 가능', '예상금액(VAT포함), 예상수량, 메모'],
             ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드'],
             ['ID(수정X) (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
@@ -369,6 +372,11 @@ async def download_expected_1p_regular(
             for i, code in enumerate(erp_codes):
                 list_sheet.write(i, 2, code)
 
+            # 올리브영유형 목록 작성 (D열)
+            oliveyoung_types = ['온라인', '오프라인']
+            for i, oy_type in enumerate(oliveyoung_types):
+                list_sheet.write(i, 3, oy_type)
+
             # 드롭다운 적용 범위 (2행~1000행)
             max_row = max(len(df) + 100, 1000)  # 데이터 + 여유분
 
@@ -396,6 +404,15 @@ async def download_expected_1p_regular(
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(erp_codes)}',
                     'input_message': '품목코드를 선택하세요',
+                    'error_message': '목록에서 선택해주세요'
+                })
+
+            # 올리브영유형 드롭다운 (I열, 인덱스 8)
+            if oliveyoung_types:
+                worksheet.data_validation(1, 8, max_row, 8, {
+                    'validate': 'list',
+                    'source': f'=목록!$D$1:$D${len(oliveyoung_types)}',
+                    'input_message': '올리브영유형을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
@@ -650,7 +667,9 @@ async def upload_expected_1p_regular(
             '예상금액(+VAT)': 'ExpectedAmount',
             '예상금액(VAT포함)': 'ExpectedAmount',
             '예상수량': 'ExpectedQuantity',
-            '비고': 'Notes'
+            '비고': 'Notes',
+            '메모': 'Notes',
+            '올리브영유형': 'OliveyoungType'
         }
         df = df.rename(columns=column_map)
 
@@ -782,6 +801,7 @@ async def upload_expected_1p_regular(
                 'ExpectedQuantity': int(row['ExpectedQuantity']) if pd.notna(row.get('ExpectedQuantity')) else 0,
                 'Notes': str(row['Notes']) if pd.notna(row.get('Notes')) else None,
                 'InputMonth': row_input_month,
+                'OliveyoungType': str(row['OliveyoungType']) if 'OliveyoungType' in row and pd.notna(row.get('OliveyoungType')) else None,
             })
 
         # UPSERT 실행

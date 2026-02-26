@@ -265,7 +265,7 @@ async def download_expected_3p_regular(
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '비고']
+        export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '메모']
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용)
         readonly_columns = [1, 2, 3, 4, 5]  # 입력월, 날짜, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
@@ -287,7 +287,7 @@ async def download_expected_3p_regular(
                 'ERPCode': '품목코드',
                 'ExpectedAmount': '예상금액(VAT포함)',
                 'ExpectedQuantity': '예상수량',
-                'Notes': '비고'
+                'Notes': '메모'
             }
 
             # 필요한 컬럼만 선택
@@ -311,10 +311,10 @@ async def download_expected_3p_regular(
             ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
             ['예상금액(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
             ['예상수량', '숫자 (예: 100)'],
-            ['비고', '메모'],
+            ['메모', '메모/참고사항'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '예상금액(VAT포함), 예상수량, 비고'],
+            ['수정 가능', '예상금액(VAT포함), 예상수량, 메모'],
             ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드'],
             ['ID(수정X) (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
@@ -648,7 +648,8 @@ async def upload_expected_3p_regular(
             '예상금액(+VAT)': 'ExpectedAmount',
             '예상금액(VAT포함)': 'ExpectedAmount',
             '예상수량': 'ExpectedQuantity',
-            '비고': 'Notes'
+            '비고': 'Notes',
+            '메모': 'Notes'
         }
         df = df.rename(columns=column_map)
 

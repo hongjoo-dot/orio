@@ -19,7 +19,8 @@ class Expected1PRegularRepository(BaseRepository):
         "t.ERPCode", "t.UniqueCode", "t.ProductName",
         "t.ExpectedAmount", "t.ExpectedAmountExVAT", "t.ExpectedQuantity",
         "t.Notes", "t.CreatedDate", "t.UpdatedDate",
-        "t.InputMonth"
+        "t.InputMonth",
+        "t.OliveyoungType"
     )
 
     def __init__(self):
@@ -49,6 +50,7 @@ class Expected1PRegularRepository(BaseRepository):
             "CreatedDate": row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
             "UpdatedDate": row[14].strftime('%Y-%m-%d %H:%M:%S') if row[14] else None,
             "InputMonth": row[15],
+            "OliveyoungType": row[16],
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -104,12 +106,14 @@ class Expected1PRegularRepository(BaseRepository):
                     check_query = """
                         SELECT Expected1PRegularID FROM [dbo].[Expected1PRegularProduct]
                         WHERE [Date] = ? AND UniqueCode = ? AND ChannelID = ? AND InputMonth = ?
+                          AND ISNULL(OliveyoungType, '') = ISNULL(?, '')
                     """
                     cursor.execute(check_query,
                         record.get('Date'),
                         record.get('UniqueCode'),
                         record.get('ChannelID'),
-                        record.get('InputMonth')
+                        record.get('InputMonth'),
+                        record.get('OliveyoungType')
                     )
                     existing = cursor.fetchone()
 
@@ -152,6 +156,7 @@ class Expected1PRegularRepository(BaseRepository):
                                 ExpectedQuantity = ?,
                                 Notes = ?,
                                 InputMonth = ?,
+                                OliveyoungType = ?,
                                 UpdatedDate = GETDATE()
                             WHERE Expected1PRegularID = ?
                         """
@@ -169,6 +174,7 @@ class Expected1PRegularRepository(BaseRepository):
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
                             record.get('InputMonth'),
+                            record.get('OliveyoungType'),
                             record_id
                         ]
                         cursor.execute(update_query, *params)
@@ -179,8 +185,8 @@ class Expected1PRegularRepository(BaseRepository):
                             INSERT INTO [dbo].[Expected1PRegularProduct]
                             ([Date], BrandID, BrandName, ChannelID, ChannelName,
                              ERPCode, UniqueCode, ProductName, ExpectedAmount, ExpectedAmountExVAT,
-                             ExpectedQuantity, Notes, InputMonth)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             ExpectedQuantity, Notes, InputMonth, OliveyoungType)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('Date'),
@@ -196,6 +202,7 @@ class Expected1PRegularRepository(BaseRepository):
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
                             record.get('InputMonth'),
+                            record.get('OliveyoungType'),
                         ]
                         cursor.execute(insert_query, *params)
                         total_inserted += 1

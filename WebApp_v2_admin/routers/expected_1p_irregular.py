@@ -51,6 +51,7 @@ class Expected1PIrregularCreate(BaseModel):
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
     InputMonth: Optional[str] = None
+    OliveyoungType: Optional[str] = None
 
 
 class Expected1PIrregularUpdate(BaseModel):
@@ -67,6 +68,7 @@ class Expected1PIrregularUpdate(BaseModel):
     ExpectedQuantity: Optional[int] = None
     Notes: Optional[str] = None
     InputMonth: Optional[str] = None
+    OliveyoungType: Optional[str] = None
 
 
 # ========== Pydantic Models — Expected1PIrregularProduct ==========
@@ -324,6 +326,7 @@ async def download_expected_1p_irregulars(
                     rows.append({
                         '행사ID': irreg['Expected1PIrregularID'],
                         '입력월(YYYY-MM)': irreg.get('InputMonth'),
+                        '올리브영유형': irreg.get('OliveyoungType'),
                         '행사명': irreg['IrregularName'],
                         '행사유형': irreg['IrregularType'],
                         '시작일': irreg['StartDate'],
@@ -336,7 +339,7 @@ async def download_expected_1p_irregulars(
                         '할인부담': irreg['DiscountOwner'],
                         '자사분담율': irreg['CompanyShare'],
                         '채널분담율': irreg['ChannelShare'],
-                        '비고(행사)': irreg['Notes'],
+                        '메모(행사)': irreg['Notes'],
                         '상품ID': prod['Expected1PIrregularProductID'],
                         '품목코드': prod['ERPCode'],
                         '판매가': prod['SellingPrice'],
@@ -351,13 +354,14 @@ async def download_expected_1p_irregulars(
                         '기타비': prod['MisCost'],
                         '예상매출(상품)': prod['ExpectedSalesAmount'],
                         '예상수량(상품)': prod['ExpectedQuantity'],
-                        '비고(상품)': prod['Notes'],
+                        '메모(상품)': prod['Notes'],
                     })
             else:
                 # 상품이 없는 행사도 출력 (상품 컬럼은 빈 값)
                 rows.append({
                     '행사ID': irreg['Expected1PIrregularID'],
                     '입력월(YYYY-MM)': irreg.get('InputMonth'),
+                    '올리브영유형': irreg.get('OliveyoungType'),
                     '행사명': irreg['IrregularName'],
                     '행사유형': irreg['IrregularType'],
                     '시작일': irreg['StartDate'],
@@ -370,7 +374,7 @@ async def download_expected_1p_irregulars(
                     '할인부담': irreg['DiscountOwner'],
                     '자사분담율': irreg['CompanyShare'],
                     '채널분담율': irreg['ChannelShare'],
-                    '비고(행사)': irreg['Notes'],
+                    '메모(행사)': irreg['Notes'],
                     '상품ID': None,
                     '품목코드': None,
                     '판매가': None,
@@ -385,27 +389,27 @@ async def download_expected_1p_irregulars(
                     '기타비': None,
                     '예상매출(상품)': None,
                     '예상수량(상품)': None,
-                    '비고(상품)': None,
+                    '메모(상품)': None,
                 })
 
         # 컬럼 정의 (순서 중요)
         export_columns = [
-            '행사ID', '입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
+            '행사ID', '입력월(YYYY-MM)', '올리브영유형', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
-            '비고(행사)',
+            '메모(행사)',
             '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
-            '예상매출(상품)', '예상수량(상품)', '비고(상품)'
+            '예상매출(상품)', '예상수량(상품)', '메모(상품)'
         ]
 
         # ID 컬럼 인덱스 (빨간색)
         promo_id_col_idx = 0   # 행사ID
-        product_id_col_idx = 15  # 상품ID
+        product_id_col_idx = 16  # 상품ID
         id_column_indices = [promo_id_col_idx, product_id_col_idx]
 
         # 수정 불가 (복합키) 컬럼 인덱스 (검정색)
-        # 입력월(1), 행사명(2), 행사유형(3), 시작일(4), 브랜드명(8), 채널명(9), 품목코드(16)
-        readonly_columns = [1, 2, 3, 4, 8, 9, 16]
+        # 입력월(1), 행사명(3), 행사유형(4), 시작일(5), 브랜드명(9), 채널명(10), 품목코드(17)
+        readonly_columns = [1, 3, 4, 5, 9, 10, 17]
 
         if not rows:
             df = pd.DataFrame(columns=export_columns)
@@ -440,13 +444,13 @@ async def download_expected_1p_irregulars(
             ['할인부담', 'COMPANY / CHANNEL / BOTH'],
             ['자사분담율', '숫자 (예: 50.0)'],
             ['채널분담율', '숫자 (예: 50.0)'],
-            ['비고(행사)', '메모'],
+            ['메모(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
             ['품목코드 (검정)', 'ProductBox 테이블의 품목코드 (수정 불가)'],
             ['판매가~기타비', '가격/비용 정보'],
             ['예상매출(상품)', '숫자'],
             ['예상수량(상품)', '숫자'],
-            ['비고(상품)', '메모'],
+            ['메모(상품)', '메모'],
             ['', ''],
             ['■ 주의사항', ''],
             ['1. 같은 행사의 여러 상품은 행사 정보가 동일하게 반복됩니다.', ''],
@@ -504,48 +508,60 @@ async def download_expected_1p_irregulars(
             # E열: 품목코드 목록
             for i, code in enumerate(erp_codes):
                 list_sheet.write(i, 4, code)
+            # F열: 올리브영유형 목록
+            oliveyoung_type_list = ['온라인', '오프라인']
+            for i, name in enumerate(oliveyoung_type_list):
+                list_sheet.write(i, 5, name)
 
             # 드롭다운 적용 범위
             max_row = max(len(df) + 100, 1000)
 
-            # 브랜드명 드롭다운 (인덱스 8)
+            # 브랜드명 드롭다운 (인덱스 9)
             if brand_names:
-                worksheet.data_validation(1, 8, max_row, 8, {
+                worksheet.data_validation(1, 9, max_row, 9, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 채널명 드롭다운 (인덱스 9)
+            # 채널명 드롭다운 (인덱스 10)
             if channel_names:
-                worksheet.data_validation(1, 9, max_row, 9, {
+                worksheet.data_validation(1, 10, max_row, 10, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 행사유형 드롭다운 (인덱스 3)
+            # 행사유형 드롭다운 (인덱스 4)
             if irregular_type_display_names:
-                worksheet.data_validation(1, 3, max_row, 3, {
+                worksheet.data_validation(1, 4, max_row, 4, {
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(irregular_type_display_names)}',
                     'input_message': '행사유형을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 할인부담 드롭다운 (인덱스 11)
-            worksheet.data_validation(1, 11, max_row, 11, {
+            # 할인부담 드롭다운 (인덱스 12)
+            worksheet.data_validation(1, 12, max_row, 12, {
                 'validate': 'list',
                 'source': f'=목록!$D$1:$D${len(discount_owner_list)}',
                 'input_message': '할인부담을 선택하세요',
                 'error_message': '목록에서 선택해주세요'
             })
 
-            # 품목코드 드롭다운 (인덱스 15)
+            # 올리브영유형 드롭다운 (인덱스 2)
+            worksheet.data_validation(1, 2, max_row, 2, {
+                'validate': 'list',
+                'source': '=목록!$F$1:$F$2',
+                'input_message': '올리브영유형을 선택하세요',
+                'error_message': '목록에서 선택해주세요'
+            })
+
+            # 품목코드 드롭다운 (인덱스 17)
             if erp_codes:
-                worksheet.data_validation(1, 15, max_row, 15, {
+                worksheet.data_validation(1, 17, max_row, 17, {
                     'validate': 'list',
                     'source': f'=목록!$E$1:$E${len(erp_codes)}',
                     'input_message': '품목코드를 선택하세요',
@@ -668,6 +684,7 @@ async def upload_expected_1p_irregulars(
             '행사ID': 'Expected1PIrregularID',
             '입력월(YYYY-MM)': 'InputMonth',
             '입력월': 'InputMonth',
+            '올리브영유형': 'OliveyoungType',
             '행사명': 'IrregularName',
             '행사유형': 'IrregularType',
             '시작일': 'StartDate',
@@ -680,6 +697,7 @@ async def upload_expected_1p_irregulars(
             '할인부담': 'DiscountOwner',
             '자사분담율': 'CompanyShare',
             '채널분담율': 'ChannelShare',
+            '메모(행사)': 'PromoNotes',
             '비고(행사)': 'PromoNotes',
             '상품ID': 'Expected1PIrregularProductID',
             '품목코드': 'ERPCode',
@@ -697,6 +715,7 @@ async def upload_expected_1p_irregulars(
             '기타비': 'MisCost',
             '예상매출(상품)': 'ProdExpectedSalesAmount',
             '예상수량(상품)': 'ProdExpectedQuantity',
+            '메모(상품)': 'ProdNotes',
             '비고(상품)': 'ProdNotes',
         }
         df = df.rename(columns=column_map)
@@ -1040,6 +1059,7 @@ async def upload_expected_1p_irregulars(
                 'ExpectedQuantity': sum_qty if sum_qty > 0 else None,
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
                 'InputMonth': input_month or datetime.now().strftime('%Y-%m'),
+                'OliveyoungType': str(first_row['OliveyoungType']).strip() if pd.notna(first_row.get('OliveyoungType')) and str(first_row.get('OliveyoungType')).strip() != 'nan' else None,
             })
 
         promo_result = expected_1p_irregular_repo.bulk_upsert(irregular_records)

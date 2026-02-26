@@ -108,6 +108,11 @@ const baseDetailColumns = [
                 value="${escapeHtml(val)}"
                 oninput="onNotesInput(this)">`;
         }
+    },
+    {
+        key: 'OliveyoungType',
+        header: '올리브영유형',
+        render: (row) => `<span style="font-size:13px;">${escapeHtml(row.OliveyoungType) || '-'}</span>`
     }
 ];
 
@@ -130,6 +135,11 @@ const irregMasterColumns = [
                 ${dateRange ? `<span class="group-meta">${dateRange}</span>` : ''}
             </div>`;
         }
+    },
+    {
+        key: 'OliveyoungType',
+        header: '올리브영유형',
+        render: (row) => `<div style="font-size:13px;">${escapeHtml(row.OliveyoungType) || '-'}</div>`
     },
     {
         key: 'TotalSalesAmount',

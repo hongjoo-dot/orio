@@ -27,7 +27,8 @@ class Expected1PIrregularRepository(BaseRepository):
         "p.ExpectedSalesAmount", "p.ExpectedQuantity",
         "p.Notes",
         "p.CreatedDate", "p.UpdatedDate",
-        "p.InputMonth"
+        "p.InputMonth",
+        "p.OliveyoungType"
     )
 
     def __init__(self):
@@ -63,6 +64,7 @@ class Expected1PIrregularRepository(BaseRepository):
             "CreatedDate": row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else None,
             "UpdatedDate": row[20].strftime('%Y-%m-%d %H:%M:%S') if row[20] else None,
             "InputMonth": row[21],
+            "OliveyoungType": row[22],
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -142,13 +144,15 @@ class Expected1PIrregularRepository(BaseRepository):
                         SELECT Expected1PIrregularID FROM [dbo].[Expected1PIrregular]
                         WHERE BrandID = ? AND ChannelID = ? AND IrregularType = ?
                           AND StartDate = ? AND IrregularName = ?
+                          AND ISNULL(OliveyoungType, '') = ISNULL(?, '')
                     """
                     cursor.execute(check_query,
                         record.get('BrandID'),
                         record.get('ChannelID'),
                         record.get('IrregularType'),
                         record.get('StartDate'),
-                        record.get('IrregularName')
+                        record.get('IrregularName'),
+                        record.get('OliveyoungType')
                     )
                     existing = cursor.fetchone()
 
@@ -189,6 +193,7 @@ class Expected1PIrregularRepository(BaseRepository):
                                 ExpectedQuantity = ?,
                                 Notes = ?,
                                 InputMonth = ?,
+                                OliveyoungType = ?,
                                 UpdatedDate = GETDATE()
                             WHERE Expected1PIrregularID = ?
                         """
@@ -205,6 +210,7 @@ class Expected1PIrregularRepository(BaseRepository):
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
                             record.get('InputMonth'),
+                            record.get('OliveyoungType'),
                             expected_1p_irregular_id
                         ]
                         cursor.execute(update_query, *params)
@@ -217,8 +223,8 @@ class Expected1PIrregularRepository(BaseRepository):
                                  StartDate, StartTime, EndDate, EndTime,
                                  Status, BrandID, BrandName, ChannelID, ChannelName,
                                  CommissionRate, DiscountOwner, CompanyShare, ChannelShare,
-                                 ExpectedSalesAmount, ExpectedQuantity, Notes, InputMonth)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 ExpectedSalesAmount, ExpectedQuantity, Notes, InputMonth, OliveyoungType)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('Expected1PIrregularID'),
@@ -241,6 +247,7 @@ class Expected1PIrregularRepository(BaseRepository):
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
                             record.get('InputMonth'),
+                            record.get('OliveyoungType'),
                         ]
                         cursor.execute(insert_query, *params)
                         if cursor.rowcount > 0:
