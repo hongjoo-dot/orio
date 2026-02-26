@@ -265,11 +265,10 @@ async def download_expected_1p_regular(
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '입력월(수정X)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '비고']
-        # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용) - ID, 입력월 제외
-        readonly_columns = [1, 3, 4, 5]  # 날짜, 브랜드명, 채널명, 품목코드
+        export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '비고']
+        # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용)
+        readonly_columns = [1, 2, 3, 4, 5]  # 입력월, 날짜, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
-        input_month_column_idx = 2  # 입력월 컬럼도 빨간색으로 별도 처리
 
         if not data:
             # 데이터가 없으면 헤더만 있는 빈 양식 반환
@@ -281,8 +280,8 @@ async def download_expected_1p_regular(
             # 컬럼 순서 및 이름 변경
             column_map = {
                 'Expected1PRegularID': 'ID(수정X)',
+                'InputMonth': '입력월(YYYY-MM)',
                 'Date': '날짜(YYYY-MM-01)',
-                'InputMonth': '입력월(수정X)',
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
                 'ERPCode': '품목코드',
@@ -424,7 +423,7 @@ async def download_expected_1p_regular(
 
             # 헤더 서식 적용
             for col_idx, col_name in enumerate(export_columns):
-                if col_idx in (id_column_idx, input_month_column_idx):
+                if col_idx == id_column_idx:
                     worksheet.write(0, col_idx, col_name, id_header_format)
                 elif col_idx in readonly_columns:
                     worksheet.write(0, col_idx, col_name, readonly_header_format)
@@ -448,14 +447,13 @@ async def download_expected_1p_regular(
             # 데이터 행에 서식 적용
             if len(df) > 0:
                 for row_idx in range(len(df)):
-                    # ID, 입력월 컬럼 빨간색 적용
-                    for red_col_idx in (id_column_idx, input_month_column_idx):
-                        col_name = export_columns[red_col_idx]
-                        if col_name in df.columns:
-                            value = df.iloc[row_idx][col_name]
-                            worksheet.write(row_idx + 1, red_col_idx, value, id_data_format)
+                    # ID 컬럼 빨간색 적용
+                    col_name = export_columns[id_column_idx]
+                    if col_name in df.columns:
+                        value = df.iloc[row_idx][col_name]
+                        worksheet.write(row_idx + 1, id_column_idx, value, id_data_format)
 
-                    # 수정 불가 컬럼 검정색 적용
+                    # 수정 불가 컬럼 검정색 적용 (입력월 포함)
                     for col_idx in readonly_columns:
                         if col_idx < len(export_columns):
                             col_name = export_columns[col_idx]
@@ -644,6 +642,7 @@ async def upload_expected_1p_regular(
         column_map = {
             'ID(수정X)': 'Expected1PRegularID',
             '날짜(YYYY-MM-01)': 'Date',
+            '입력월(YYYY-MM)': 'InputMonth',
             '입력월(수정X)': 'InputMonth',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',

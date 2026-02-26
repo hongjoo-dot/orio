@@ -323,6 +323,7 @@ async def download_expected_3p_irregulars(
                 for prod in promo_products:
                     rows.append({
                         '행사ID': irreg['Expected3PIrregularID'],
+                        '입력월(YYYY-MM)': irreg.get('InputMonth'),
                         '행사명': irreg['IrregularName'],
                         '행사유형': irreg['IrregularType'],
                         '시작일': irreg['StartDate'],
@@ -335,7 +336,6 @@ async def download_expected_3p_irregulars(
                         '할인부담': irreg['DiscountOwner'],
                         '자사분담율': irreg['CompanyShare'],
                         '채널분담율': irreg['ChannelShare'],
-                        '입력월': irreg.get('InputMonth'),
                         '비고(행사)': irreg['Notes'],
                         '상품ID': prod['Expected3PIrregularProductID'],
                         '품목코드': prod['ERPCode'],
@@ -357,6 +357,7 @@ async def download_expected_3p_irregulars(
                 # 상품이 없는 행사도 출력 (상품 컬럼은 빈 값)
                 rows.append({
                     '행사ID': irreg['Expected3PIrregularID'],
+                    '입력월(YYYY-MM)': irreg.get('InputMonth'),
                     '행사명': irreg['IrregularName'],
                     '행사유형': irreg['IrregularType'],
                     '시작일': irreg['StartDate'],
@@ -369,7 +370,6 @@ async def download_expected_3p_irregulars(
                     '할인부담': irreg['DiscountOwner'],
                     '자사분담율': irreg['CompanyShare'],
                     '채널분담율': irreg['ChannelShare'],
-                    '입력월': irreg.get('InputMonth'),
                     '비고(행사)': irreg['Notes'],
                     '상품ID': None,
                     '품목코드': None,
@@ -390,9 +390,9 @@ async def download_expected_3p_irregulars(
 
         # 컬럼 정의 (순서 중요)
         export_columns = [
-            '행사ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
+            '행사ID', '입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
-            '입력월', '비고(행사)',
+            '비고(행사)',
             '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
             '예상매출(상품)', '예상수량(상품)', '비고(상품)'
@@ -404,8 +404,8 @@ async def download_expected_3p_irregulars(
         id_column_indices = [promo_id_col_idx, product_id_col_idx]
 
         # 수정 불가 (복합키) 컬럼 인덱스 (검정색)
-        # 행사명(1), 행사유형(2), 시작일(3), 브랜드명(7), 채널명(8), 품목코드(16)
-        readonly_columns = [1, 2, 3, 7, 8, 16]
+        # 입력월(1), 행사명(2), 행사유형(3), 시작일(4), 브랜드명(8), 채널명(9), 품목코드(16)
+        readonly_columns = [1, 2, 3, 4, 8, 9, 16]
 
         if not rows:
             df = pd.DataFrame(columns=export_columns)
@@ -440,7 +440,7 @@ async def download_expected_3p_irregulars(
             ['할인부담', 'COMPANY / CHANNEL / BOTH'],
             ['자사분담율', '숫자 (예: 50.0)'],
             ['채널분담율', '숫자 (예: 50.0)'],
-            ['입력월', 'YYYY-MM 형식 (업로드 시 자동 설정)'],
+            ['입력월(YYYY-MM)', 'YYYY-MM 형식 (업로드 시 자동 설정)'],
             ['비고(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
             ['품목코드 (검정)', 'ProductBox 테이블의 품목코드 (수정 불가)'],
@@ -507,35 +507,35 @@ async def download_expected_3p_irregulars(
             # 드롭다운 적용 범위
             max_row = max(len(df) + 100, 1000)
 
-            # 브랜드명 드롭다운 (인덱스 7)
+            # 브랜드명 드롭다운 (인덱스 8)
             if brand_names:
-                worksheet.data_validation(1, 7, max_row, 7, {
+                worksheet.data_validation(1, 8, max_row, 8, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 채널명 드롭다운 (인덱스 8)
+            # 채널명 드롭다운 (인덱스 9)
             if channel_names:
-                worksheet.data_validation(1, 8, max_row, 8, {
+                worksheet.data_validation(1, 9, max_row, 9, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 행사유형 드롭다운 (인덱스 2)
+            # 행사유형 드롭다운 (인덱스 3)
             if irregular_type_display_names:
-                worksheet.data_validation(1, 2, max_row, 2, {
+                worksheet.data_validation(1, 3, max_row, 3, {
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(irregular_type_display_names)}',
                     'input_message': '행사유형을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 할인부담 드롭다운 (인덱스 10)
-            worksheet.data_validation(1, 10, max_row, 10, {
+            # 할인부담 드롭다운 (인덱스 11)
+            worksheet.data_validation(1, 11, max_row, 11, {
                 'validate': 'list',
                 'source': f'=목록!$D$1:$D${len(discount_owner_list)}',
                 'input_message': '할인부담을 선택하세요',
@@ -678,7 +678,7 @@ async def upload_expected_3p_irregulars(
             '할인부담': 'DiscountOwner',
             '자사분담율': 'CompanyShare',
             '채널분담율': 'ChannelShare',
-            '입력월': 'InputMonth',
+            '입력월(YYYY-MM)': 'InputMonth',
             '비고(행사)': 'PromoNotes',
             '상품ID': 'Expected3PIrregularProductID',
             '품목코드': 'ERPCode',

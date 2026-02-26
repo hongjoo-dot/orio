@@ -323,6 +323,7 @@ async def download_expected_1p_irregulars(
                 for prod in promo_products:
                     rows.append({
                         '행사ID': irreg['Expected1PIrregularID'],
+                        '입력월(YYYY-MM)': irreg.get('InputMonth'),
                         '행사명': irreg['IrregularName'],
                         '행사유형': irreg['IrregularType'],
                         '시작일': irreg['StartDate'],
@@ -356,6 +357,7 @@ async def download_expected_1p_irregulars(
                 # 상품이 없는 행사도 출력 (상품 컬럼은 빈 값)
                 rows.append({
                     '행사ID': irreg['Expected1PIrregularID'],
+                    '입력월(YYYY-MM)': irreg.get('InputMonth'),
                     '행사명': irreg['IrregularName'],
                     '행사유형': irreg['IrregularType'],
                     '시작일': irreg['StartDate'],
@@ -388,7 +390,7 @@ async def download_expected_1p_irregulars(
 
         # 컬럼 정의 (순서 중요)
         export_columns = [
-            '행사ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
+            '행사ID', '입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
             '비고(행사)',
             '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
@@ -398,12 +400,12 @@ async def download_expected_1p_irregulars(
 
         # ID 컬럼 인덱스 (빨간색)
         promo_id_col_idx = 0   # 행사ID
-        product_id_col_idx = 14  # 상품ID
+        product_id_col_idx = 15  # 상품ID
         id_column_indices = [promo_id_col_idx, product_id_col_idx]
 
         # 수정 불가 (복합키) 컬럼 인덱스 (검정색)
-        # 행사명(1), 행사유형(2), 시작일(3), 브랜드명(7), 채널명(8), 품목코드(15)
-        readonly_columns = [1, 2, 3, 7, 8, 15]
+        # 입력월(1), 행사명(2), 행사유형(3), 시작일(4), 브랜드명(8), 채널명(9), 품목코드(16)
+        readonly_columns = [1, 2, 3, 4, 8, 9, 16]
 
         if not rows:
             df = pd.DataFrame(columns=export_columns)
@@ -506,35 +508,35 @@ async def download_expected_1p_irregulars(
             # 드롭다운 적용 범위
             max_row = max(len(df) + 100, 1000)
 
-            # 브랜드명 드롭다운 (인덱스 7)
+            # 브랜드명 드롭다운 (인덱스 8)
             if brand_names:
-                worksheet.data_validation(1, 7, max_row, 7, {
+                worksheet.data_validation(1, 8, max_row, 8, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 채널명 드롭다운 (인덱스 8)
+            # 채널명 드롭다운 (인덱스 9)
             if channel_names:
-                worksheet.data_validation(1, 8, max_row, 8, {
+                worksheet.data_validation(1, 9, max_row, 9, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 행사유형 드롭다운 (인덱스 2)
+            # 행사유형 드롭다운 (인덱스 3)
             if irregular_type_display_names:
-                worksheet.data_validation(1, 2, max_row, 2, {
+                worksheet.data_validation(1, 3, max_row, 3, {
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(irregular_type_display_names)}',
                     'input_message': '행사유형을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 할인부담 드롭다운 (인덱스 10)
-            worksheet.data_validation(1, 10, max_row, 10, {
+            # 할인부담 드롭다운 (인덱스 11)
+            worksheet.data_validation(1, 11, max_row, 11, {
                 'validate': 'list',
                 'source': f'=목록!$D$1:$D${len(discount_owner_list)}',
                 'input_message': '할인부담을 선택하세요',
@@ -664,6 +666,8 @@ async def upload_expected_1p_irregulars(
         # 2. 컬럼 매핑 (한글 → 영문)
         column_map = {
             '행사ID': 'Expected1PIrregularID',
+            '입력월(YYYY-MM)': 'InputMonth',
+            '입력월': 'InputMonth',
             '행사명': 'IrregularName',
             '행사유형': 'IrregularType',
             '시작일': 'StartDate',
