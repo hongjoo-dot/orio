@@ -350,7 +350,7 @@ class Expected1PIrregularRepository(BaseRepository):
     def get_input_months(self, year_month: Optional[str] = None) -> List[str]:
         """InputMonth 목록 조회 (사입 1P/2P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
-            where_clauses = ["c.ContractType IN ('1P', '2P')"]
+            where_clauses = ["c.ContractType IN ('1P', '2P')", "p.InputMonth IS NOT NULL"]
             params = []
 
             if year_month:
@@ -366,7 +366,7 @@ class Expected1PIrregularRepository(BaseRepository):
                 ORDER BY p.InputMonth DESC
             """
             cursor.execute(query, *params)
-            return [row[0] for row in cursor.fetchall() if row[0]]
+            return [row[0] for row in cursor.fetchall()]
 
     def get_master_summary(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """마스터 패널용 - 비정기 목록 + 상품 수 + 상품 예상매출/수량 합계 (사입 1P/2P 채널만)"""

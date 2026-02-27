@@ -355,7 +355,7 @@ class Expected3PRegularRepository(BaseRepository):
     def get_input_months(self, year_month: Optional[str] = None) -> List[str]:
         """InputMonth 목록 조회 (위탁 3P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
-            where_clauses = ["c.ContractType = '3P'"]
+            where_clauses = ["c.ContractType = '3P'", "t.InputMonth IS NOT NULL"]
             params = []
 
             if year_month:

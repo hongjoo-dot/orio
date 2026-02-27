@@ -1453,7 +1453,7 @@ async def get_expected_1p_irregular_product_list(
     try:
         filters = {}
         if expected_1p_irregular_id:
-            filters['irregular_id'] = expected_1p_irregular_id
+            filters['expected_1p_irregular_id'] = expected_1p_irregular_id
         if year_month:
             filters['year_month'] = year_month
         if brand_id:
