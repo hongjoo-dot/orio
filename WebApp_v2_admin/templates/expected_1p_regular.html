@@ -79,9 +79,17 @@
                 <span id="channelCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
             </div>
             <div class="panel-actions">
-                <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
-                    <i class="fa-solid fa-file-excel"></i> 엑셀 양식
-                </button>
+                <div class="btn-dropdown">
+                    <button class="btn btn-success btn-sm" onclick="toggleTemplateDropdown(this)">
+                        <i class="fa-solid fa-file-excel"></i> 엑셀 양식 <i class="fa-solid fa-caret-down" style="margin-left:4px;"></i>
+                    </button>
+                    <div class="btn-dropdown-menu">
+                        <div class="btn-dropdown-item" onclick="downloadTemplate('oliveyoung')"><i class="fa-solid fa-store"></i> 올리브영</div>
+                        <div class="btn-dropdown-item" onclick="downloadTemplate('coupang')"><i class="fa-solid fa-store"></i> 쿠팡</div>
+                        <div class="btn-dropdown-item" onclick="downloadTemplate('kurly')"><i class="fa-solid fa-store"></i> 마켓컬리</div>
+                        <div class="btn-dropdown-item" onclick="downloadTemplate('offline')"><i class="fa-solid fa-building"></i> 오프라인</div>
+                    </div>
+                </div>
                 <button class="btn btn-sm btn-disabled" onclick="downloadMasterEditForm()" id="masterEditDownloadButton" disabled style="background:#3b82f6;color:white;">
                     <i class="fa-solid fa-pen-to-square"></i> 수정 양식
                 </button>
@@ -148,9 +156,17 @@
                 <span id="irregMasterCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
             </div>
             <div class="panel-actions">
-                <button class="btn btn-success btn-sm" onclick="downloadTemplate()">
-                    <i class="fa-solid fa-file-excel"></i> 엑셀 양식
-                </button>
+                <div class="btn-dropdown">
+                    <button class="btn btn-success btn-sm" onclick="toggleTemplateDropdown(this)">
+                        <i class="fa-solid fa-file-excel"></i> 엑셀 양식 <i class="fa-solid fa-caret-down" style="margin-left:4px;"></i>
+                    </button>
+                    <div class="btn-dropdown-menu">
+                        <div class="btn-dropdown-item" onclick="downloadTemplate('oliveyoung')"><i class="fa-solid fa-store"></i> 올리브영</div>
+                        <div class="btn-dropdown-item" onclick="downloadTemplate('coupang')"><i class="fa-solid fa-store"></i> 쿠팡</div>
+                        <div class="btn-dropdown-item" onclick="downloadTemplate('kurly')"><i class="fa-solid fa-store"></i> 마켓컬리</div>
+                        <div class="btn-dropdown-item" onclick="downloadTemplate('offline')"><i class="fa-solid fa-building"></i> 오프라인</div>
+                    </div>
+                </div>
                 <button class="btn btn-sm btn-disabled" onclick="downloadIrregEditForm()" id="irregEditDownloadButton" disabled style="background:#3b82f6;color:white;">
                     <i class="fa-solid fa-pen-to-square"></i> 수정 양식
                 </button>
@@ -401,6 +417,45 @@
     #irreg-master-table tbody tr.selected {
         background: rgba(99, 102, 241, 0.15);
         border-left: 3px solid var(--accent);
+    }
+
+    /* Btn Dropdown */
+    .btn-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+    .btn-dropdown-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        right: 0;
+        min-width: 140px;
+        background: rgba(26, 31, 46, 0.98);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 6px;
+        margin-top: 4px;
+        z-index: 100;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .btn-dropdown.open .btn-dropdown-menu {
+        display: block;
+    }
+    .btn-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: all 0.15s;
+    }
+    .btn-dropdown-item:hover {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--text-primary);
     }
 
     /* Status Badge */

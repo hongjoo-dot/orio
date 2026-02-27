@@ -28,6 +28,35 @@ channel_repo = ChannelRepository()
 product_repo = ProductRepository()
 activity_log_repo = ActivityLogRepository()
 
+# ========== 양식 포맷 설정 ==========
+FORMAT_CONFIGS = {
+    'oliveyoung': {
+        'name': '올리브영',
+        'channel_keyword': '올리브영',
+        'extra_columns': {
+            'export_name': '올리브영유형',
+            'internal_name': 'OliveyoungType',
+            'dropdown_values': ['온라인', '오프라인'],
+            'dropdown_message': '올리브영유형을 선택하세요',
+        },
+    },
+    'coupang': {
+        'name': '쿠팡',
+        'channel_keyword': '쿠팡',
+        'extra_columns': None,
+    },
+    'kurly': {
+        'name': '마켓컬리',
+        'channel_keyword': '컬리',
+        'extra_columns': None,
+    },
+    'offline': {
+        'name': '오프라인',
+        'channel_keyword': None,
+        'extra_columns': None,
+    },
+}
+
 
 # Pydantic Models - 사입 정기 예상
 class Expected1PRegularCreate(BaseModel):
@@ -235,10 +264,15 @@ async def download_expected_1p_regular(
     channel_ids: Optional[str] = None,
     input_month: Optional[str] = None,
     ids: Optional[str] = None,
+    format_type: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "EXPORT"))
 ):
     """사입 정기 예상 엑셀 양식 다운로드 (신규/수정 통합)"""
     try:
+        # 포맷 설정
+        format_config = FORMAT_CONFIGS.get(format_type) if format_type else None
+        format_name = format_config['name'] if format_config else '사입'
+
         data = []
 
         # 선택된 ID가 있으면 해당 ID들만 조회
@@ -266,41 +300,47 @@ async def download_expected_1p_regular(
             result = expected_1p_regular_repo.get_list(page=1, limit=100000, filters=filters)
             data = result['data']
 
-        # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '올리브영유형', '메모']
-        # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용)
-        readonly_columns = [1, 2, 3, 4, 5]  # 입력월, 날짜, 브랜드명, 채널명, 품목코드
-        id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
+        # 컬럼 정의 (동적 구성)
+        base_export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량']
+        base_column_map = {
+            'Expected1PRegularID': 'ID(수정X)',
+            'InputMonth': '입력월(YYYY-MM)',
+            'Date': '날짜(YYYY-MM-01)',
+            'BrandName': '브랜드명',
+            'ChannelName': '채널명',
+            'ERPCode': '품목코드',
+            'ExpectedAmount': '예상금액(VAT포함)',
+            'ExpectedQuantity': '예상수량',
+        }
+
+        # 포맷별 전용 컬럼 삽입 (메모 앞)
+        extra_col = format_config.get('extra_columns') if format_config else None
+        if extra_col:
+            base_export_columns.append(extra_col['export_name'])
+            base_column_map[extra_col['internal_name']] = extra_col['export_name']
+
+        # 메모는 항상 마지막
+        base_export_columns.append('메모')
+        base_column_map['Notes'] = '메모'
+
+        export_columns = base_export_columns
+
+        # 인덱스 동적 계산
+        id_column_idx = export_columns.index('ID(수정X)')
+        readonly_column_names = ['입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드']
+        readonly_columns = [export_columns.index(name) for name in readonly_column_names]
 
         if not data:
-            # 데이터가 없으면 헤더만 있는 빈 양식 반환
             df = pd.DataFrame(columns=export_columns)
         else:
-            # DataFrame 생성
             df = pd.DataFrame(data)
-
-            # 컬럼 순서 및 이름 변경
-            column_map = {
-                'Expected1PRegularID': 'ID(수정X)',
-                'InputMonth': '입력월(YYYY-MM)',
-                'Date': '날짜(YYYY-MM-01)',
-                'BrandName': '브랜드명',
-                'ChannelName': '채널명',
-                'ERPCode': '품목코드',
-                'ExpectedAmount': '예상금액(VAT포함)',
-                'ExpectedQuantity': '예상수량',
-                'OliveyoungType': '올리브영유형',
-                'Notes': '메모'
-            }
-
-            # 필요한 컬럼만 선택
-            internal_columns = list(column_map.keys())
+            internal_columns = list(base_column_map.keys())
             df = df[[col for col in internal_columns if col in df.columns]]
-            df = df.rename(columns=column_map)
+            df = df.rename(columns=base_column_map)
 
         # 안내 시트 데이터
         guide_data = [
-            ['[사입 정기 예상 업로드 안내]', ''],
+            [f'[{format_name} 정기 예상 업로드 안내]', ''],
             ['', ''],
             ['■ 업로드 방식', ''],
             ['ID가 있는 행', 'ID 기준으로 해당 데이터를 수정합니다.'],
@@ -315,10 +355,14 @@ async def download_expected_1p_regular(
             ['예상금액(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
             ['예상수량', '숫자 (예: 100)'],
             ['메모', '메모/참고사항'],
+        ]
+        if extra_col:
+            guide_data.append([extra_col['export_name'], f"{', '.join(extra_col['dropdown_values'])} 중 선택"])
+        guide_data += [
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '예상금액(VAT포함), 예상수량, 메모'],
-            ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드'],
+            ['수정 가능', '예상금액(VAT포함), 예상수량, 메모' + (f", {extra_col['export_name']}" if extra_col else '')],
+            ['수정 불가 (검정)', '입력월, 날짜, 브랜드명, 채널명, 품목코드'],
             ['ID(수정X) (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 주의사항', ''],
@@ -334,7 +378,14 @@ async def download_expected_1p_regular(
         channels_2p = channel_repo.get_channel_list(contract_type='2P')
         channels = channels_1p + channels_2p
         brands = brand_repo.get_all_brands()
-        channel_names = [ch['Name'] for ch in channels]
+
+        # 포맷별 채널 필터링
+        keyword = format_config.get('channel_keyword') if format_config else None
+        if keyword:
+            filtered_channels = [ch for ch in channels if keyword in ch['Name']]
+        else:
+            filtered_channels = channels
+        channel_names = [ch['Name'] for ch in filtered_channels]
         brand_names = [br['Name'] for br in brands]
 
         # 품목코드 드롭다운용 목록 조회 (Status = 'YES'인 제품만)
@@ -348,94 +399,95 @@ async def download_expected_1p_regular(
             """)
             erp_codes = [row[0] for row in cursor.fetchall()]
 
+        # 시트명
+        sheet_name = f'{format_name} 정기 예상'
+
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='사입 정기 예상')
+            df.to_excel(writer, index=False, sheet_name=sheet_name)
             guide_df.to_excel(writer, index=False, sheet_name='안내')
 
             workbook = writer.book
-            worksheet = writer.sheets['사입 정기 예상']
+            worksheet = writer.sheets[sheet_name]
 
             # 목록 시트 생성 (드롭다운 소스용)
             list_sheet = workbook.add_worksheet('목록')
-            list_sheet.hide()  # 숨김 처리
+            list_sheet.hide()
 
-            # 채널 목록 작성 (A열)
+            # A열: 채널 목록
             for i, name in enumerate(channel_names):
                 list_sheet.write(i, 0, name)
-
-            # 브랜드 목록 작성 (B열)
+            # B열: 브랜드 목록
             for i, name in enumerate(brand_names):
                 list_sheet.write(i, 1, name)
-
-            # 품목코드 목록 작성 (C열)
+            # C열: 품목코드 목록
             for i, code in enumerate(erp_codes):
                 list_sheet.write(i, 2, code)
+            # D열: 전용 컬럼 드롭다운 값 (있으면)
+            extra_dropdown_values = []
+            if extra_col:
+                extra_dropdown_values = extra_col['dropdown_values']
+                for i, val in enumerate(extra_dropdown_values):
+                    list_sheet.write(i, 3, val)
 
-            # 올리브영유형 목록 작성 (D열)
-            oliveyoung_types = ['온라인', '오프라인']
-            for i, oy_type in enumerate(oliveyoung_types):
-                list_sheet.write(i, 3, oy_type)
+            # 드롭다운 적용 범위
+            max_row = max(len(df) + 100, 1000)
 
-            # 드롭다운 적용 범위 (2행~1000행)
-            max_row = max(len(df) + 100, 1000)  # 데이터 + 여유분
-
-            # 채널명 드롭다운 (E열, 인덱스 4)
+            # 채널명 드롭다운
+            ch_col_idx = export_columns.index('채널명')
             if channel_names:
-                worksheet.data_validation(1, 4, max_row, 4, {
+                worksheet.data_validation(1, ch_col_idx, max_row, ch_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 브랜드명 드롭다운 (D열, 인덱스 3)
+            # 브랜드명 드롭다운
+            br_col_idx = export_columns.index('브랜드명')
             if brand_names:
-                worksheet.data_validation(1, 3, max_row, 3, {
+                worksheet.data_validation(1, br_col_idx, max_row, br_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 품목코드 드롭다운 (F열, 인덱스 5)
+            # 품목코드 드롭다운
+            erp_col_idx = export_columns.index('품목코드')
             if erp_codes:
-                worksheet.data_validation(1, 5, max_row, 5, {
+                worksheet.data_validation(1, erp_col_idx, max_row, erp_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(erp_codes)}',
                     'input_message': '품목코드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 올리브영유형 드롭다운 (I열, 인덱스 8)
-            if oliveyoung_types:
-                worksheet.data_validation(1, 8, max_row, 8, {
+            # 전용 컬럼 드롭다운 (있으면)
+            if extra_col and extra_dropdown_values:
+                extra_col_idx = export_columns.index(extra_col['export_name'])
+                worksheet.data_validation(1, extra_col_idx, max_row, extra_col_idx, {
                     'validate': 'list',
-                    'source': f'=목록!$D$1:$D${len(oliveyoung_types)}',
-                    'input_message': '올리브영유형을 선택하세요',
+                    'source': f'=목록!$D$1:$D${len(extra_dropdown_values)}',
+                    'input_message': extra_col['dropdown_message'],
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # ID 컬럼 헤더 서식 (빨간색 배경 + 흰 글자)
+            # 서식 정의
             id_header_format = workbook.add_format({
-                'bold': True,
-                'font_color': 'white',
-                'bg_color': '#dc2626',
-                'border': 1
+                'bold': True, 'font_color': 'white', 'bg_color': '#dc2626', 'border': 1
             })
-
-            # 수정 불가 컬럼 헤더 서식 (검정 배경 + 흰 글자)
             readonly_header_format = workbook.add_format({
-                'bold': True,
-                'font_color': 'white',
-                'bg_color': '#000000',
-                'border': 1
+                'bold': True, 'font_color': 'white', 'bg_color': '#000000', 'border': 1
             })
-
-            # 수정 가능 컬럼 헤더 서식 (기본)
             editable_header_format = workbook.add_format({
-                'bold': True,
-                'border': 1
+                'bold': True, 'border': 1
+            })
+            id_data_format = workbook.add_format({
+                'font_color': 'white', 'bg_color': '#ef4444', 'border': 1
+            })
+            readonly_data_format = workbook.add_format({
+                'font_color': 'white', 'bg_color': '#333333', 'border': 1
             })
 
             # 헤더 서식 적용
@@ -447,30 +499,14 @@ async def download_expected_1p_regular(
                 else:
                     worksheet.write(0, col_idx, col_name, editable_header_format)
 
-            # ID 컬럼 데이터 서식 (빨간색 배경 + 흰 글자)
-            id_data_format = workbook.add_format({
-                'font_color': 'white',
-                'bg_color': '#ef4444',
-                'border': 1
-            })
-
-            # 데이터 행 서식 (수정 불가 컬럼)
-            readonly_data_format = workbook.add_format({
-                'font_color': 'white',
-                'bg_color': '#333333',
-                'border': 1
-            })
-
             # 데이터 행에 서식 적용
             if len(df) > 0:
                 for row_idx in range(len(df)):
-                    # ID 컬럼 빨간색 적용
                     col_name = export_columns[id_column_idx]
                     if col_name in df.columns:
                         value = df.iloc[row_idx][col_name]
                         worksheet.write(row_idx + 1, id_column_idx, value, id_data_format)
 
-                    # 수정 불가 컬럼 검정색 적용 (입력월 포함)
                     for col_idx in readonly_columns:
                         if col_idx < len(export_columns):
                             col_name = export_columns[col_idx]
@@ -488,7 +524,8 @@ async def download_expected_1p_regular(
 
         output.seek(0)
 
-        filename = f"expected_1p_regular_{year_month or 'template'}.xlsx"
+        format_suffix = f'_{format_type}' if format_type else ''
+        filename = f"expected_1p_regular{format_suffix}_{year_month or 'template'}.xlsx"
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"'
         }

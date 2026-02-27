@@ -29,6 +29,35 @@ channel_repo = ChannelRepository()
 product_repo = ProductRepository()
 activity_log_repo = ActivityLogRepository()
 
+# ========== 양식 포맷 설정 ==========
+FORMAT_CONFIGS = {
+    'oliveyoung': {
+        'name': '올리브영',
+        'channel_keyword': '올리브영',
+        'extra_columns': {
+            'export_name': '올리브영유형',
+            'internal_name': 'OliveyoungType',
+            'dropdown_values': ['온라인', '오프라인'],
+            'dropdown_message': '올리브영유형을 선택하세요',
+        },
+    },
+    'coupang': {
+        'name': '쿠팡',
+        'channel_keyword': '쿠팡',
+        'extra_columns': None,
+    },
+    'kurly': {
+        'name': '마켓컬리',
+        'channel_keyword': '컬리',
+        'extra_columns': None,
+    },
+    'offline': {
+        'name': '오프라인',
+        'channel_keyword': None,
+        'extra_columns': None,
+    },
+}
+
 
 # ========== Pydantic Models — Expected1PIrregular ==========
 
@@ -275,21 +304,26 @@ async def download_expected_1p_irregulars(
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     ids: Optional[str] = None,
+    format_type: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PIrregular", "EXPORT"))
 ):
     """행사 + 행사 상품 통합 엑셀 다운로드"""
     try:
+        # 포맷 설정
+        format_config = FORMAT_CONFIGS.get(format_type) if format_type else None
+        format_name = format_config['name'] if format_config else '사입'
+        extra_col = format_config.get('extra_columns') if format_config else None
+        has_extra_col = extra_col is not None
+
         irregulars = []
         products = []
 
         # 데이터 조회
         if ids:
-            # IrregularID 리스트로 조회
             id_list = [id.strip() for id in ids.split(',') if id.strip()]
             irregulars = expected_1p_irregular_repo.get_by_ids(id_list)
             products = expected_1p_irregular_product_repo.get_by_expected_1p_irregular_ids(id_list)
         elif year_month or brand_id or channel_id or irregular_type or status:
-            # 필터 조건으로 조회
             filters = {}
             if year_month:
                 filters['year_month'] = year_month
@@ -321,47 +355,16 @@ async def download_expected_1p_irregulars(
         rows = []
         for irreg in irregulars:
             promo_products = products_by_promo.get(irreg['Expected1PIrregularID'], [])
-            if promo_products:
-                for prod in promo_products:
-                    rows.append({
-                        '행사ID': irreg['Expected1PIrregularID'],
-                        '입력월(YYYY-MM)': irreg.get('InputMonth'),
-                        '올리브영유형': irreg.get('OliveyoungType'),
-                        '행사명': irreg['IrregularName'],
-                        '행사유형': irreg['IrregularType'],
-                        '시작일': irreg['StartDate'],
-                        '시작시간': irreg['StartTime'],
-                        '종료일': irreg['EndDate'],
-                        '종료시간': irreg['EndTime'],
-                        '브랜드명': irreg['BrandName'],
-                        '채널명': irreg['ChannelName'],
-                        '수수료율': irreg['CommissionRate'],
-                        '할인부담': irreg['DiscountOwner'],
-                        '자사분담율': irreg['CompanyShare'],
-                        '채널분담율': irreg['ChannelShare'],
-                        '메모(행사)': irreg['Notes'],
-                        '상품ID': prod['Expected1PIrregularProductID'],
-                        '품목코드': prod['ERPCode'],
-                        '판매가': prod['SellingPrice'],
-                        '행사가': prod['IrregularPrice'],
-                        '공급가': prod['SupplyPrice'],
-                        '쿠폰할인율': prod['CouponDiscountRate'],
-                        '원가': prod['UnitCost'],
-                        '물류비': prod['LogisticsCost'],
-                        '관리비': prod['ManagementCost'],
-                        '창고비': prod['WarehouseCost'],
-                        'EDI비': prod['EDICost'],
-                        '기타비': prod['MisCost'],
-                        '예상매출(상품)': prod['ExpectedSalesAmount'],
-                        '예상수량(상품)': prod['ExpectedQuantity'],
-                        '메모(상품)': prod['Notes'],
-                    })
-            else:
-                # 상품이 없는 행사도 출력 (상품 컬럼은 빈 값)
-                rows.append({
+
+            # 기본 행사 정보
+            def build_row(prod=None):
+                row = {
                     '행사ID': irreg['Expected1PIrregularID'],
                     '입력월(YYYY-MM)': irreg.get('InputMonth'),
-                    '올리브영유형': irreg.get('OliveyoungType'),
+                }
+                if has_extra_col:
+                    row[extra_col['export_name']] = irreg.get(extra_col['internal_name'])
+                row.update({
                     '행사명': irreg['IrregularName'],
                     '행사유형': irreg['IrregularType'],
                     '시작일': irreg['StartDate'],
@@ -375,26 +378,36 @@ async def download_expected_1p_irregulars(
                     '자사분담율': irreg['CompanyShare'],
                     '채널분담율': irreg['ChannelShare'],
                     '메모(행사)': irreg['Notes'],
-                    '상품ID': None,
-                    '품목코드': None,
-                    '판매가': None,
-                    '행사가': None,
-                    '공급가': None,
-                    '쿠폰할인율': None,
-                    '원가': None,
-                    '물류비': None,
-                    '관리비': None,
-                    '창고비': None,
-                    'EDI비': None,
-                    '기타비': None,
-                    '예상매출(상품)': None,
-                    '예상수량(상품)': None,
-                    '메모(상품)': None,
+                    '상품ID': prod['Expected1PIrregularProductID'] if prod else None,
+                    '품목코드': prod['ERPCode'] if prod else None,
+                    '판매가': prod['SellingPrice'] if prod else None,
+                    '행사가': prod['IrregularPrice'] if prod else None,
+                    '공급가': prod['SupplyPrice'] if prod else None,
+                    '쿠폰할인율': prod['CouponDiscountRate'] if prod else None,
+                    '원가': prod['UnitCost'] if prod else None,
+                    '물류비': prod['LogisticsCost'] if prod else None,
+                    '관리비': prod['ManagementCost'] if prod else None,
+                    '창고비': prod['WarehouseCost'] if prod else None,
+                    'EDI비': prod['EDICost'] if prod else None,
+                    '기타비': prod['MisCost'] if prod else None,
+                    '예상매출(상품)': prod['ExpectedSalesAmount'] if prod else None,
+                    '예상수량(상품)': prod['ExpectedQuantity'] if prod else None,
+                    '메모(상품)': prod['Notes'] if prod else None,
                 })
+                return row
 
-        # 컬럼 정의 (순서 중요)
-        export_columns = [
-            '행사ID', '입력월(YYYY-MM)', '올리브영유형', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
+            if promo_products:
+                for prod in promo_products:
+                    rows.append(build_row(prod))
+            else:
+                rows.append(build_row())
+
+        # 컬럼 정의 (동적 구성)
+        export_columns = ['행사ID', '입력월(YYYY-MM)']
+        if has_extra_col:
+            export_columns.append(extra_col['export_name'])
+        export_columns += [
+            '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
             '메모(행사)',
             '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
@@ -402,14 +415,10 @@ async def download_expected_1p_irregulars(
             '예상매출(상품)', '예상수량(상품)', '메모(상품)'
         ]
 
-        # ID 컬럼 인덱스 (빨간색)
-        promo_id_col_idx = 0   # 행사ID
-        product_id_col_idx = 16  # 상품ID
-        id_column_indices = [promo_id_col_idx, product_id_col_idx]
-
-        # 수정 불가 (복합키) 컬럼 인덱스 (검정색)
-        # 입력월(1), 행사명(3), 행사유형(4), 시작일(5), 브랜드명(9), 채널명(10), 품목코드(17)
-        readonly_columns = [1, 3, 4, 5, 9, 10, 17]
+        # 인덱스 동적 계산
+        id_column_indices = [export_columns.index('행사ID'), export_columns.index('상품ID')]
+        readonly_column_names = ['입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '브랜드명', '채널명', '품목코드']
+        readonly_columns = [export_columns.index(name) for name in readonly_column_names]
 
         if not rows:
             df = pd.DataFrame(columns=export_columns)
@@ -418,7 +427,7 @@ async def download_expected_1p_irregulars(
 
         # 안내 시트
         guide_data = [
-            ['[행사 관리 통합 업로드 안내]', ''],
+            [f'[{format_name} 행사 관리 통합 업로드 안내]', ''],
             ['', ''],
             ['■ 업로드 방식', ''],
             ['행사ID가 있는 행', '행사ID 기준으로 해당 행사를 수정합니다.'],
@@ -451,6 +460,10 @@ async def download_expected_1p_irregulars(
             ['예상매출(상품)', '숫자'],
             ['예상수량(상품)', '숫자'],
             ['메모(상품)', '메모'],
+        ]
+        if has_extra_col:
+            guide_data.append([extra_col['export_name'], f"{', '.join(extra_col['dropdown_values'])} 중 선택"])
+        guide_data += [
             ['', ''],
             ['■ 주의사항', ''],
             ['1. 같은 행사의 여러 상품은 행사 정보가 동일하게 반복됩니다.', ''],
@@ -465,7 +478,14 @@ async def download_expected_1p_irregulars(
         channels_2p = channel_repo.get_channel_list(contract_type='2P')
         channels = channels_1p + channels_2p
         brands = brand_repo.get_all_brands()
-        channel_names = [ch['Name'] for ch in channels]
+
+        # 포맷별 채널 필터링
+        keyword = format_config.get('channel_keyword') if format_config else None
+        if keyword:
+            filtered_channels = [ch for ch in channels if keyword in ch['Name']]
+        else:
+            filtered_channels = channels
+        channel_names = [ch['Name'] for ch in filtered_channels]
         brand_names = [br['Name'] for br in brands]
         irregular_type_display_names = expected_1p_irregular_repo.get_irregular_type_display_names()
         discount_owner_list = ['COMPANY', 'CHANNEL', 'BOTH']
@@ -481,13 +501,16 @@ async def download_expected_1p_irregulars(
             """)
             erp_codes = [row[0] for row in cursor.fetchall()]
 
+        # 시트명
+        sheet_name = f'{format_name} 행사관리'
+
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='행사관리')
+            df.to_excel(writer, index=False, sheet_name=sheet_name)
             guide_df.to_excel(writer, index=False, sheet_name='안내')
 
             workbook = writer.book
-            worksheet = writer.sheets['행사관리']
+            worksheet = writer.sheets[sheet_name]
 
             # 목록 시트 생성 (드롭다운 소스용)
             list_sheet = workbook.add_worksheet('목록')
@@ -508,92 +531,90 @@ async def download_expected_1p_irregulars(
             # E열: 품목코드 목록
             for i, code in enumerate(erp_codes):
                 list_sheet.write(i, 4, code)
-            # F열: 올리브영유형 목록
-            oliveyoung_type_list = ['온라인', '오프라인']
-            for i, name in enumerate(oliveyoung_type_list):
-                list_sheet.write(i, 5, name)
+            # F열: 전용 컬럼 드롭다운 값 (있으면)
+            extra_dropdown_values = []
+            if has_extra_col:
+                extra_dropdown_values = extra_col['dropdown_values']
+                for i, val in enumerate(extra_dropdown_values):
+                    list_sheet.write(i, 5, val)
 
             # 드롭다운 적용 범위
             max_row = max(len(df) + 100, 1000)
 
-            # 브랜드명 드롭다운 (인덱스 9)
+            # 브랜드명 드롭다운
+            br_col_idx = export_columns.index('브랜드명')
             if brand_names:
-                worksheet.data_validation(1, 9, max_row, 9, {
+                worksheet.data_validation(1, br_col_idx, max_row, br_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 채널명 드롭다운 (인덱스 10)
+            # 채널명 드롭다운
+            ch_col_idx = export_columns.index('채널명')
             if channel_names:
-                worksheet.data_validation(1, 10, max_row, 10, {
+                worksheet.data_validation(1, ch_col_idx, max_row, ch_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 행사유형 드롭다운 (인덱스 4)
+            # 행사유형 드롭다운
+            type_col_idx = export_columns.index('행사유형')
             if irregular_type_display_names:
-                worksheet.data_validation(1, 4, max_row, 4, {
+                worksheet.data_validation(1, type_col_idx, max_row, type_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(irregular_type_display_names)}',
                     'input_message': '행사유형을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 할인부담 드롭다운 (인덱스 12)
-            worksheet.data_validation(1, 12, max_row, 12, {
+            # 할인부담 드롭다운
+            disc_col_idx = export_columns.index('할인부담')
+            worksheet.data_validation(1, disc_col_idx, max_row, disc_col_idx, {
                 'validate': 'list',
                 'source': f'=목록!$D$1:$D${len(discount_owner_list)}',
                 'input_message': '할인부담을 선택하세요',
                 'error_message': '목록에서 선택해주세요'
             })
 
-            # 올리브영유형 드롭다운 (인덱스 2)
-            worksheet.data_validation(1, 2, max_row, 2, {
-                'validate': 'list',
-                'source': '=목록!$F$1:$F$2',
-                'input_message': '올리브영유형을 선택하세요',
-                'error_message': '목록에서 선택해주세요'
-            })
-
-            # 품목코드 드롭다운 (인덱스 17)
+            # 품목코드 드롭다운
+            erp_col_idx = export_columns.index('품목코드')
             if erp_codes:
-                worksheet.data_validation(1, 17, max_row, 17, {
+                worksheet.data_validation(1, erp_col_idx, max_row, erp_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$E$1:$E${len(erp_codes)}',
                     'input_message': '품목코드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
+            # 전용 컬럼 드롭다운 (있으면)
+            if has_extra_col and extra_dropdown_values:
+                extra_col_idx = export_columns.index(extra_col['export_name'])
+                worksheet.data_validation(1, extra_col_idx, max_row, extra_col_idx, {
+                    'validate': 'list',
+                    'source': f'=목록!$F$1:$F${len(extra_dropdown_values)}',
+                    'input_message': extra_col['dropdown_message'],
+                    'error_message': '목록에서 선택해주세요'
+                })
+
             # 서식 정의
             id_header_format = workbook.add_format({
-                'bold': True,
-                'font_color': 'white',
-                'bg_color': '#dc2626',
-                'border': 1
+                'bold': True, 'font_color': 'white', 'bg_color': '#dc2626', 'border': 1
             })
             readonly_header_format = workbook.add_format({
-                'bold': True,
-                'font_color': 'white',
-                'bg_color': '#000000',
-                'border': 1
+                'bold': True, 'font_color': 'white', 'bg_color': '#000000', 'border': 1
             })
             editable_header_format = workbook.add_format({
-                'bold': True,
-                'border': 1
+                'bold': True, 'border': 1
             })
             id_data_format = workbook.add_format({
-                'font_color': 'white',
-                'bg_color': '#ef4444',
-                'border': 1
+                'font_color': 'white', 'bg_color': '#ef4444', 'border': 1
             })
             readonly_data_format = workbook.add_format({
-                'font_color': 'white',
-                'bg_color': '#333333',
-                'border': 1
+                'font_color': 'white', 'bg_color': '#333333', 'border': 1
             })
 
             # 헤더 서식 적용
@@ -608,7 +629,6 @@ async def download_expected_1p_irregulars(
             # 데이터 행 서식 적용
             if len(df) > 0:
                 for row_idx in range(len(df)):
-                    # ID 컬럼 빨간색
                     for id_col in id_column_indices:
                         col_name = export_columns[id_col]
                         if col_name in df.columns:
@@ -618,7 +638,6 @@ async def download_expected_1p_irregulars(
                             else:
                                 worksheet.write_blank(row_idx + 1, id_col, None, id_data_format)
 
-                    # 수정 불가 컬럼 검정색
                     for col_idx in readonly_columns:
                         if col_idx < len(export_columns):
                             col_name = export_columns[col_idx]
@@ -639,7 +658,8 @@ async def download_expected_1p_irregulars(
 
         output.seek(0)
 
-        filename = f"expected_1p_irregulars_{year_month or 'template'}.xlsx"
+        format_suffix = f'_{format_type}' if format_type else ''
+        filename = f"expected_1p_irregulars{format_suffix}_{year_month or 'template'}.xlsx"
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"'
         }

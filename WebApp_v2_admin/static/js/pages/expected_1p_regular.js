@@ -238,6 +238,11 @@ const irregDetailColumns = [
 
 // ==================== 초기화 ====================
 document.addEventListener('DOMContentLoaded', async function () {
+    // 바깥 클릭 시 드롭다운 닫기
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.btn-dropdown')) closeAllDropdowns();
+    });
+
     window.addEventListener('beforeunload', (e) => {
         if (baseDirtyRows.size > 0 || irregDirtyRows.size > 0) {
             e.preventDefault();
@@ -1195,11 +1200,23 @@ function resetFilters() {
 }
 
 // ==================== 엑셀 다운로드 ====================
-function downloadTemplate() {
+function downloadTemplate(formatType) {
     const endpoint = currentTab === 'base'
-        ? '/api/expected/1p/regular/download'
-        : '/api/expected/1p/irregular/download';
+        ? `/api/expected/1p/regular/download?format_type=${formatType}`
+        : `/api/expected/1p/irregular/download?format_type=${formatType}`;
     window.location.href = endpoint;
+    closeAllDropdowns();
+}
+
+function toggleTemplateDropdown(btn) {
+    const dropdown = btn.closest('.btn-dropdown');
+    const isOpen = dropdown.classList.contains('open');
+    closeAllDropdowns();
+    if (!isOpen) dropdown.classList.add('open');
+}
+
+function closeAllDropdowns() {
+    document.querySelectorAll('.btn-dropdown.open').forEach(d => d.classList.remove('open'));
 }
 
 function downloadMasterEditForm() {
