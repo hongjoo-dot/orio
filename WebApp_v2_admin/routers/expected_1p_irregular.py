@@ -45,6 +45,10 @@ FORMAT_CONFIGS = {
         'name': '쿠팡',
         'channel_keyword': '쿠팡',
         'extra_columns': None,
+        'product_code': {
+            'export_name': '쿠팡SKU',
+            'db_column': 'CoupangSKU',
+        },
     },
     'kurly': {
         'name': '마켓컬리',
@@ -314,6 +318,8 @@ async def download_expected_1p_irregulars(
         format_name = format_config['name'] if format_config else '사입'
         extra_col = format_config.get('extra_columns') if format_config else None
         has_extra_col = extra_col is not None
+        product_code_config = format_config.get('product_code') if format_config else None
+        product_col_name = product_code_config['export_name'] if product_code_config else '품목코드'
 
         irregulars = []
         products = []
@@ -351,6 +357,23 @@ async def download_expected_1p_irregulars(
                 products_by_promo[pid] = []
             products_by_promo[pid].append(prod)
 
+        # 쿠팡 양식: ERPCode → CoupangSKU 매핑 준비
+        erp_to_product_code = {}
+        if product_code_config and products:
+            all_erp = list(set(p['ERPCode'] for p in products if p.get('ERPCode')))
+            if all_erp:
+                with get_db_cursor(commit=False) as cursor:
+                    placeholders = ','.join(['?' for _ in all_erp])
+                    cursor.execute(f"""
+                        SELECT pb.ERPCode, p.{product_code_config['db_column']}
+                        FROM ProductBox pb
+                        JOIN Product p ON pb.ProductID = p.ProductID
+                        WHERE pb.ERPCode IN ({placeholders})
+                    """, *all_erp)
+                    for row in cursor.fetchall():
+                        if row[1]:
+                            erp_to_product_code[row[0]] = row[1]
+
         # 통합 행 생성 (행사 정보 + 상품 정보를 1행으로 합침)
         rows = []
         for irreg in irregulars:
@@ -379,7 +402,7 @@ async def download_expected_1p_irregulars(
                     '채널분담율': irreg['ChannelShare'],
                     '메모(행사)': irreg['Notes'],
                     '상품ID': prod['Expected1PIrregularProductID'] if prod else None,
-                    '품목코드': prod['ERPCode'] if prod else None,
+                    product_col_name: (erp_to_product_code.get(prod['ERPCode'], prod['ERPCode']) if product_code_config else prod['ERPCode']) if prod else None,
                     '판매가': prod['SellingPrice'] if prod else None,
                     '행사가': prod['IrregularPrice'] if prod else None,
                     '공급가': prod['SupplyPrice'] if prod else None,
@@ -410,14 +433,14 @@ async def download_expected_1p_irregulars(
             '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
             '메모(행사)',
-            '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
+            '상품ID', product_col_name, '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
             '예상매출(상품)', '예상수량(상품)', '메모(상품)'
         ]
 
         # 인덱스 동적 계산
         id_column_indices = [export_columns.index('행사ID'), export_columns.index('상품ID')]
-        readonly_column_names = ['입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '브랜드명', '채널명', '품목코드']
+        readonly_column_names = ['입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '브랜드명', '채널명', product_col_name]
         readonly_columns = [export_columns.index(name) for name in readonly_column_names]
 
         if not rows:
@@ -455,7 +478,7 @@ async def download_expected_1p_irregulars(
             ['채널분담율', '숫자 (예: 50.0)'],
             ['메모(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
-            ['품목코드 (검정)', 'ProductBox 테이블의 품목코드 (수정 불가)'],
+            [f'{product_col_name} (검정)', f'Product 테이블의 {product_col_name} (수정 불가)' if product_code_config else 'ProductBox 테이블의 품목코드 (수정 불가)'],
             ['판매가~기타비', '가격/비용 정보'],
             ['예상매출(상품)', '숫자'],
             ['예상수량(상품)', '숫자'],
@@ -490,16 +513,27 @@ async def download_expected_1p_irregulars(
         irregular_type_display_names = expected_1p_irregular_repo.get_irregular_type_display_names()
         discount_owner_list = ['COMPANY', 'CHANNEL', 'BOTH']
 
-        # 품목코드 목록 (ProductBox)
-        with get_db_cursor(commit=False) as cursor:
-            cursor.execute("""
-                SELECT DISTINCT pb.ERPCode
-                FROM ProductBox pb
-                INNER JOIN Product p ON pb.ProductID = p.ProductID
-                WHERE p.Status = 'YES'
-                ORDER BY pb.ERPCode
-            """)
-            erp_codes = [row[0] for row in cursor.fetchall()]
+        # 품목코드/쿠팡SKU 목록
+        if product_code_config:
+            with get_db_cursor(commit=False) as cursor:
+                db_col = product_code_config['db_column']
+                cursor.execute(f"""
+                    SELECT DISTINCT p.{db_col}
+                    FROM Product p
+                    WHERE p.Status = 'YES' AND p.{db_col} IS NOT NULL AND p.{db_col} != ''
+                    ORDER BY p.{db_col}
+                """)
+                product_codes = [row[0] for row in cursor.fetchall()]
+        else:
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT DISTINCT pb.ERPCode
+                    FROM ProductBox pb
+                    INNER JOIN Product p ON pb.ProductID = p.ProductID
+                    WHERE p.Status = 'YES'
+                    ORDER BY pb.ERPCode
+                """)
+                product_codes = [row[0] for row in cursor.fetchall()]
 
         # 시트명
         sheet_name = f'{format_name} 행사관리'
@@ -528,8 +562,8 @@ async def download_expected_1p_irregulars(
             # D열: 할인부담 목록
             for i, name in enumerate(discount_owner_list):
                 list_sheet.write(i, 3, name)
-            # E열: 품목코드 목록
-            for i, code in enumerate(erp_codes):
+            # E열: 품목코드/쿠팡SKU 목록
+            for i, code in enumerate(product_codes):
                 list_sheet.write(i, 4, code)
             # F열: 전용 컬럼 드롭다운 값 (있으면)
             extra_dropdown_values = []
@@ -580,13 +614,13 @@ async def download_expected_1p_irregulars(
                 'error_message': '목록에서 선택해주세요'
             })
 
-            # 품목코드 드롭다운
-            erp_col_idx = export_columns.index('품목코드')
-            if erp_codes:
-                worksheet.data_validation(1, erp_col_idx, max_row, erp_col_idx, {
+            # 품목코드/쿠팡SKU 드롭다운
+            prod_code_col_idx = export_columns.index(product_col_name)
+            if product_codes:
+                worksheet.data_validation(1, prod_code_col_idx, max_row, prod_code_col_idx, {
                     'validate': 'list',
-                    'source': f'=목록!$E$1:$E${len(erp_codes)}',
-                    'input_message': '품목코드를 선택하세요',
+                    'source': f'=목록!$E$1:$E${len(product_codes)}',
+                    'input_message': f'{product_col_name}를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
@@ -737,8 +771,38 @@ async def upload_expected_1p_irregulars(
             '예상수량(상품)': 'ProdExpectedQuantity',
             '메모(상품)': 'ProdNotes',
             '비고(상품)': 'ProdNotes',
+            '쿠팡SKU': 'CoupangSKU',
         }
         df = df.rename(columns=column_map)
+
+        # 쿠팡SKU → ERPCode 변환 (쿠팡 양식 업로드 시)
+        if 'CoupangSKU' in df.columns and 'ERPCode' not in df.columns:
+            df['CoupangSKU'] = df['CoupangSKU'].astype(str).str.strip()
+            sku_values = df['CoupangSKU'].dropna().unique().tolist()
+            sku_values = [v for v in sku_values if v and v != 'nan']
+            sku_to_erp = {}
+            sku_errors = {}
+            for sku in sku_values:
+                with get_db_cursor(commit=False) as cursor:
+                    cursor.execute("""
+                        SELECT TOP 1 pb.ERPCode
+                        FROM Product p
+                        JOIN ProductBox pb ON p.ProductID = pb.ProductID
+                        WHERE p.CoupangSKU = ?
+                    """, (sku,))
+                    row = cursor.fetchone()
+                    if row:
+                        sku_to_erp[sku] = row[0]
+                    else:
+                        row_nums = df[df['CoupangSKU'] == sku].index.tolist()
+                        sku_errors[sku] = [r + 2 for r in row_nums]
+            if sku_errors:
+                error_messages = []
+                for sku, rows in sku_errors.items():
+                    error_messages.append(f"매핑되지 않는 쿠팡SKU: {sku} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
+                raise HTTPException(400, "\n".join(error_messages))
+            df['ERPCode'] = df['CoupangSKU'].map(sku_to_erp)
+            df['ERPCode'] = df['ERPCode'].astype(str).str.strip()
 
         # 3. 필수 컬럼 확인
         required_cols = ['IrregularName', 'IrregularType', 'StartDate', 'EndDate', 'BrandName', 'ChannelName']

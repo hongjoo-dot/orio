@@ -8,9 +8,14 @@ import sys
 import pandas as pd
 from pathlib import Path
 
-# WebApp_v2_admin의 DB 연결 모듈 재사용
-sys.path.insert(0, str(Path(__file__).parent / "WebApp_v2_admin"))
-from core.database import get_db_cursor
+# WebApp_v2_admin의 DB 연결 모듈 직접 import (순환 import 방지)
+import importlib.util
+
+_db_path = Path(__file__).parent / "WebApp_v2_admin" / "core" / "database.py"
+_spec = importlib.util.spec_from_file_location("database", _db_path)
+_db_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_db_module)
+get_db_cursor = _db_module.get_db_cursor
 
 
 def upload_coupang_sku(file_path: str):
