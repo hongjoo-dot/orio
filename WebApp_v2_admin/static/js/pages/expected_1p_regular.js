@@ -404,6 +404,9 @@ function doSwitchTab(tab) {
         loadStatuses();
     }
 
+    // 탭 전환 시 입력월 목록 갱신
+    loadInputMonths();
+
     if (tab === 'irregular') {
         loadIrregMaster();
     }
@@ -1096,7 +1099,10 @@ async function loadInputMonths() {
         if (yearMonth) params.year_month = yearMonth;
         const queryString = api.buildQueryString(params);
 
-        const result = await api.get(`/api/expected/1p/regular/input-months${queryString}`);
+        const endpoint = currentTab === 'irregular'
+            ? '/api/expected/1p/irregular/input-months'
+            : '/api/expected/1p/regular/input-months';
+        const result = await api.get(`${endpoint}${queryString}`);
         const inputMonths = result.input_months || [];
 
         const select = document.getElementById('searchInputMonth');

@@ -365,9 +365,8 @@ async def download_expected_1p_irregulars(
                 with get_db_cursor(commit=False) as cursor:
                     placeholders = ','.join(['?' for _ in all_erp])
                     cursor.execute(f"""
-                        SELECT pb.ERPCode, p.{product_code_config['db_column']}
+                        SELECT pb.ERPCode, pb.{product_code_config['db_column']}
                         FROM ProductBox pb
-                        JOIN Product p ON pb.ProductID = p.ProductID
                         WHERE pb.ERPCode IN ({placeholders})
                     """, *all_erp)
                     for row in cursor.fetchall():
@@ -518,10 +517,11 @@ async def download_expected_1p_irregulars(
             with get_db_cursor(commit=False) as cursor:
                 db_col = product_code_config['db_column']
                 cursor.execute(f"""
-                    SELECT DISTINCT p.{db_col}
-                    FROM Product p
-                    WHERE p.Status = 'YES' AND p.{db_col} IS NOT NULL AND p.{db_col} != ''
-                    ORDER BY p.{db_col}
+                    SELECT DISTINCT pb.{db_col}
+                    FROM ProductBox pb
+                    INNER JOIN Product p ON pb.ProductID = p.ProductID
+                    WHERE p.Status = 'YES' AND pb.{db_col} IS NOT NULL AND pb.{db_col} != ''
+                    ORDER BY pb.{db_col}
                 """)
                 product_codes = [row[0] for row in cursor.fetchall()]
         else:
@@ -786,9 +786,8 @@ async def upload_expected_1p_irregulars(
                 with get_db_cursor(commit=False) as cursor:
                     cursor.execute("""
                         SELECT TOP 1 pb.ERPCode
-                        FROM Product p
-                        JOIN ProductBox pb ON p.ProductID = pb.ProductID
-                        WHERE p.CoupangSKU = ?
+                        FROM ProductBox pb
+                        WHERE pb.CoupangSKU = ?
                     """, (sku,))
                     row = cursor.fetchone()
                     if row:
@@ -1142,7 +1141,7 @@ async def upload_expected_1p_irregulars(
                 'ExpectedSalesAmount': sum_sales if sum_sales > 0 else None,
                 'ExpectedQuantity': sum_qty if sum_qty > 0 else None,
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
-                'InputMonth': input_month or datetime.now().strftime('%Y-%m'),
+                'InputMonth': str(first_row['InputMonth']).strip() if 'InputMonth' in first_row and pd.notna(first_row.get('InputMonth')) and str(first_row.get('InputMonth')).strip() not in ('', 'nan') else (input_month or datetime.now().strftime('%Y-%m')),
                 'OliveyoungType': str(first_row['OliveyoungType']).strip() if pd.notna(first_row.get('OliveyoungType')) and str(first_row.get('OliveyoungType')).strip() != 'nan' else None,
             })
 

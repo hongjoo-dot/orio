@@ -1040,7 +1040,7 @@ async def upload_expected_3p_irregulars(
                 'ExpectedSalesAmount': sum_sales if sum_sales > 0 else None,
                 'ExpectedQuantity': sum_qty if sum_qty > 0 else None,
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
-                'InputMonth': default_input_month,
+                'InputMonth': str(first_row['InputMonth']).strip() if 'InputMonth' in first_row and pd.notna(first_row.get('InputMonth')) and str(first_row.get('InputMonth')).strip() not in ('', 'nan') else default_input_month,
             })
 
         promo_result = expected_3p_irregular_repo.bulk_upsert(irregular_records)

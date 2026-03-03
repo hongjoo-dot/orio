@@ -1,6 +1,6 @@
 """
 CoupangSKU 매핑 업로드 스크립트
-- 엑셀 파일에서 ERPCode, CoupangSKU를 읽어 Product 테이블에 업데이트
+- 엑셀 파일에서 ERPCode, CoupangSKU를 읽어 ProductBox 테이블에 업데이트
 - 하나라도 매핑 실패 시 전체 롤백
 """
 
@@ -19,7 +19,7 @@ get_db_cursor = _db_module.get_db_cursor
 
 
 def upload_coupang_sku(file_path: str):
-    """엑셀 파일의 ERPCode-CoupangSKU 매핑을 Product 테이블에 업데이트"""
+    """엑셀 파일의 ERPCode-CoupangSKU 매핑을 ProductBox 테이블에 업데이트"""
 
     # 1. 엑셀 읽기
     df = pd.read_excel(file_path, engine="openpyxl", header=0)
@@ -62,7 +62,7 @@ def upload_coupang_sku(file_path: str):
     with get_db_cursor(commit=False) as cursor:
         placeholders = ",".join(["?" for _ in erp_codes])
         cursor.execute(f"""
-            SELECT pb.ERPCode, p.ProductID, p.UniqueCode, p.Name, p.CoupangSKU
+            SELECT pb.ERPCode, p.UniqueCode, p.Name, pb.CoupangSKU
             FROM [dbo].[ProductBox] pb
             JOIN [dbo].[Product] p ON pb.ProductID = p.ProductID
             WHERE pb.ERPCode IN ({placeholders})
@@ -71,10 +71,9 @@ def upload_coupang_sku(file_path: str):
         erp_map = {}
         for row in cursor.fetchall():
             erp_map[row[0]] = {
-                "ProductID": row[1],
-                "UniqueCode": row[2],
-                "Name": row[3],
-                "CurrentSKU": row[4] or "",
+                "UniqueCode": row[1],
+                "Name": row[2],
+                "CurrentSKU": row[3] or "",
             }
 
     # 4. 검증: 매핑 실패 확인
@@ -87,7 +86,6 @@ def upload_coupang_sku(file_path: str):
         else:
             product = erp_map[item["erp_code"]]
             mappings.append({
-                "ProductID": product["ProductID"],
                 "ERPCode": item["erp_code"],
                 "UniqueCode": product["UniqueCode"],
                 "Name": product["Name"],
@@ -121,14 +119,14 @@ def upload_coupang_sku(file_path: str):
     with get_db_cursor(commit=True) as cursor:
         for m in mappings:
             cursor.execute("""
-                UPDATE [dbo].[Product]
-                SET CoupangSKU = ?, UpdatedDate = GETDATE()
-                WHERE ProductID = ?
-            """, m["NewSKU"], m["ProductID"])
+                UPDATE [dbo].[ProductBox]
+                SET CoupangSKU = ?
+                WHERE ERPCode = ?
+            """, m["NewSKU"], m["ERPCode"])
 
     print(f"\n[완료] {len(mappings)}건의 CoupangSKU가 업데이트되었습니다")
 
 
 if __name__ == "__main__":
-    file_path = sys.argv[1] if len(sys.argv) > 1 else r"C:\Python\상품목록_20260227.xlsx"
+    file_path = sys.argv[1] if len(sys.argv) > 1 else r"C:\Python\통합 문서1.xlsx"
     upload_coupang_sku(file_path)

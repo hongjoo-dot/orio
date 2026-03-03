@@ -353,9 +353,8 @@ async def download_expected_1p_regular(
                     with get_db_cursor(commit=False) as cursor:
                         placeholders = ','.join(['?' for _ in erp_values])
                         cursor.execute(f"""
-                            SELECT pb.ERPCode, p.{product_code_config['db_column']}
+                            SELECT pb.ERPCode, pb.{product_code_config['db_column']}
                             FROM ProductBox pb
-                            JOIN Product p ON pb.ProductID = p.ProductID
                             WHERE pb.ERPCode IN ({placeholders})
                         """, *erp_values)
                         for row in cursor.fetchall():
@@ -418,10 +417,11 @@ async def download_expected_1p_regular(
             with get_db_cursor(commit=False) as cursor:
                 db_col = product_code_config['db_column']
                 cursor.execute(f"""
-                    SELECT DISTINCT p.{db_col}
-                    FROM Product p
-                    WHERE p.Status = 'YES' AND p.{db_col} IS NOT NULL AND p.{db_col} != ''
-                    ORDER BY p.{db_col}
+                    SELECT DISTINCT pb.{db_col}
+                    FROM ProductBox pb
+                    INNER JOIN Product p ON pb.ProductID = p.ProductID
+                    WHERE p.Status = 'YES' AND pb.{db_col} IS NOT NULL AND pb.{db_col} != ''
+                    ORDER BY pb.{db_col}
                 """)
                 product_codes = [row[0] for row in cursor.fetchall()]
         else:
@@ -758,9 +758,8 @@ async def upload_expected_1p_regular(
                 with get_db_cursor(commit=False) as cursor:
                     cursor.execute("""
                         SELECT TOP 1 pb.ERPCode
-                        FROM Product p
-                        JOIN ProductBox pb ON p.ProductID = pb.ProductID
-                        WHERE p.CoupangSKU = ?
+                        FROM ProductBox pb
+                        WHERE pb.CoupangSKU = ?
                     """, (sku,))
                     row = cursor.fetchone()
                     if row:
@@ -866,7 +865,7 @@ async def upload_expected_1p_regular(
                 error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
-        # InputMonth 결정: 폼 파라미터 > 엑셀 컬럼 > 현재 월
+        # InputMonth 결정: 엑셀 컬럼 > 폼 파라미터 > 현재 월
         default_input_month = input_month or datetime.now().strftime('%Y-%m')
 
         # 레코드 준비
