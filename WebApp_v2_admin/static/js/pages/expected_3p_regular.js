@@ -565,10 +565,11 @@ function resetBaseDetail() {
 
 // ==================== 정기: 액션 버튼 ====================
 function updateBaseMasterActionButtons(selectedIds) {
-    const btn = document.getElementById('masterEditDownloadButton');
-    if (!btn) return;
-    btn.classList.toggle('btn-disabled', selectedIds.length === 0);
-    btn.disabled = selectedIds.length === 0;
+    const hasSelection = selectedIds.length > 0;
+    const editBtn = document.getElementById('masterEditDownloadButton');
+    const deleteBtn = document.getElementById('baseMasterDeleteButton');
+    if (editBtn) { editBtn.classList.toggle('btn-disabled', !hasSelection); editBtn.disabled = !hasSelection; }
+    if (deleteBtn) { deleteBtn.classList.toggle('btn-disabled', !hasSelection); deleteBtn.disabled = !hasSelection; }
 }
 
 function updateBaseDetailActionButtons(selectedIds) {
@@ -582,7 +583,42 @@ function updateBaseDetailActionButtons(selectedIds) {
     editBtn.disabled = !hasSelection;
 }
 
-// ==================== 정기: 삭제 ====================
+// ==================== 정기: 마스터 삭제 ====================
+async function bulkDeleteBaseMasterItems() {
+    const selectedIds = baseMasterTableManager.getSelectedRows().map(Number);
+    if (selectedIds.length === 0) {
+        showAlert('삭제할 채널을 선택해주세요.', 'warning');
+        return;
+    }
+
+    showConfirm(`선택한 ${selectedIds.length}개 채널의 모든 상품을 삭제하시겠습니까?`, async () => {
+        try {
+            const yearMonth = document.getElementById('searchYearMonth').value;
+            const inputMonth = document.getElementById('searchInputMonth').value;
+            const deletePromises = selectedIds.map(channelId =>
+                api.post('/api/expected/3p/regular/filter-delete', {
+                    year_month: yearMonth,
+                    channel_id: channelId,
+                    input_month: inputMonth || null
+                })
+            );
+            const results = await Promise.all(deletePromises);
+            const totalDeleted = results.reduce((sum, r) => sum + (r.deleted_count || 0), 0);
+            showAlert(`${totalDeleted}개 항목이 삭제되었습니다.`, 'success');
+
+            baseDirtyRows.clear();
+            updateBaseSaveBar();
+            loadChannelMaster();
+            document.getElementById('baseDetailContainer').style.display = 'none';
+            document.getElementById('baseDetailPlaceholder').style.display = '';
+        } catch (e) {
+            console.error('삭제 실패:', e);
+            showAlert('삭제 실패: ' + e.message, 'error');
+        }
+    });
+}
+
+// ==================== 정기: 디테일 삭제 ====================
 async function bulkDeleteBaseItems() {
     const selectedIds = baseDetailTableManager.getSelectedRows().map(Number);
     if (selectedIds.length === 0) {
@@ -843,10 +879,11 @@ function resetIrregDetail() {
 
 // ==================== 비정기: 액션 버튼 ====================
 function updateIrregMasterActionButtons(selectedIds) {
-    const btn = document.getElementById('irregEditDownloadButton');
-    if (!btn) return;
-    btn.classList.toggle('btn-disabled', selectedIds.length === 0);
-    btn.disabled = selectedIds.length === 0;
+    const hasSelection = selectedIds.length > 0;
+    const editBtn = document.getElementById('irregEditDownloadButton');
+    const deleteBtn = document.getElementById('irregMasterDeleteButton');
+    if (editBtn) { editBtn.classList.toggle('btn-disabled', !hasSelection); editBtn.disabled = !hasSelection; }
+    if (deleteBtn) { deleteBtn.classList.toggle('btn-disabled', !hasSelection); deleteBtn.disabled = !hasSelection; }
 }
 
 function updateIrregDetailActionButtons(selectedIds) {
@@ -860,7 +897,32 @@ function updateIrregDetailActionButtons(selectedIds) {
     editBtn.disabled = !hasSelection;
 }
 
-// ==================== 비정기: 삭제 ====================
+// ==================== 비정기: 마스터 삭제 ====================
+async function bulkDeleteIrregMasterItems() {
+    const selectedIds = irregMasterTableManager.getSelectedRows();
+    if (selectedIds.length === 0) {
+        showAlert('삭제할 행사를 선택해주세요.', 'warning');
+        return;
+    }
+
+    showConfirm(`선택한 ${selectedIds.length}개 행사를 삭제하시겠습니까?\n(포함된 상품도 함께 삭제됩니다)`, async () => {
+        try {
+            const result = await api.post('/api/expected/3p/irregular/bulk-delete', { ids: selectedIds });
+            showAlert(`${result.deleted_count}개 행사가 삭제되었습니다.`, 'success');
+
+            irregDirtyRows.clear();
+            updateIrregSaveBar();
+            loadIrregMaster();
+            document.getElementById('irregDetailContainer').style.display = 'none';
+            document.getElementById('irregDetailPlaceholder').style.display = '';
+        } catch (e) {
+            console.error('삭제 실패:', e);
+            showAlert('삭제 실패: ' + e.message, 'error');
+        }
+    });
+}
+
+// ==================== 비정기: 디테일 삭제 ====================
 async function bulkDeleteIrregItems() {
     const selectedIds = irregDetailTableManager.getSelectedRows().map(Number);
     if (selectedIds.length === 0) {
