@@ -35,6 +35,12 @@
             </select>
         </div>
         <div>
+            <label class="form-label">입력월</label>
+            <select id="filterInputMonth" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
             <label class="form-label">캠페인명</label>
             <input type="text" id="filterTitle" class="form-input" placeholder="캠페인명 검색">
         </div>
@@ -137,6 +143,11 @@
                     style="font-size:48px;color:var(--text-muted);margin-bottom:16px;"></i>
                 <p style="font-size:16px;margin-bottom:8px;">파일을 드래그하거나 클릭하여 선택</p>
                 <p style="font-size:13px;color:var(--text-muted);">지원 형식: .xlsx, .xls</p>
+            </div>
+            <div style="margin-top:16px;">
+                <label class="form-label" style="font-weight:600;">입력월 <span style="color:var(--danger);">*</span></label>
+                <input type="month" id="uploadInputMonth" class="form-input" required>
+                <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">엑셀에 입력월 컬럼이 없는 경우 이 값이 적용됩니다.</p>
             </div>
             <div id="fileInfo" style="margin-top:16px;display:none;">
                 <p><strong>선택된 파일:</strong> <span id="fileName"></span></p>

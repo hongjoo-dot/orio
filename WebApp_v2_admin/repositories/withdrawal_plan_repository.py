@@ -15,7 +15,8 @@ class WithdrawalPlanRepository(BaseRepository):
     SELECT_COLUMNS = (
         "p.PlanID", "p.GroupID", "p.Title", "p.[Date]", "p.Type",
         "p.ProductName", "p.ERPCode", "p.UniqueCode", "p.PlannedQty",
-        "p.Notes", "p.CreatedBy", "p.CreatedDate", "p.UpdatedDate"
+        "p.Notes", "p.CreatedBy", "p.CreatedDate", "p.UpdatedDate",
+        "p.InputMonth"
     )
 
     def __init__(self):
@@ -42,6 +43,7 @@ class WithdrawalPlanRepository(BaseRepository):
             "CreatedBy": row[10],
             "CreatedDate": row[11].strftime('%Y-%m-%d %H:%M:%S') if row[11] else None,
             "UpdatedDate": row[12].strftime('%Y-%m-%d %H:%M:%S') if row[12] else None,
+            "InputMonth": row[13] if len(row) > 13 else None,
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -56,6 +58,8 @@ class WithdrawalPlanRepository(BaseRepository):
             builder.where_equals("p.GroupID", filters['group_id'])
         if filters.get('unique_code'):
             builder.where("p.UniqueCode LIKE ?", f"%{filters['unique_code']}%")
+        if filters.get('input_month'):
+            builder.where_equals("p.InputMonth", filters['input_month'])
 
     def _build_query_with_filters(self, filters: Optional[Dict[str, Any]] = None) -> QueryBuilder:
         """WithdrawalPlan 전용 QueryBuilder 생성"""
@@ -87,6 +91,9 @@ class WithdrawalPlanRepository(BaseRepository):
                 if filters.get('title'):
                     where_clauses.append("p.Title LIKE ?")
                     params.append(f"%{filters['title']}%")
+                if filters.get('input_month'):
+                    where_clauses.append("p.InputMonth = ?")
+                    params.append(filters['input_month'])
 
             where_sql = ""
             if where_clauses:
@@ -120,17 +127,26 @@ class WithdrawalPlanRepository(BaseRepository):
                 "TotalQty": row[6],
             } for row in rows]
 
-    def get_by_group_id(self, group_id: int) -> List[Dict[str, Any]]:
+    def get_by_group_id(self, group_id: int, title: str = None) -> List[Dict[str, Any]]:
         """특정 그룹의 상품 목록 조회 (디테일용)"""
         with get_db_cursor(commit=False) as cursor:
             columns = ", ".join(self.SELECT_COLUMNS)
-            query = f"""
-                SELECT {columns}
-                FROM [dbo].[WithdrawalPlan] p
-                WHERE p.GroupID = ?
-                ORDER BY p.PlanID
-            """
-            cursor.execute(query, group_id)
+            if title:
+                query = f"""
+                    SELECT {columns}
+                    FROM [dbo].[WithdrawalPlan] p
+                    WHERE p.GroupID = ? AND p.Title = ?
+                    ORDER BY p.PlanID
+                """
+                cursor.execute(query, group_id, title)
+            else:
+                query = f"""
+                    SELECT {columns}
+                    FROM [dbo].[WithdrawalPlan] p
+                    WHERE p.GroupID = ?
+                    ORDER BY p.PlanID
+                """
+                cursor.execute(query, group_id)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
     def get_next_group_id(self) -> int:
@@ -206,7 +222,7 @@ class WithdrawalPlanRepository(BaseRepository):
                         UPDATE [dbo].[WithdrawalPlan]
                         SET GroupID = ?, Title = ?, [Date] = ?, Type = ?,
                             ProductName = ?, ERPCode = ?, UniqueCode = ?, PlannedQty = ?,
-                            Notes = ?, UpdatedDate = GETDATE()
+                            Notes = ?, InputMonth = ?, UpdatedDate = GETDATE()
                         WHERE PlanID = ?
                     """
                     params = [
@@ -219,6 +235,7 @@ class WithdrawalPlanRepository(BaseRepository):
                         record.get('UniqueCode'),
                         record.get('PlannedQty', 1),
                         record.get('Notes'),
+                        record.get('InputMonth'),
                         plan_id
                     ]
                     cursor.execute(update_query, *params)
@@ -228,8 +245,8 @@ class WithdrawalPlanRepository(BaseRepository):
                     # INSERT
                     insert_query = """
                         INSERT INTO [dbo].[WithdrawalPlan]
-                            (GroupID, Title, [Date], Type, ProductName, ERPCode, UniqueCode, PlannedQty, Notes, CreatedBy)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            (GroupID, Title, [Date], Type, ProductName, ERPCode, UniqueCode, PlannedQty, Notes, InputMonth, CreatedBy)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                     params = [
                         record.get('GroupID'),
@@ -241,6 +258,7 @@ class WithdrawalPlanRepository(BaseRepository):
                         record.get('UniqueCode'),
                         record.get('PlannedQty', 1),
                         record.get('Notes'),
+                        record.get('InputMonth'),
                         record.get('CreatedBy'),
                     ]
                     cursor.execute(insert_query, *params)
@@ -309,6 +327,18 @@ class WithdrawalPlanRepository(BaseRepository):
     def get_types(self) -> List[str]:
         """사용유형 목록"""
         return ['인플루언서', '증정', '업체샘플', '직원복지', '기타']
+
+    def get_input_months(self) -> List[str]:
+        """입력월 목록"""
+        with get_db_cursor(commit=False) as cursor:
+            query = """
+                SELECT DISTINCT InputMonth
+                FROM [dbo].[WithdrawalPlan]
+                WHERE InputMonth IS NOT NULL
+                ORDER BY InputMonth DESC
+            """
+            cursor.execute(query)
+            return [row[0] for row in cursor.fetchall()]
 
     def get_year_months(self) -> List[str]:
         """저장된 데이터의 년월 목록 조회"""

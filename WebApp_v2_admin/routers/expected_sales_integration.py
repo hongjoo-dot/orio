@@ -108,12 +108,15 @@ def _build_union_query(
         WHERE {' AND '.join(w1i)}
     """
 
-    # --- 불출 (InputMonth 없음) ---
+    # --- 불출 ---
     # 채널 필터가 '불출'이 아닌 값이면 불출 서브쿼리 제외
     include_withdrawal = (channel is None or channel == '불출')
     if include_withdrawal:
         wwp = ["FORMAT(w.[Date], 'yyyy-MM') BETWEEN ? AND ?"]
         params.extend([year_month_from, year_month_to])
+        if input_month:
+            wwp.append("w.InputMonth = ?")
+            params.append(input_month)
         if brand:
             wwp.append("b.Name = ?")
             params.append(brand)
@@ -231,6 +234,9 @@ async def get_input_months(
             UNION
             SELECT p.InputMonth AS im FROM Expected1PIrregular p
             WHERE FORMAT(p.StartDate, 'yyyy-MM') BETWEEN ? AND ? AND p.InputMonth IS NOT NULL
+            UNION
+            SELECT w.InputMonth AS im FROM WithdrawalPlan w
+            WHERE FORMAT(w.[Date], 'yyyy-MM') BETWEEN ? AND ? AND w.InputMonth IS NOT NULL
         ) AS AllInputMonths
         WHERE im IS NOT NULL
         ORDER BY im DESC
@@ -238,7 +244,8 @@ async def get_input_months(
     with get_db_cursor(commit=False) as cursor:
         cursor.execute(query,
             year_month_from, year_month_to, year_month_from, year_month_to,
-            year_month_from, year_month_to, year_month_from, year_month_to)
+            year_month_from, year_month_to, year_month_from, year_month_to,
+            year_month_from, year_month_to)
         return [row[0] for row in cursor.fetchall()]
 
 
@@ -555,6 +562,8 @@ def _build_bom_query(
     if include_withdrawal:
         ww = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?"]
         wp = [year_month_from, year_month_to]
+        if input_month:
+            ww.append("w.InputMonth = ?"); wp.append(input_month)
         if brand:
             ww.append("b.Name = ?"); wp.append(brand)
         ww_str = ' AND '.join(ww)

@@ -20,8 +20,8 @@ def format_time_value(value, default: str = '00:00:00') -> str:
     return default
 
 
-def calculate_amount_ex_vat(amount, vat_rate: float = 1.1) -> float:
-    """VAT 포함 금액에서 VAT 제외 금액 계산"""
+def calculate_amount_ex_vat(amount, vat_rate: float = 1.1) -> int:
+    """VAT 포함 금액에서 VAT 제외 금액 계산 (정수 반환)"""
     if not amount:
         return 0
-    return round(float(amount) / vat_rate, 2)
+    return round(float(amount) / vat_rate)

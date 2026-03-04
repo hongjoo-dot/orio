@@ -4,7 +4,7 @@ WithdrawalPlan (불출 계획) Router
 - 엑셀 업로드/다운로드
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
@@ -34,6 +34,7 @@ class WithdrawalPlanCreate(BaseModel):
     ERPCode: str
     PlannedQty: int = 1
     Notes: Optional[str] = None
+    InputMonth: Optional[str] = None
 
 
 class WithdrawalPlanUpdate(BaseModel):
@@ -43,6 +44,7 @@ class WithdrawalPlanUpdate(BaseModel):
     ERPCode: Optional[str] = None
     PlannedQty: Optional[int] = None
     Notes: Optional[str] = None
+    InputMonth: Optional[str] = None
 
 
 class GroupDeleteRequest(BaseModel):
@@ -72,6 +74,7 @@ async def get_withdrawal_groups(
     year_month: Optional[str] = None,
     type: Optional[str] = None,
     title: Optional[str] = None,
+    input_month: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("WithdrawalPlan", "READ"))
 ):
     """캠페인 그룹 목록 조회 (마스터용)"""
@@ -83,6 +86,8 @@ async def get_withdrawal_groups(
             filters['type'] = type
         if title:
             filters['title'] = title
+        if input_month:
+            filters['input_month'] = input_month
 
         groups = plan_repo.get_groups(filters=filters)
         return {"data": groups, "total": len(groups)}
@@ -95,11 +100,12 @@ async def get_withdrawal_groups(
 @router.get("/groups/{group_id}/items")
 async def get_group_items(
     group_id: int,
+    title: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("WithdrawalPlan", "READ"))
 ):
     """특정 그룹의 상품 목록 조회 (디테일용)"""
     try:
-        items = plan_repo.get_by_group_id(group_id)
+        items = plan_repo.get_by_group_id(group_id, title=title)
         return {"data": items, "total": len(items)}
     except Exception as e:
         raise HTTPException(500, f"상품 목록 조회 실패: {str(e)}")
@@ -114,6 +120,7 @@ async def get_withdrawal_plans(
     year_month: Optional[str] = None,
     type: Optional[str] = None,
     title: Optional[str] = None,
+    input_month: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = "DESC",
     user: CurrentUser = Depends(require_permission("WithdrawalPlan", "READ"))
@@ -140,6 +147,8 @@ async def get_withdrawal_plans(
             filters['type'] = type
         if title:
             filters['title'] = title
+        if input_month:
+            filters['input_month'] = input_month
 
         result = plan_repo.get_list(
             page=page, limit=limit,
@@ -169,6 +178,15 @@ async def get_year_months(user: CurrentUser = Depends(require_permission("Withdr
         return {"year_months": plan_repo.get_year_months()}
     except Exception as e:
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
+
+
+@router.get("/input-months")
+async def get_input_months(user: CurrentUser = Depends(require_permission("WithdrawalPlan", "READ"))):
+    """입력월 목록"""
+    try:
+        return {"input_months": plan_repo.get_input_months()}
+    except Exception as e:
+        raise HTTPException(500, f"입력월 목록 조회 실패: {str(e)}")
 
 
 # ========== 엑셀 다운로드 ==========
@@ -203,7 +221,7 @@ async def download_withdrawal_plans(
             data = []
 
         # 엑셀 컬럼 정의
-        export_columns = ['계획ID(수정X)', '캠페인ID(수정X)', '캠페인명', '일자(YYYY-MM-DD)', '사용유형', '품목코드', '예정수량', '메모']
+        export_columns = ['계획ID(수정X)', '캠페인ID(수정X)', '캠페인명', '일자(YYYY-MM-DD)', '사용유형', '품목코드', '예정수량', '메모', '입력월']
         id_column_indices = [0, 1]  # 계획ID, 캠페인ID (빨간색)
 
         rows = []
@@ -217,6 +235,7 @@ async def download_withdrawal_plans(
                 '품목코드': item.get('ERPCode'),
                 '예정수량': item.get('PlannedQty'),
                 '메모': item.get('Notes'),
+                '입력월': item.get('InputMonth'),
             })
 
         if not rows:
@@ -241,6 +260,7 @@ async def download_withdrawal_plans(
             ['품목코드', '품목코드 (필수, ProductBox 테이블의 ERPCode, 상품명 자동 매핑)'],
             ['예정수량', '숫자'],
             ['메모', '메모'],
+            ['입력월', 'YYYY-MM 형식 (예: 2026-03)'],
         ]
         guide_df = pd.DataFrame(guide_data, columns=['항목', '설명'])
 
@@ -328,7 +348,7 @@ async def download_withdrawal_plans(
                                 worksheet.write_blank(row_idx + 1, id_col, None, id_data_format)
 
             # 컬럼 너비
-            col_widths = [14, 14, 25, 18, 12, 15, 10, 30]
+            col_widths = [14, 14, 25, 18, 12, 15, 10, 30, 12]
             for i, width in enumerate(col_widths):
                 worksheet.set_column(i, i, width)
 
@@ -355,6 +375,7 @@ async def download_withdrawal_plans(
 @router.post("/upload")
 async def upload_withdrawal_plans(
     file: UploadFile = File(...),
+    input_month: Optional[str] = Form(None),
     request: Request = None,
     user: CurrentUser = Depends(require_permission("WithdrawalPlan", "UPLOAD"))
 ):
@@ -382,6 +403,7 @@ async def upload_withdrawal_plans(
             '고유코드': 'ERPCode',  # 기존 양식 호환
             '예정수량': 'PlannedQty',
             '메모': 'Notes',
+            '입력월': 'InputMonth',
         }
         df = df.rename(columns=column_map)
 
@@ -446,6 +468,7 @@ async def upload_withdrawal_plans(
                 'ProductName': product_info.get('ProductName', ''),
                 'PlannedQty': int(row.get('PlannedQty', 1)) if pd.notna(row.get('PlannedQty')) else 1,
                 'Notes': str(row.get('Notes', '')).strip() if pd.notna(row.get('Notes')) and str(row.get('Notes')).strip() != 'nan' else None,
+                'InputMonth': str(row.get('InputMonth', '')).strip() if 'InputMonth' in row and pd.notna(row.get('InputMonth')) and str(row.get('InputMonth')).strip() not in ('', 'nan') else input_month,
                 'CreatedBy': user.user_id if user else None,
             }
 
@@ -597,6 +620,7 @@ async def create_withdrawal_plan(
             'UniqueCode': row[1],
             'PlannedQty': data.PlannedQty,
             'Notes': data.Notes,
+            'InputMonth': data.InputMonth,
             'CreatedBy': user.user_id if user else None,
         }
 

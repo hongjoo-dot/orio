@@ -5,6 +5,7 @@ Expected1PIrregularProduct Repository
 
 from typing import Dict, Any, Optional, List
 from core import BaseRepository, QueryBuilder, get_db_cursor, log_changes_bulk
+from utils.helpers import calculate_amount_ex_vat
 
 
 class Expected1PIrregularProductRepository(BaseRepository):
@@ -18,7 +19,7 @@ class Expected1PIrregularProductRepository(BaseRepository):
         "pp.CouponDiscountRate",
         "pp.UnitCost", "pp.LogisticsCost", "pp.ManagementCost",
         "pp.WarehouseCost", "pp.EDICost", "pp.MisCost",
-        "pp.ExpectedSalesAmount", "pp.ExpectedQuantity",
+        "pp.ExpectedSalesAmount", "pp.ExpectedSalesAmountExVAT", "pp.ExpectedQuantity",
         "pp.Notes",
         "pp.CreatedDate", "pp.UpdatedDate"
     )
@@ -63,20 +64,21 @@ class Expected1PIrregularProductRepository(BaseRepository):
             "EDICost": float(row[13]) if row[13] else 0,
             "MisCost": float(row[14]) if row[14] else 0,
             "ExpectedSalesAmount": float(row[15]) if row[15] else 0,
-            "ExpectedQuantity": int(row[16]) if row[16] else 0,
-            "Notes": row[17],
-            "CreatedDate": row[18].strftime('%Y-%m-%d %H:%M:%S') if row[18] else None,
-            "UpdatedDate": row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else None,
+            "ExpectedSalesAmountExVAT": float(row[16]) if row[16] else 0,
+            "ExpectedQuantity": int(row[17]) if row[17] else 0,
+            "Notes": row[18],
+            "CreatedDate": row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else None,
+            "UpdatedDate": row[20].strftime('%Y-%m-%d %H:%M:%S') if row[20] else None,
             # JOIN 컬럼
-            "IrregularName": row[20],
-            "IrregularType": row[21],
-            "StartDate": row[22].strftime('%Y-%m-%d') if row[22] else None,
-            "EndDate": row[23].strftime('%Y-%m-%d') if row[23] else None,
-            "BrandID": row[24],
-            "BrandName": row[25],
-            "ChannelID": row[26],
-            "ChannelName": row[27],
-            "Status": row[28],
+            "IrregularName": row[21],
+            "IrregularType": row[22],
+            "StartDate": row[23].strftime('%Y-%m-%d') if row[23] else None,
+            "EndDate": row[24].strftime('%Y-%m-%d') if row[24] else None,
+            "BrandID": row[25],
+            "BrandName": row[26],
+            "ChannelID": row[27],
+            "ChannelName": row[28],
+            "Status": row[29],
         }
 
     def _apply_filters(self, builder: QueryBuilder, filters: Dict[str, Any]) -> None:
@@ -155,6 +157,10 @@ class Expected1PIrregularProductRepository(BaseRepository):
                 for record in batch:
                     product_id = record.get('Expected1PIrregularProductID')
 
+                    # ExpectedSalesAmountExVAT 자동 계산 (VAT 10% 제외)
+                    expected_sales = record.get('ExpectedSalesAmount') or 0
+                    expected_sales_ex_vat = calculate_amount_ex_vat(expected_sales)
+
                     if product_id:
                         update_query = """
                             UPDATE [dbo].[Expected1PIrregularProduct]
@@ -171,6 +177,7 @@ class Expected1PIrregularProductRepository(BaseRepository):
                                 EDICost = ?,
                                 MisCost = ?,
                                 ExpectedSalesAmount = ?,
+                                ExpectedSalesAmountExVAT = ?,
                                 ExpectedQuantity = ?,
                                 Notes = ?,
                                 UpdatedDate = GETDATE()
@@ -189,7 +196,8 @@ class Expected1PIrregularProductRepository(BaseRepository):
                             record.get('WarehouseCost'),
                             record.get('EDICost'),
                             record.get('MisCost'),
-                            record.get('ExpectedSalesAmount'),
+                            expected_sales,
+                            expected_sales_ex_vat,
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
                             product_id
@@ -204,8 +212,9 @@ class Expected1PIrregularProductRepository(BaseRepository):
                                  SellingPrice, IrregularPrice, SupplyPrice,
                                  CouponDiscountRate, UnitCost, LogisticsCost,
                                  ManagementCost, WarehouseCost, EDICost, MisCost,
-                                 ExpectedSalesAmount, ExpectedQuantity, Notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 ExpectedSalesAmount, ExpectedSalesAmountExVAT,
+                                 ExpectedQuantity, Notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         params = [
                             record.get('Expected1PIrregularID'),
@@ -222,7 +231,8 @@ class Expected1PIrregularProductRepository(BaseRepository):
                             record.get('WarehouseCost'),
                             record.get('EDICost'),
                             record.get('MisCost'),
-                            record.get('ExpectedSalesAmount'),
+                            expected_sales,
+                            expected_sales_ex_vat,
                             record.get('ExpectedQuantity'),
                             record.get('Notes'),
                         ]
@@ -296,10 +306,14 @@ class Expected1PIrregularProductRepository(BaseRepository):
                 if not product_id:
                     continue
 
+                expected_sales = float(record.get('ExpectedSalesAmount', 0) or 0)
+                expected_sales_ex_vat = calculate_amount_ex_vat(expected_sales)
+
                 query = """
                     UPDATE [dbo].[Expected1PIrregularProduct]
                     SET IrregularPrice = ?,
                         ExpectedSalesAmount = ?,
+                        ExpectedSalesAmountExVAT = ?,
                         ExpectedQuantity = ?,
                         Notes = ?,
                         UpdatedDate = GETDATE()
@@ -307,7 +321,8 @@ class Expected1PIrregularProductRepository(BaseRepository):
                 """
                 cursor.execute(query,
                     float(record.get('IrregularPrice', 0) or 0),
-                    float(record.get('ExpectedSalesAmount', 0) or 0),
+                    expected_sales,
+                    expected_sales_ex_vat,
                     int(record.get('ExpectedQuantity', 0) or 0),
                     record.get('Notes'),
                     product_id

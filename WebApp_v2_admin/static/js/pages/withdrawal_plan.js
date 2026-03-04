@@ -42,10 +42,10 @@ const masterColumns = [
         }
     },
     {
-        key: 'TotalQty',
-        header: '총수량',
-        sortKey: 'TotalQty',
-        render: (row) => `<div style="text-align:right;font-size:13px;">${(row.TotalQty || 0).toLocaleString()}</div>`
+        key: 'ItemCount',
+        header: '상품수',
+        sortKey: 'ItemCount',
+        render: (row) => `<div style="text-align:right;font-size:13px;">${(row.ItemCount || 0).toLocaleString()}</div>`
     }
 ];
 
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         selectable: true,
         idKey: 'GroupID',
         onRowClick: (row, tr) => {
-            selectGroup(row.GroupID, tr);
+            selectGroup(row, tr);
         },
         onSelectionChange: (selectedIds) => {
             updateMasterActionButtons(selectedIds);
@@ -154,11 +154,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 업로드 존 드래그앤드롭
     setupUploadZone();
 
-    // 사용유형 로드
+    // 사용유형, 입력월 로드
     loadTypes();
+    loadInputMonths();
 
     // Enter 키 검색
-    ['filterYearMonth', 'filterType', 'filterTitle'].forEach(id => {
+    ['filterYearMonth', 'filterType', 'filterInputMonth', 'filterTitle'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('keypress', e => {
@@ -286,24 +287,24 @@ function applyMasterSelection() {
 }
 
 // ==================== 캠페인 선택 (마스터 행 클릭) ====================
-function selectGroup(groupId, tr) {
-    if (dirtyRows.size > 0 && groupId !== currentGroupId) {
+function selectGroup(row, tr) {
+    if (dirtyRows.size > 0 && row.GroupID !== currentGroupId) {
         showConfirm('저장하지 않은 변경사항이 있습니다. 캠페인을 전환하시겠습니까?', () => {
             dirtyRows.clear();
             updateSaveBar();
-            doSelectGroup(groupId, tr);
+            doSelectGroup(row, tr);
         });
         return;
     }
-    doSelectGroup(groupId, tr);
+    doSelectGroup(row, tr);
 }
 
-function doSelectGroup(groupId, tr) {
+function doSelectGroup(row, tr) {
     document.querySelectorAll('#master-table tbody tr').forEach(r => r.classList.remove('selected'));
     if (tr) tr.classList.add('selected');
 
-    currentGroupId = groupId;
-    currentGroupData = masterDataMap[groupId];
+    currentGroupId = row.GroupID;
+    currentGroupData = row;
 
     loadDetailData(currentGroupData);
 }
@@ -316,7 +317,8 @@ async function loadDetailData(group) {
 
         detailTableManager.showLoading(detailColumns.length);
 
-        const result = await api.get(`/api/withdrawal-plans/groups/${group.GroupID}/items`);
+        const detailQs = api.buildQueryString({ title: group.Title });
+        const result = await api.get(`/api/withdrawal-plans/groups/${group.GroupID}/items${detailQs}`);
         const items = result.data || [];
 
         currentDetailItems = items;
@@ -545,10 +547,12 @@ function doApplyFilters() {
 
     const yearMonth = document.getElementById('filterYearMonth').value;
     const type = document.getElementById('filterType').value;
+    const inputMonth = document.getElementById('filterInputMonth').value;
     const title = document.getElementById('filterTitle').value.trim();
 
     if (yearMonth) currentFilters.year_month = yearMonth;
     if (type) currentFilters.type = type;
+    if (inputMonth) currentFilters.input_month = inputMonth;
     if (title) currentFilters.title = title;
 
     resetDetail();
@@ -558,6 +562,7 @@ function doApplyFilters() {
 function resetFilters() {
     document.getElementById('filterYearMonth').value = '';
     document.getElementById('filterType').value = '';
+    document.getElementById('filterInputMonth').value = '';
     document.getElementById('filterTitle').value = '';
 
     currentFilters = {};
@@ -580,6 +585,26 @@ async function loadTypes() {
         });
     } catch (e) {
         console.error('사용유형 로드 실패:', e);
+    }
+}
+
+// ==================== 입력월 로드 ====================
+async function loadInputMonths() {
+    try {
+        const result = await api.get('/api/withdrawal-plans/input-months');
+        const months = result.input_months || [];
+        const select = document.getElementById('filterInputMonth');
+        const cur = select.value;
+        select.innerHTML = '<option value="">전체</option>';
+        months.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m;
+            option.textContent = m;
+            select.appendChild(option);
+        });
+        select.value = cur || '';
+    } catch (e) {
+        console.error('입력월 로드 실패:', e);
     }
 }
 
@@ -632,6 +657,11 @@ function showUploadModal() {
     document.getElementById('progressText').textContent = '0%';
     document.getElementById('uploadButton').disabled = true;
 
+    // 입력월 기본값: 현재 년월
+    const now = new Date();
+    const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('uploadInputMonth').value = defaultMonth;
+
     const uploadZone = document.querySelector('.upload-zone');
     if (uploadZone) {
         uploadZone.style.borderColor = 'var(--border)';
@@ -672,8 +702,18 @@ async function uploadFile() {
             }
         }, 100);
 
+        const uploadInputMonth = document.getElementById('uploadInputMonth').value;
+        if (!uploadInputMonth) {
+            showAlert('입력월을 선택해주세요.', 'warning');
+            document.getElementById('uploadButton').disabled = false;
+            document.getElementById('uploadProgress').style.display = 'none';
+            clearInterval(progressInterval);
+            return;
+        }
+
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('input_month', uploadInputMonth);
 
         const token = localStorage.getItem('access_token');
         const response = await fetch('/api/withdrawal-plans/upload', {
@@ -712,6 +752,7 @@ async function uploadFile() {
         // 데이터 새로고침
         resetDetail();
         loadMasterData();
+        loadInputMonths();
 
     } catch (e) {
         console.error('업로드 실패:', e);
