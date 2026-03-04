@@ -102,6 +102,17 @@ async def expected_1p_page(request: Request, redirect = Depends(require_login_fo
     })
 
 
+@router.get("/expected-sales-integration", response_class=HTMLResponse)
+async def expected_sales_integration_page(request: Request, redirect = Depends(require_login_for_page)):
+    """예상 판매량 통합 조회 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("expected_sales_integration.html", {
+        "request": request,
+        "active_page": "expected-sales-integration"
+    })
+
+
 @router.get("/withdrawal-plans", response_class=HTMLResponse)
 async def withdrawal_plans_page(request: Request, redirect = Depends(require_login_for_page)):
     """불출 계획 페이지"""

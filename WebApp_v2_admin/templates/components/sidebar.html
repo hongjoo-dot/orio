@@ -16,8 +16,8 @@
             </a>
 
             <!-- 예상 매출 관리 드롭다운 -->
-            <div class="nav-dropdown {% if active_page in ['expected-3p', 'expected-1p'] %}active{% endif %}">
-                <div class="nav-item nav-dropdown-toggle {% if active_page in ['expected-3p', 'expected-1p'] %}active{% endif %}">
+            <div class="nav-dropdown {% if active_page in ['expected-3p', 'expected-1p', 'expected-sales-integration'] %}active{% endif %}">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['expected-3p', 'expected-1p', 'expected-sales-integration'] %}active{% endif %}">
                     <i class="fa-solid fa-chart-bar"></i>
                     <span class="nav-text">예상 매출</span>
                     <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
@@ -28,6 +28,9 @@
                     </a>
                     <a href="/expected-1p" class="nav-dropdown-item {% if active_page == 'expected-1p' %}active{% endif %}">
                         <i class="fa-solid fa-truck"></i> 사입 예상 매출
+                    </a>
+                    <a href="/expected-sales-integration" class="nav-dropdown-item {% if active_page == 'expected-sales-integration' %}active{% endif %}">
+                        <i class="fa-solid fa-chart-pie"></i> 통합 조회
                     </a>
                 </div>
             </div>

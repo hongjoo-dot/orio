@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}예상 판매량 통합 조회 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-chart-pie"></i> 예상 판매량 통합 조회
+    </h1>
+    <p class="page-subtitle">위탁·사입·불출 데이터를 통합하여 연월별 예상 판매량을 조회합니다</p>
+</div>
+
+<!-- Search Filters -->
+<div class="card" style="margin-bottom:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 검색 필터</div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                <i class="fa-solid fa-rotate-right"></i> 초기화
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="loadData()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">
+        <div>
+            <label class="form-label">시작 연월</label>
+            <input type="month" id="filterYearMonthFrom" class="form-input" onchange="onRangeChange()">
+        </div>
+        <div>
+            <label class="form-label">종료 연월</label>
+            <input type="month" id="filterYearMonthTo" class="form-input" onchange="onRangeChange()">
+        </div>
+        <div>
+            <label class="form-label">입력월</label>
+            <select id="filterInputMonth" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">브랜드</label>
+            <select id="filterBrand" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">채널</label>
+            <select id="filterChannel" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Buttons -->
+<div style="display:flex;gap:8px;margin-bottom:24px;">
+    <button class="btn btn-primary btn-sm" id="tabIntegration" onclick="switchTab('integration')">
+        <i class="fa-solid fa-table"></i> 통합 조회
+    </button>
+    <button class="btn btn-secondary btn-sm" id="tabBom" onclick="switchTab('bom')">
+        <i class="fa-solid fa-sitemap"></i> BOM 분해
+    </button>
+</div>
+
+<!-- Pivot Table -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="card-title" style="margin:0;">
+            <i class="fa-solid fa-table"></i> <span id="tableTitle">통합 조회 결과</span>
+            <span id="dataCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+        </div>
+        <button class="btn btn-success btn-sm" onclick="downloadExcel()">
+            <i class="fa-solid fa-file-excel"></i> 엑셀 다운로드
+        </button>
+    </div>
+    <div class="table-wrapper">
+        <table class="table" id="pivotTable">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    #pivotTable th {
+        white-space: nowrap;
+        font-size: 12px;
+    }
+    #pivotTable td {
+        font-size: 13px;
+    }
+    .col-amount {
+        text-align: right;
+        color: var(--text-primary);
+    }
+    .col-qty {
+        text-align: right;
+        color: #6366f1;
+    }
+    .col-total {
+        text-align: right;
+        font-weight: 600;
+        background: rgba(34,197,94,0.06);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/expected_sales_integration.js"></script>
+{% endblock %}
