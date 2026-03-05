@@ -431,8 +431,10 @@ CREATE TABLE oriodatabase.dbo.Expected1PRegularProduct (
 	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
+	OliveyoungType nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS DEFAULT '' NULL,
+	InputMonth nvarchar(7) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK__Expected__6E569AF373146490 PRIMARY KEY (Expected1PRegularID),
-	CONSTRAINT UQ_Exp1PRegular UNIQUE ([Date],UniqueCode,ChannelID)
+	CONSTRAINT UQ_Exp1PRegular UNIQUE ([Date],UniqueCode,ChannelID,InputMonth,OliveyoungType)
 );
 
 
@@ -458,7 +460,9 @@ CREATE TABLE oriodatabase.dbo.Expected3PRegularProduct (
 	UpdatedDate datetime DEFAULT getdate() NULL,
 	ExpectedAmountExVAT decimal(18,2) NULL,
 	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	CONSTRAINT PK__TargetBa__2E1897593118F643 PRIMARY KEY (Expected3PRegularID)
+	InputMonth nvarchar(7) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	CONSTRAINT PK__TargetBa__2E1897593118F643 PRIMARY KEY (Expected3PRegularID),
+	CONSTRAINT UQ_Exp3PRegular UNIQUE ([Date],UniqueCode,ChannelID,InputMonth)
 );
 
 
@@ -674,6 +678,7 @@ CREATE TABLE oriodatabase.dbo.WithdrawalPlan (
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
 	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	InputMonth nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK__Withdraw__755C22D76E54EE77 PRIMARY KEY (PlanID)
 );
  CREATE NONCLUSTERED INDEX IX_WithdrawalPlan_Date ON oriodatabase.dbo.WithdrawalPlan (  Date ASC  )  
@@ -852,6 +857,7 @@ CREATE TABLE oriodatabase.dbo.Expected1PIrregularProduct (
 	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
+	ExpectedSalesAmountExVAT float NULL,
 	CONSTRAINT PK__Expected__470FEA24D92077A1 PRIMARY KEY (Expected1PIrregularProductID),
 	CONSTRAINT FK_Exp1PIrregProd_Irreg FOREIGN KEY (Expected1PIrregularID) REFERENCES oriodatabase.dbo.Expected1PIrregular(Expected1PIrregularID)
 );
@@ -885,6 +891,7 @@ CREATE TABLE oriodatabase.dbo.Expected3PIrregular (
 	Notes nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
+	InputMonth nvarchar(7) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK__Promotio__52C42F2FB81831C0 PRIMARY KEY (Expected3PIrregularID),
 	CONSTRAINT FK_Promotion_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
 );
@@ -917,6 +924,8 @@ CREATE TABLE oriodatabase.dbo.Expected3PIrregularProduct (
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
 	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	InputMonth nvarchar(7) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ExpectedSalesAmountExVAT float NULL,
 	CONSTRAINT PK__Promotio__C7B85D3CBB631920 PRIMARY KEY (Expected3PIrregularProductID),
 	CONSTRAINT UQ_PromotionProduct UNIQUE (Expected3PIrregularID,UniqueCode),
 	CONSTRAINT FK_IrregularProduct_Irregular FOREIGN KEY (Expected3PIrregularID) REFERENCES oriodatabase.dbo.Expected3PIrregular(Expected3PIrregularID)
@@ -1052,6 +1061,7 @@ CREATE TABLE oriodatabase.dbo.ProductBox (
 	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
 	QuantityInBox int NULL,
 	UpdatedDate datetime2 DEFAULT getdate() NULL,
+	CoupangSKU nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK_ProductBox PRIMARY KEY (BoxID),
 	CONSTRAINT FK_ProductBox_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
 );
