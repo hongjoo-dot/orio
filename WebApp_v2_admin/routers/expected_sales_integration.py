@@ -996,9 +996,10 @@ def _build_sku_detail_query(
     q3r = f"""
         SELECT t.Expected3PRegularID AS RecordID,
                FORMAT(t.[Date], 'yyyy-MM') AS YearMonth,
-               t.ChannelName, N'3P정기' AS SourceType,
+               t.ChannelName, N'정기' AS SourceType, N'3P정기' AS SourceCode,
                ISNULL(t.ExpectedAmount, 0) AS ExpectedAmount,
-               ISNULL(t.ExpectedQuantity, 0) AS ExpectedQuantity
+               ISNULL(t.ExpectedQuantity, 0) AS ExpectedQuantity,
+               NULL AS IrregularName
         FROM Expected3PRegularProduct t
         WHERE {' AND '.join(w3r)}
     """
@@ -1014,9 +1015,10 @@ def _build_sku_detail_query(
     q3i = f"""
         SELECT pp.Expected3PIrregularProductID AS RecordID,
                FORMAT(p.StartDate, 'yyyy-MM') AS YearMonth,
-               p.ChannelName, N'3P비정기' AS SourceType,
+               p.ChannelName, N'비정기' AS SourceType, N'3P비정기' AS SourceCode,
                ISNULL(pp.ExpectedSalesAmount, 0) AS ExpectedAmount,
-               ISNULL(pp.ExpectedQuantity, 0) AS ExpectedQuantity
+               ISNULL(pp.ExpectedQuantity, 0) AS ExpectedQuantity,
+               p.IrregularName
         FROM Expected3PIrregularProduct pp
         INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
         WHERE {' AND '.join(w3i)}
@@ -1033,9 +1035,10 @@ def _build_sku_detail_query(
     q1r = f"""
         SELECT t.Expected1PRegularID AS RecordID,
                FORMAT(t.[Date], 'yyyy-MM') AS YearMonth,
-               t.ChannelName, N'1P정기' AS SourceType,
+               t.ChannelName, N'정기' AS SourceType, N'1P정기' AS SourceCode,
                ISNULL(t.ExpectedAmount, 0) AS ExpectedAmount,
-               ISNULL(t.ExpectedQuantity, 0) AS ExpectedQuantity
+               ISNULL(t.ExpectedQuantity, 0) AS ExpectedQuantity,
+               NULL AS IrregularName
         FROM Expected1PRegularProduct t
         WHERE {' AND '.join(w1r)}
     """
@@ -1051,9 +1054,10 @@ def _build_sku_detail_query(
     q1i = f"""
         SELECT pp.Expected1PIrregularProductID AS RecordID,
                FORMAT(p.StartDate, 'yyyy-MM') AS YearMonth,
-               p.ChannelName, N'1P비정기' AS SourceType,
+               p.ChannelName, N'비정기' AS SourceType, N'1P비정기' AS SourceCode,
                ISNULL(pp.ExpectedSalesAmount, 0) AS ExpectedAmount,
-               ISNULL(pp.ExpectedQuantity, 0) AS ExpectedQuantity
+               ISNULL(pp.ExpectedQuantity, 0) AS ExpectedQuantity,
+               p.IrregularName
         FROM Expected1PIrregularProduct pp
         INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
         WHERE {' AND '.join(w1i)}
@@ -1071,9 +1075,10 @@ def _build_sku_detail_query(
         qwp = f"""
             SELECT w.PlanID AS RecordID,
                    FORMAT(w.[Date], 'yyyy-MM') AS YearMonth,
-                   N'불출' AS ChannelName, N'불출' AS SourceType,
+                   N'불출' AS ChannelName, N'불출' AS SourceType, N'불출' AS SourceCode,
                    0 AS ExpectedAmount,
-                   ISNULL(w.PlannedQty, 0) AS ExpectedQuantity
+                   ISNULL(w.PlannedQty, 0) AS ExpectedQuantity,
+                   NULL AS IrregularName
             FROM WithdrawalPlan w
             LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
             LEFT JOIN Brand b ON pr.BrandID = b.BrandID
@@ -1085,12 +1090,17 @@ def _build_sku_detail_query(
         sub_queries.append(qwp)
 
     full_query = f"""
-        SELECT RecordID, YearMonth, ChannelName, SourceType,
-               ExpectedAmount, ExpectedQuantity
+        SELECT RecordID, YearMonth, ChannelName, SourceType, SourceCode,
+               ExpectedAmount, ExpectedQuantity, IrregularName
         FROM (
             {' UNION ALL '.join(sub_queries)}
         ) AS Combined
-        ORDER BY ChannelName, SourceType, YearMonth
+        ORDER BY ChannelName,
+                 CASE SourceType
+                     WHEN N'정기' THEN 1 WHEN N'비정기' THEN 2
+                     WHEN N'불출' THEN 3 ELSE 4
+                 END,
+                 IrregularName, YearMonth
     """
 
     return full_query, params
@@ -1175,8 +1185,10 @@ async def get_sku_detail(
             "yearMonth": row[1],
             "channel": row[2],
             "sourceType": row[3],
-            "amount": float(row[4]) if row[4] else 0,
-            "quantity": int(row[5]) if row[5] else 0
+            "sourceCode": row[4],
+            "amount": float(row[5]) if row[5] else 0,
+            "quantity": int(row[6]) if row[6] else 0,
+            "irregularName": row[7] if row[7] else None
         }
         for row in rows
     ]

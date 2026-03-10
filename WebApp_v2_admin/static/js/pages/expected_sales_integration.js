@@ -539,9 +539,11 @@ async function _doSelectSku(code, name, rowEl) {
 
     // 모달 표시
     document.getElementById('skuDetailTitle').textContent = `${code} - ${name}`;
-    const tbody = document.querySelector('#skuDetailTable tbody');
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;">
-        <div class="spinner"></div></td></tr>`;
+    const contentEl = document.getElementById('skuDetailContent');
+    contentEl.innerHTML = `<div style="text-align:center;padding:40px;">
+        <div class="spinner spinner-lg"></div>
+        <div style="margin-top:12px;color:var(--text-muted);">데이터를 불러오는 중...</div>
+    </div>`;
     getSkuDetailModal().show();
 
     try {
@@ -560,16 +562,16 @@ async function _doSelectSku(code, name, rowEl) {
         renderSkuDetail(detailData);
     } catch (e) {
         console.error('SKU 디테일 로드 실패:', e);
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--danger);">
-            디테일 로드 실패: ${escapeHtml(e.message)}</td></tr>`;
+        contentEl.innerHTML = `<div style="text-align:center;padding:40px;color:var(--danger);">
+            디테일 로드 실패: ${escapeHtml(e.message)}</div>`;
     }
 }
 
-// ==================== SKU 디테일 렌더링 (인라인 편집) ====================
+// ==================== SKU 디테일 렌더링 (계층 UI) ====================
 function renderSkuDetail(detailData) {
-    const tbody = document.querySelector('#skuDetailTable tbody');
+    const container = document.getElementById('skuDetailContent');
     const footer = document.getElementById('skuDetailFooter');
-    tbody.innerHTML = '';
+    container.innerHTML = '';
 
     // dirty 상태 초기화
     window._skuDetailItems = detailData;
@@ -577,46 +579,116 @@ function renderSkuDetail(detailData) {
     if (footer) footer.style.display = 'none';
 
     if (detailData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted);">
-            상세 데이터가 없습니다</td></tr>`;
+        container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">
+            상세 데이터가 없습니다</div>`;
         return;
     }
 
-    let prevChannel = null;
-    let prevSource = null;
+    // 데이터를 채널 > 구분(+행사명) 계층으로 그룹화
+    const channelGroups = _groupSkuDetail(detailData);
 
-    detailData.forEach((item, idx) => {
-        const tr = document.createElement('tr');
-        tr.id = `skuDetail-${idx}`;
+    channelGroups.forEach(chGroup => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'sku-channel-group';
 
-        const channelChanged = item.channel !== prevChannel;
-        const sourceChanged = item.sourceType !== prevSource || channelChanged;
-        const isWithdrawal = item.sourceType === '불출';
-
-        tr.innerHTML = `
-            <td style="${channelChanged ? 'font-weight:600;' : 'color:var(--text-muted);'}">${channelChanged ? escapeHtml(item.channel) : ''}</td>
-            <td>${sourceChanged ? escapeHtml(item.sourceType) : ''}</td>
-            <td>${escapeHtml(item.yearMonth)}</td>
-            <td style="text-align:right;">
-                <input type="number" class="form-input" style="width:110px;text-align:right;padding:4px 8px;font-size:13px;"
-                       value="${item.amount || 0}" data-idx="${idx}" data-field="amount"
-                       onchange="onSkuDetailInput(${idx})" ${isWithdrawal ? 'disabled' : ''}>
-            </td>
-            <td style="text-align:right;">
-                <input type="number" class="form-input" style="width:90px;text-align:right;padding:4px 8px;font-size:13px;"
-                       value="${item.quantity || 0}" data-idx="${idx}" data-field="quantity"
-                       onchange="onSkuDetailInput(${idx})">
-            </td>
+        // 채널 헤더 + 소계
+        const chHeader = document.createElement('div');
+        chHeader.className = 'sku-channel-header';
+        const chAmtTotal = chGroup.items.reduce((s, i) => s + (i.amount || 0), 0);
+        const chQtyTotal = chGroup.items.reduce((s, i) => s + (i.quantity || 0), 0);
+        chHeader.innerHTML = `
+            <span><i class="fa-solid fa-store" style="margin-right:6px;opacity:0.5;"></i>${escapeHtml(chGroup.channel)}</span>
+            <span class="sku-channel-subtotal">
+                매출 <b>${chAmtTotal ? chAmtTotal.toLocaleString() : '-'}</b>
+                &nbsp;|&nbsp; 수량 <b>${chQtyTotal ? chQtyTotal.toLocaleString() : '-'}</b>
+            </span>
         `;
+        groupDiv.appendChild(chHeader);
 
-        if (channelChanged) {
-            tr.style.borderTop = '2px solid var(--border)';
-        }
+        // 구분별 섹션
+        chGroup.sources.forEach(srcGroup => {
+            const section = document.createElement('div');
+            section.className = 'sku-source-section';
 
-        tbody.appendChild(tr);
-        prevChannel = item.channel;
-        prevSource = item.sourceType;
+            // 구분 헤더
+            const srcHeader = document.createElement('div');
+            srcHeader.className = 'sku-source-header';
+            const badgeClass = srcGroup.sourceType.includes('비정기') ? 'irregular'
+                : srcGroup.sourceType === '불출' ? 'withdrawal' : 'regular';
+            let headerHtml = `<span class="sku-source-badge ${badgeClass}">${escapeHtml(srcGroup.sourceType)}</span>`;
+            if (srcGroup.irregularName) {
+                headerHtml += `<span class="sku-irregular-label">${escapeHtml(srcGroup.irregularName)}</span>`;
+            }
+            srcHeader.innerHTML = headerHtml;
+            section.appendChild(srcHeader);
+
+            // 데이터 테이블
+            const table = document.createElement('table');
+            table.className = 'sku-detail-table';
+
+            const thead = document.createElement('thead');
+            thead.innerHTML = `<tr><th style="width:100px;">연월</th><th>매출</th><th>수량</th></tr>`;
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            const isWithdrawal = srcGroup.sourceType === '불출';
+
+            srcGroup.indices.forEach(idx => {
+                const item = detailData[idx];
+                const tr = document.createElement('tr');
+                tr.id = `skuDetail-${idx}`;
+                tr.innerHTML = `
+                    <td>${escapeHtml(item.yearMonth)}</td>
+                    <td style="text-align:right;">
+                        <input type="number" value="${item.amount || 0}" data-idx="${idx}" data-field="amount"
+                               onchange="onSkuDetailInput(${idx})" ${isWithdrawal ? 'disabled' : ''}>
+                    </td>
+                    <td style="text-align:right;">
+                        <input type="number" value="${item.quantity || 0}" data-idx="${idx}" data-field="quantity"
+                               onchange="onSkuDetailInput(${idx})">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(tbody);
+            section.appendChild(table);
+            groupDiv.appendChild(section);
+        });
+
+        container.appendChild(groupDiv);
     });
+}
+
+function _groupSkuDetail(data) {
+    const channelMap = new Map();
+
+    data.forEach((item, idx) => {
+        if (!channelMap.has(item.channel)) {
+            channelMap.set(item.channel, { channel: item.channel, sources: [], items: [] });
+        }
+        const chGroup = channelMap.get(item.channel);
+        chGroup.items.push(item);
+
+        // 비정기는 행사명까지 포함한 키로 그룹화
+        const sourceKey = item.irregularName
+            ? `${item.sourceType}::${item.irregularName}`
+            : item.sourceType;
+
+        let srcGroup = chGroup.sources.find(s => s.key === sourceKey);
+        if (!srcGroup) {
+            srcGroup = {
+                key: sourceKey,
+                sourceType: item.sourceType,
+                irregularName: item.irregularName || null,
+                indices: []
+            };
+            chGroup.sources.push(srcGroup);
+        }
+        srcGroup.indices.push(idx);
+    });
+
+    return [...channelMap.values()];
 }
 
 // ==================== SKU 디테일 인라인 편집 ====================
@@ -632,10 +704,10 @@ function onSkuDetailInput(idx) {
 
     if (newAmount !== origAmount || newQty !== origQty) {
         window._skuDirtySet.add(idx);
-        tr.style.background = 'rgba(245,158,11,0.08)';
+        tr.classList.add('sku-dirty');
     } else {
         window._skuDirtySet.delete(idx);
-        tr.style.background = '';
+        tr.classList.remove('sku-dirty');
     }
     updateSkuDetailFooter();
 }
@@ -663,7 +735,7 @@ async function saveSkuDetail() {
 
         items.push({
             recordId: item.recordId,
-            sourceType: item.sourceType,
+            sourceType: item.sourceCode,
             amount: parseFloat(inputs[0].value) || 0,
             quantity: parseInt(inputs[1].value) || 0
         });
@@ -679,7 +751,7 @@ async function saveSkuDetail() {
             const inputs = tr.querySelectorAll('input[type="number"]');
             window._skuDetailItems[idx].amount = parseFloat(inputs[0].value) || 0;
             window._skuDetailItems[idx].quantity = parseInt(inputs[1].value) || 0;
-            tr.style.background = '';
+            tr.classList.remove('sku-dirty');
         });
         window._skuDirtySet.clear();
         updateSkuDetailFooter();
