@@ -31,12 +31,8 @@
             </select>
         </div>
         <div>
-            <label class="form-label">시작 연월</label>
-            <input type="month" id="filterYearMonthFrom" class="form-input" onchange="onRangeChange()">
-        </div>
-        <div>
-            <label class="form-label">종료 연월</label>
-            <input type="month" id="filterYearMonthTo" class="form-input" onchange="onRangeChange()">
+            <label class="form-label">연월</label>
+            <input type="month" id="filterYearMonth" class="form-input" onchange="onRangeChange()">
         </div>
         <div>
             <label class="form-label">브랜드</label>
@@ -168,6 +164,9 @@
         font-weight: 600;
         background: rgba(34,197,94,0.06);
     }
+    #skuTable thead th {
+        text-align: center;
+    }
     #skuTable tbody tr {
         cursor: pointer;
         transition: background 0.15s;
@@ -239,7 +238,7 @@
         border-collapse: collapse;
     }
     .sku-detail-table th {
-        text-align: right;
+        text-align: center;
         font-size: 11px;
         color: var(--text-muted);
         padding: 4px 8px;
@@ -247,7 +246,7 @@
         background: transparent;
         border: none;
     }
-    .sku-detail-table th:first-child { text-align: left; }
+    .sku-detail-table th:first-child { text-align: center; }
     .sku-detail-table td {
         padding: 4px 8px;
         font-size: 13px;
@@ -256,7 +255,7 @@
     }
     .sku-detail-table tr:last-child td { border-bottom: none; }
     .sku-detail-table tr.sku-dirty { background: rgba(245,158,11,0.06); }
-    .sku-detail-table input[type="number"] {
+    .sku-detail-table input[type="text"] {
         width: 100px;
         text-align: right;
         padding: 3px 8px;
@@ -266,11 +265,11 @@
         background: var(--bg-main);
         color: var(--text-main);
     }
-    .sku-detail-table input[type="number"]:focus {
+    .sku-detail-table input[type="text"]:focus {
         border-color: var(--primary);
         outline: none;
     }
-    .sku-detail-table input[type="number"]:disabled {
+    .sku-detail-table input[type="text"]:disabled {
         opacity: 0.4;
         cursor: not-allowed;
     }
@@ -278,5 +277,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/pages/expected_sales_integration.js?v=14"></script>
+<script src="/static/js/pages/expected_sales_integration.js?v=15"></script>
 {% endblock %}

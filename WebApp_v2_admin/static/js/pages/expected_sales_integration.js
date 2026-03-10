@@ -68,34 +68,27 @@ function switchTab(tab) {
     loadData();
 }
 
-// ==================== 기본 연월 범위 설정 ====================
+// ==================== 기본 연월 설정 ====================
 function setDefaultRange() {
     const now = new Date();
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = new Date(now.getFullYear(), now.getMonth() + 2, 1);
-
-    document.getElementById('filterYearMonthFrom').value = formatMonth(from);
-    document.getElementById('filterYearMonthTo').value = formatMonth(to);
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('filterYearMonth').value = ym;
 }
 
-function formatMonth(d) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-// ==================== 연월 범위 변경 시 ====================
+// ==================== 연월 변경 시 ====================
 async function onRangeChange() {
-    const from = document.getElementById('filterYearMonthFrom').value;
-    const to = document.getElementById('filterYearMonthTo').value;
-    if (!from || !to) return;
+    const ym = document.getElementById('filterYearMonth').value;
+    if (!ym) return;
 
     await Promise.all([loadInputMonths(), loadBrands(), loadChannels()]);
     await loadData();
 }
 
 function getRangeParams() {
+    const ym = document.getElementById('filterYearMonth').value;
     const p = {
-        year_month_from: document.getElementById('filterYearMonthFrom').value,
-        year_month_to: document.getElementById('filterYearMonthTo').value
+        year_month_from: ym,
+        year_month_to: ym
     };
     if (msOwner) {
         const ow = msOwner.getSelectedString();
@@ -157,10 +150,9 @@ async function loadOwners() {
 
 // ==================== 데이터 로드 ====================
 async function loadData() {
-    const from = document.getElementById('filterYearMonthFrom').value;
-    const to = document.getElementById('filterYearMonthTo').value;
-    if (!from || !to) {
-        showAlert('연월 범위를 설정해주세요.', 'warning');
+    const ym = document.getElementById('filterYearMonth').value;
+    if (!ym) {
+        showAlert('연월을 설정해주세요.', 'warning');
         return;
     }
 
@@ -177,8 +169,8 @@ async function loadData() {
 
     try {
         const params = {
-            year_month_from: from,
-            year_month_to: to,
+            year_month_from: ym,
+            year_month_to: ym,
             input_month: document.getElementById('filterInputMonth').value,
             brand: msBrand.getSelectedString(),
             channel: msChannel.getSelectedString()
@@ -393,8 +385,8 @@ async function loadSkuData(keepDetail = false) {
 
     try {
         const params = {
-            year_month_from: document.getElementById('filterYearMonthFrom').value,
-            year_month_to: document.getElementById('filterYearMonthTo').value,
+            year_month_from: document.getElementById('filterYearMonth').value,
+            year_month_to: document.getElementById('filterYearMonth').value,
             input_month: document.getElementById('filterInputMonth').value,
             brand: msBrand.getSelectedString(),
             channel: msChannel.getSelectedString()
@@ -549,8 +541,8 @@ async function _doSelectSku(code, name, rowEl) {
     try {
         const detailParams = {
             unique_code: code,
-            year_month_from: document.getElementById('filterYearMonthFrom').value,
-            year_month_to: document.getElementById('filterYearMonthTo').value,
+            year_month_from: document.getElementById('filterYearMonth').value,
+            year_month_to: document.getElementById('filterYearMonth').value,
             input_month: document.getElementById('filterInputMonth').value,
             brand: msBrand.getSelectedString(),
             channel: msChannel.getSelectedString()
@@ -637,15 +629,18 @@ function renderSkuDetail(detailData) {
                 const item = detailData[idx];
                 const tr = document.createElement('tr');
                 tr.id = `skuDetail-${idx}`;
+                const fmtAmt = (item.amount || 0).toLocaleString();
+                const fmtQty = (item.quantity || 0).toLocaleString();
                 tr.innerHTML = `
                     <td>${escapeHtml(item.yearMonth)}</td>
                     <td style="text-align:right;">
-                        <input type="number" value="${item.amount || 0}" data-idx="${idx}" data-field="amount"
-                               onchange="onSkuDetailInput(${idx})" ${isWithdrawal ? 'disabled' : ''}>
+                        <input type="text" value="${fmtAmt}" data-idx="${idx}" data-field="amount"
+                               onfocus="_skuInputFocus(this)" onblur="_skuInputBlur(this, ${idx})"
+                               ${isWithdrawal ? 'disabled' : ''}>
                     </td>
                     <td style="text-align:right;">
-                        <input type="number" value="${item.quantity || 0}" data-idx="${idx}" data-field="quantity"
-                               onchange="onSkuDetailInput(${idx})">
+                        <input type="text" value="${fmtQty}" data-idx="${idx}" data-field="quantity"
+                               onfocus="_skuInputFocus(this)" onblur="_skuInputBlur(this, ${idx})">
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -692,13 +687,28 @@ function _groupSkuDetail(data) {
 }
 
 // ==================== SKU 디테일 인라인 편집 ====================
+function _parseNum(v) { return Number(String(v).replace(/,/g, '')) || 0; }
+
+function _skuInputFocus(el) {
+    // 포커스 시 쉼표 제거하여 편집 가능하게
+    el.value = String(el.value).replace(/,/g, '');
+    el.select();
+}
+
+function _skuInputBlur(el, idx) {
+    // 블러 시 천단위 쉼표 적용
+    const raw = _parseNum(el.value);
+    el.value = raw.toLocaleString();
+    onSkuDetailInput(idx);
+}
+
 function onSkuDetailInput(idx) {
     const item = window._skuDetailItems[idx];
     const tr = document.getElementById(`skuDetail-${idx}`);
-    const inputs = tr.querySelectorAll('input[type="number"]');
+    const inputs = tr.querySelectorAll('input[type="text"]');
 
-    const newAmount = parseFloat(inputs[0].value) || 0;
-    const newQty = parseInt(inputs[1].value) || 0;
+    const newAmount = _parseNum(inputs[0].value);
+    const newQty = _parseNum(inputs[1].value);
     const origAmount = item.amount || 0;
     const origQty = item.quantity || 0;
 
@@ -731,13 +741,13 @@ async function saveSkuDetail() {
     window._skuDirtySet.forEach(idx => {
         const item = window._skuDetailItems[idx];
         const tr = document.getElementById(`skuDetail-${idx}`);
-        const inputs = tr.querySelectorAll('input[type="number"]');
+        const inputs = tr.querySelectorAll('input[type="text"]');
 
         items.push({
             recordId: item.recordId,
             sourceType: item.sourceCode,
-            amount: parseFloat(inputs[0].value) || 0,
-            quantity: parseInt(inputs[1].value) || 0
+            amount: _parseNum(inputs[0].value),
+            quantity: _parseNum(inputs[1].value)
         });
     });
 
@@ -748,9 +758,9 @@ async function saveSkuDetail() {
         // 로컬 데이터 업데이트 & dirty 초기화
         window._skuDirtySet.forEach(idx => {
             const tr = document.getElementById(`skuDetail-${idx}`);
-            const inputs = tr.querySelectorAll('input[type="number"]');
-            window._skuDetailItems[idx].amount = parseFloat(inputs[0].value) || 0;
-            window._skuDetailItems[idx].quantity = parseInt(inputs[1].value) || 0;
+            const inputs = tr.querySelectorAll('input[type="text"]');
+            window._skuDetailItems[idx].amount = _parseNum(inputs[0].value);
+            window._skuDetailItems[idx].quantity = _parseNum(inputs[1].value);
             tr.classList.remove('sku-dirty');
         });
         window._skuDirtySet.clear();
@@ -916,17 +926,16 @@ function _sortData(data, key, dir) {
 }
 
 function downloadExcel() {
-    const from = document.getElementById('filterYearMonthFrom').value;
-    const to = document.getElementById('filterYearMonthTo').value;
-    if (!from || !to) {
-        showAlert('연월 범위를 설정해주세요.', 'warning');
+    const ym = document.getElementById('filterYearMonth').value;
+    if (!ym) {
+        showAlert('연월을 설정해주세요.', 'warning');
         return;
     }
 
     const token = localStorage.getItem('access_token');
     const dlParams = {
-        year_month_from: from,
-        year_month_to: to,
+        year_month_from: ym,
+        year_month_to: ym,
         input_month: document.getElementById('filterInputMonth').value,
         brand: msBrand.getSelectedString(),
         channel: msChannel.getSelectedString()
