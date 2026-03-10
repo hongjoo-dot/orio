@@ -19,6 +19,16 @@ from core import log_activity, log_delete, log_bulk_delete, require_permission
 from core.models import BulkDeleteAnyRequest as BulkDeleteRequest
 
 
+def _parse_str_list(value):
+    """콤마 구분 문자열을 str 리스트로 변환. 단일값이면 str 반환."""
+    if not value:
+        return None
+    parts = [v.strip() for v in value.split(',') if v.strip()]
+    if not parts:
+        return None
+    return parts if len(parts) > 1 else parts[0]
+
+
 # ========== Repository 인스턴스 ==========
 plan_repo = WithdrawalPlanRepository()
 product_repo = ProductRepository()
@@ -83,7 +93,7 @@ async def get_withdrawal_groups(
         if year_month:
             filters['year_month'] = year_month
         if type:
-            filters['type'] = type
+            filters['type'] = _parse_str_list(type)
         if title:
             filters['title'] = title
         if input_month:
@@ -144,7 +154,7 @@ async def get_withdrawal_plans(
         if year_month:
             filters['year_month'] = year_month
         if type:
-            filters['type'] = type
+            filters['type'] = _parse_str_list(type)
         if title:
             filters['title'] = title
         if input_month:

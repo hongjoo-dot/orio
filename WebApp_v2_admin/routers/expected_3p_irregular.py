@@ -21,6 +21,25 @@ from core.models import BulkDeleteAnyRequest as BulkDeleteRequest
 from utils.helpers import format_time_value
 
 
+def _parse_int_list(value):
+    """콤마 구분 문자열을 int 리스트로 변환. 단일값이면 int 반환."""
+    if not value:
+        return None
+    parts = [int(v.strip()) for v in value.split(',') if v.strip()]
+    if not parts:
+        return None
+    return parts if len(parts) > 1 else parts[0]
+
+def _parse_str_list(value):
+    """콤마 구분 문자열을 str 리스트로 변환. 단일값이면 str 반환."""
+    if not value:
+        return None
+    parts = [v.strip() for v in value.split(',') if v.strip()]
+    if not parts:
+        return None
+    return parts if len(parts) > 1 else parts[0]
+
+
 # ========== Repository 인스턴스 ==========
 expected_3p_irregular_repo = Expected3PIrregularRepository()
 expected_3p_irregular_product_repo = Expected3PIrregularProductRepository()
@@ -132,8 +151,8 @@ async def get_expected_3p_irregular_list(
     page: int = 1,
     limit: int = 20,
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     input_month: Optional[str] = None,
@@ -164,11 +183,11 @@ async def get_expected_3p_irregular_list(
         if year_month:
             filters['year_month'] = year_month
         if brand_id:
-            filters['brand_id'] = brand_id
+            filters['brand_id'] = _parse_int_list(brand_id)
         if channel_id:
-            filters['channel_id'] = channel_id
+            filters['channel_id'] = _parse_int_list(channel_id)
         if irregular_type:
-            filters['irregular_type'] = irregular_type
+            filters['irregular_type'] = _parse_str_list(irregular_type)
         if status:
             filters['status'] = status
         if input_month:
@@ -234,8 +253,8 @@ async def get_expected_3p_irregular_statuses(user: CurrentUser = Depends(require
 @router.get("/master-summary")
 async def get_expected_3p_irregular_master_summary(
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     input_month: Optional[str] = None,
@@ -247,11 +266,11 @@ async def get_expected_3p_irregular_master_summary(
         if year_month:
             filters['year_month'] = year_month
         if brand_id:
-            filters['brand_id'] = brand_id
+            filters['brand_id'] = _parse_int_list(brand_id)
         if channel_id:
-            filters['channel_id'] = channel_id
+            filters['channel_id'] = _parse_int_list(channel_id)
         if irregular_type:
-            filters['irregular_type'] = irregular_type
+            filters['irregular_type'] = _parse_str_list(irregular_type)
         if status:
             filters['status'] = status
         if input_month:
@@ -268,8 +287,8 @@ async def get_expected_3p_irregular_master_summary(
 @router.get("/download")
 async def download_expected_3p_irregulars(
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     ids: Optional[str] = None,
@@ -292,11 +311,11 @@ async def download_expected_3p_irregulars(
             if year_month:
                 filters['year_month'] = year_month
             if brand_id:
-                filters['brand_id'] = brand_id
+                filters['brand_id'] = _parse_int_list(brand_id)
             if channel_id:
-                filters['channel_id'] = channel_id
+                filters['channel_id'] = _parse_int_list(channel_id)
             if irregular_type:
-                filters['irregular_type'] = irregular_type
+                filters['irregular_type'] = _parse_str_list(irregular_type)
             if status:
                 filters['status'] = status
 
@@ -1340,8 +1359,8 @@ async def get_expected_3p_irregular_product_list(
     limit: int = 20,
     expected_3p_irregular_id: Optional[str] = None,
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected3PIrregular", "READ"))
@@ -1354,11 +1373,11 @@ async def get_expected_3p_irregular_product_list(
         if year_month:
             filters['year_month'] = year_month
         if brand_id:
-            filters['brand_id'] = brand_id
+            filters['brand_id'] = _parse_int_list(brand_id)
         if channel_id:
-            filters['channel_id'] = channel_id
+            filters['channel_id'] = _parse_int_list(channel_id)
         if irregular_type:
-            filters['irregular_type'] = irregular_type
+            filters['irregular_type'] = _parse_str_list(irregular_type)
         if status:
             filters['status'] = status
 

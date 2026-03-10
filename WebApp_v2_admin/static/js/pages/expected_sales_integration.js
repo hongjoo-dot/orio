@@ -11,10 +11,19 @@ let currentData = [];
 let currentTab = 'integration';
 let selectedSkuCode = null;
 
+// Multi-select instances
+let msBrand, msChannel, msOwner;
+
 // ==================== 초기화 ====================
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Multi-select 초기화
+        msBrand = new MultiSelect('filterBrand', { placeholder: '전체' });
+        msChannel = new MultiSelect('filterChannel', { placeholder: '전체' });
+        msOwner = new MultiSelect('filterOwner', { placeholder: '전체', onChange: () => onRangeChange() });
+
         setDefaultRange();
+        await loadOwners();
         await onRangeChange();
     } catch (e) {
         console.error('초기화 실패:', e);
@@ -78,10 +87,15 @@ async function onRangeChange() {
 }
 
 function getRangeParams() {
-    return {
+    const p = {
         year_month_from: document.getElementById('filterYearMonthFrom').value,
         year_month_to: document.getElementById('filterYearMonthTo').value
     };
+    if (msOwner) {
+        const ow = msOwner.getSelectedString();
+        if (ow) p.owner = ow;
+    }
+    return p;
 }
 
 // ==================== 입력월 목록 로드 ====================
@@ -108,15 +122,7 @@ async function loadBrands() {
     try {
         const qs = api.buildQueryString(getRangeParams());
         const brands = await api.get(`${API_BASE}/brands${qs}`);
-        const sel = document.getElementById('filterBrand');
-        const cur = sel.value;
-        sel.innerHTML = '<option value="">전체</option>';
-        brands.forEach(b => {
-            const opt = document.createElement('option');
-            opt.value = b; opt.textContent = b;
-            sel.appendChild(opt);
-        });
-        sel.value = cur || '';
+        msBrand.setOptions(brands);
     } catch (e) {
         console.error('브랜드 로드 실패:', e);
     }
@@ -127,17 +133,19 @@ async function loadChannels() {
     try {
         const qs = api.buildQueryString(getRangeParams());
         const channels = await api.get(`${API_BASE}/channels${qs}`);
-        const sel = document.getElementById('filterChannel');
-        const cur = sel.value;
-        sel.innerHTML = '<option value="">전체</option>';
-        channels.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c; opt.textContent = c;
-            sel.appendChild(opt);
-        });
-        sel.value = cur || '';
+        msChannel.setOptions(channels);
     } catch (e) {
         console.error('채널 로드 실패:', e);
+    }
+}
+
+// ==================== 담당자(Owner) 목록 로드 ====================
+async function loadOwners() {
+    try {
+        const owners = await api.get(`${API_BASE}/owners`);
+        msOwner.setOptions(owners);
+    } catch (e) {
+        console.error('담당자 목록 로드 실패:', e);
     }
 }
 
@@ -162,13 +170,15 @@ async function loadData() {
     </td></tr>`;
 
     try {
-        const qs = api.buildQueryString({
+        const params = {
             year_month_from: from,
             year_month_to: to,
             input_month: document.getElementById('filterInputMonth').value,
-            brand: document.getElementById('filterBrand').value,
-            channel: document.getElementById('filterChannel').value
-        });
+            brand: msBrand.getSelectedString(),
+            channel: msChannel.getSelectedString()
+        };
+        { const ow = msOwner.getSelectedString(); if (ow) params.owner = ow; }
+        const qs = api.buildQueryString(params);
 
         const endpoint = currentTab === 'bom' ? '/bom-data' : '/data';
         const result = await api.get(`${API_BASE}${endpoint}${qs}`);
@@ -340,13 +350,15 @@ async function loadSkuData(keepDetail = false) {
     }
 
     try {
-        const qs = api.buildQueryString({
+        const params = {
             year_month_from: document.getElementById('filterYearMonthFrom').value,
             year_month_to: document.getElementById('filterYearMonthTo').value,
             input_month: document.getElementById('filterInputMonth').value,
-            brand: document.getElementById('filterBrand').value,
-            channel: document.getElementById('filterChannel').value
-        });
+            brand: msBrand.getSelectedString(),
+            channel: msChannel.getSelectedString()
+        };
+        { const ow = msOwner.getSelectedString(); if (ow) params.owner = ow; }
+        const qs = api.buildQueryString(params);
 
         const result = await api.get(`${API_BASE}/sku-data${qs}`);
         renderSkuTable(result.data, result.summary);
@@ -452,14 +464,16 @@ async function _doSelectSku(code, name, rowEl) {
     getSkuDetailModal().show();
 
     try {
-        const qs = api.buildQueryString({
+        const detailParams = {
             unique_code: code,
             year_month_from: document.getElementById('filterYearMonthFrom').value,
             year_month_to: document.getElementById('filterYearMonthTo').value,
             input_month: document.getElementById('filterInputMonth').value,
-            brand: document.getElementById('filterBrand').value,
-            channel: document.getElementById('filterChannel').value
-        });
+            brand: msBrand.getSelectedString(),
+            channel: msChannel.getSelectedString()
+        };
+        { const ow = msOwner.getSelectedString(); if (ow) detailParams.owner = ow; }
+        const qs = api.buildQueryString(detailParams);
 
         const detailData = await api.get(`${API_BASE}/sku-detail${qs}`);
         renderSkuDetail(detailData);
@@ -604,8 +618,9 @@ function closeSkuDetail() {
 // ==================== 필터 초기화 ====================
 function resetFilters() {
     document.getElementById('filterInputMonth').value = '';
-    document.getElementById('filterBrand').value = '';
-    document.getElementById('filterChannel').value = '';
+    msBrand.reset();
+    msChannel.reset();
+    msOwner.reset();
     setDefaultRange();
     onRangeChange();
 }
@@ -620,13 +635,15 @@ function downloadExcel() {
     }
 
     const token = localStorage.getItem('access_token');
-    const qs = api.buildQueryString({
+    const dlParams = {
         year_month_from: from,
         year_month_to: to,
         input_month: document.getElementById('filterInputMonth').value,
-        brand: document.getElementById('filterBrand').value,
-        channel: document.getElementById('filterChannel').value
-    });
+        brand: msBrand.getSelectedString(),
+        channel: msChannel.getSelectedString()
+    };
+    { const ow = msOwner.getSelectedString(); if (ow) dlParams.owner = ow; }
+    const qs = api.buildQueryString(dlParams);
 
     const endpoint = currentTab === 'bom' ? '/bom-download' : '/download';
     const filePrefix = currentTab === 'bom' ? 'BOM분해' : '예상판매량_통합';

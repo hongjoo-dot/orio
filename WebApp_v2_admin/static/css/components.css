@@ -13,6 +13,12 @@
     margin-bottom: var(--spacing-lg);
     box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.3);
     transition: all var(--transition-base);
+    position: relative;
+}
+
+/* MultiSelect 드롭다운이 열릴 때 카드가 다른 요소 위로 올라오도록 */
+.card.ms-card-elevated {
+    z-index: 100;
 }
 
 .card:hover {
@@ -703,4 +709,171 @@
     font-size: 13px;
     color: var(--warning);
     font-weight: 500;
+}
+
+/* ==================== Multi-Select Dropdown ==================== */
+.ms-container {
+    position: relative;
+    z-index: 10;
+}
+
+.ms-container.ms-open {
+    z-index: 1000;
+}
+
+.ms-display {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+    min-height: 36px;
+    padding-right: 28px !important;
+    position: relative;
+}
+
+.ms-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.ms-arrow {
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.ms-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+}
+
+.ms-badge-count {
+    background: var(--primary);
+    color: #fff;
+}
+
+.ms-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+}
+
+/* Search */
+.ms-search-wrap {
+    padding: 8px 8px 4px;
+    border-bottom: 1px solid var(--border);
+}
+
+.ms-search {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-size: 13px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.ms-search:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+/* Toolbar (select all + count) */
+.ms-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.ms-select-all-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+.ms-select-all-cb {
+    accent-color: var(--accent);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.ms-selected-count {
+    color: var(--primary);
+    font-weight: 500;
+    font-size: 11px;
+}
+
+/* List */
+.ms-list {
+    overflow-y: auto;
+    max-height: 220px;
+    padding: 4px 0;
+}
+
+.ms-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-main);
+    transition: background 0.1s;
+}
+
+.ms-item:hover {
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.ms-item input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.ms-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
 }

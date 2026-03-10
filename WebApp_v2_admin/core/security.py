@@ -67,21 +67,21 @@ def create_access_token(
 ) -> str:
     """
     JWT 액세스 토큰 생성
-    
+
     Args:
         user_id: 사용자 ID
         email: 사용자 이메일
         role: 사용자 역할
         expires_delta: 만료 시간 (기본값: 8시간)
-        
+
     Returns:
         str: JWT 토큰
     """
     if expires_delta is None:
         expires_delta = timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
-    
+
     expire = datetime.utcnow() + expires_delta
-    
+
     to_encode = {
         "sub": str(user_id),
         "email": email,
@@ -89,7 +89,7 @@ def create_access_token(
         "exp": expire,
         "iat": datetime.utcnow()
     }
-    
+
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 

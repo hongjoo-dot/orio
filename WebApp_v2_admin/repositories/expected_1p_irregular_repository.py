@@ -73,13 +73,25 @@ class Expected1PIrregularRepository(BaseRepository):
             builder.where("FORMAT(p.StartDate, 'yyyy-MM') = ?", filters['year_month'])
 
         if filters.get('brand_id'):
-            builder.where_equals("p.BrandID", filters['brand_id'])
+            val = filters['brand_id']
+            if isinstance(val, list):
+                builder.where_in("p.BrandID", val)
+            else:
+                builder.where_equals("p.BrandID", val)
 
         if filters.get('channel_id'):
-            builder.where_equals("p.ChannelID", filters['channel_id'])
+            val = filters['channel_id']
+            if isinstance(val, list):
+                builder.where_in("p.ChannelID", val)
+            else:
+                builder.where_equals("p.ChannelID", val)
 
         if filters.get('irregular_type'):
-            builder.where_equals("p.IrregularType", filters['irregular_type'])
+            val = filters['irregular_type']
+            if isinstance(val, list):
+                builder.where_in("p.IrregularType", val)
+            else:
+                builder.where_equals("p.IrregularType", val)
 
         if filters.get('input_month'):
             builder.where_equals("p.InputMonth", filters['input_month'])
@@ -379,14 +391,32 @@ class Expected1PIrregularRepository(BaseRepository):
                     where_clauses.append("FORMAT(p.StartDate, 'yyyy-MM') = ?")
                     params.append(filters['year_month'])
                 if filters.get('brand_id'):
-                    where_clauses.append("p.BrandID = ?")
-                    params.append(filters['brand_id'])
+                    val = filters['brand_id']
+                    if isinstance(val, list):
+                        placeholders = ','.join(['?' for _ in val])
+                        where_clauses.append(f"p.BrandID IN ({placeholders})")
+                        params.extend(val)
+                    else:
+                        where_clauses.append("p.BrandID = ?")
+                        params.append(val)
                 if filters.get('channel_id'):
-                    where_clauses.append("p.ChannelID = ?")
-                    params.append(filters['channel_id'])
+                    val = filters['channel_id']
+                    if isinstance(val, list):
+                        placeholders = ','.join(['?' for _ in val])
+                        where_clauses.append(f"p.ChannelID IN ({placeholders})")
+                        params.extend(val)
+                    else:
+                        where_clauses.append("p.ChannelID = ?")
+                        params.append(val)
                 if filters.get('irregular_type'):
-                    where_clauses.append("p.IrregularType = ?")
-                    params.append(filters['irregular_type'])
+                    val = filters['irregular_type']
+                    if isinstance(val, list):
+                        placeholders = ','.join(['?' for _ in val])
+                        where_clauses.append(f"p.IrregularType IN ({placeholders})")
+                        params.extend(val)
+                    else:
+                        where_clauses.append("p.IrregularType = ?")
+                        params.append(val)
                 if filters.get('input_month'):
                     where_clauses.append("p.InputMonth = ?")
                     params.append(filters['input_month'])

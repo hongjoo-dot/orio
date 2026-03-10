@@ -18,6 +18,15 @@ from core import log_activity, log_delete, log_bulk_delete, require_permission
 from core.models import BulkDeleteRequest
 
 
+def _parse_int_list(value):
+    if not value:
+        return None
+    parts = [int(v.strip()) for v in value.split(',') if v.strip()]
+    if not parts:
+        return None
+    return parts if len(parts) > 1 else parts[0]
+
+
 # ========== 사입 정기 예상 Router ==========
 router = APIRouter(prefix="/api/expected/1p/regular", tags=["Expected1PRegular"])
 
@@ -118,8 +127,8 @@ async def get_expected_1p_regular_list(
     page: int = 1,
     limit: int = 20,
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     input_month: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = "DESC",
@@ -142,10 +151,12 @@ async def get_expected_1p_regular_list(
         filters = {}
         if year_month:
             filters['year_month'] = year_month
-        if brand_id is not None:
-            filters['brand_id'] = brand_id
-        if channel_id is not None:
-            filters['channel_id'] = channel_id
+        parsed_brand = _parse_int_list(brand_id)
+        if parsed_brand is not None:
+            filters['brand_id'] = parsed_brand
+        parsed_channel = _parse_int_list(channel_id)
+        if parsed_channel is not None:
+            filters['channel_id'] = parsed_channel
         if input_month:
             filters['input_month'] = input_month
 
@@ -187,7 +198,7 @@ async def get_expected_1p_regular_input_months(
 @router.get("/channels")
 async def get_expected_1p_regular_channels(
     year_month: str,
-    brand_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
     input_month: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "READ"))
 ):
@@ -195,7 +206,7 @@ async def get_expected_1p_regular_channels(
     try:
         if not year_month:
             raise HTTPException(400, "년월은 필수입니다")
-        channels = expected_1p_regular_repo.get_channels_summary(year_month, brand_id, input_month)
+        channels = expected_1p_regular_repo.get_channels_summary(year_month, _parse_int_list(brand_id), input_month)
         return {"data": channels, "total": len(channels)}
     except HTTPException:
         raise
@@ -207,7 +218,7 @@ async def get_expected_1p_regular_channels(
 async def get_expected_1p_regular_channel_items(
     channel_id: int,
     year_month: str,
-    brand_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
     input_month: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "READ"))
 ):
@@ -215,7 +226,7 @@ async def get_expected_1p_regular_channel_items(
     try:
         if not year_month:
             raise HTTPException(400, "년월은 필수입니다")
-        items = expected_1p_regular_repo.get_by_channel(channel_id, year_month, brand_id, input_month)
+        items = expected_1p_regular_repo.get_by_channel(channel_id, year_month, _parse_int_list(brand_id), input_month)
         return {"data": items, "total": len(items)}
     except HTTPException:
         raise
@@ -263,8 +274,8 @@ async def bulk_update_expected_1p_regular(
 @router.get("/download")
 async def download_expected_1p_regular(
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     channel_ids: Optional[str] = None,
     input_month: Optional[str] = None,
     ids: Optional[str] = None,
@@ -288,18 +299,21 @@ async def download_expected_1p_regular(
         elif channel_ids and year_month:
             # 다중 채널 선택 시 각 채널의 상품을 합산
             ch_id_list = [int(c.strip()) for c in channel_ids.split(',') if c.strip()]
+            parsed_brand = _parse_int_list(brand_id)
             for ch_id in ch_id_list:
-                items = expected_1p_regular_repo.get_by_channel(ch_id, year_month, brand_id, input_month)
+                items = expected_1p_regular_repo.get_by_channel(ch_id, year_month, parsed_brand, input_month)
                 data.extend(items)
         elif year_month or brand_id is not None or channel_id is not None:
             # 필터 조건이 있으면 해당 조건으로 조회
             filters = {}
             if year_month:
                 filters['year_month'] = year_month
-            if brand_id is not None:
-                filters['brand_id'] = brand_id
-            if channel_id is not None:
-                filters['channel_id'] = channel_id
+            parsed_brand = _parse_int_list(brand_id)
+            if parsed_brand is not None:
+                filters['brand_id'] = parsed_brand
+            parsed_channel = _parse_int_list(channel_id)
+            if parsed_channel is not None:
+                filters['channel_id'] = parsed_channel
             if input_month:
                 filters['input_month'] = input_month
 

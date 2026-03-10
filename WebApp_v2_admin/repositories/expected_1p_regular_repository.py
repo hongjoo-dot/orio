@@ -68,10 +68,18 @@ class Expected1PRegularRepository(BaseRepository):
             builder.where("FORMAT(t.[Date], 'yyyy-MM') = ?", year_month)
 
         if 'brand_id' in filters:
-            builder.where_equals("t.BrandID", filters['brand_id'])
+            val = filters['brand_id']
+            if isinstance(val, list):
+                builder.where_in("t.BrandID", val)
+            else:
+                builder.where_equals("t.BrandID", val)
 
         if 'channel_id' in filters:
-            builder.where_equals("t.ChannelID", filters['channel_id'])
+            val = filters['channel_id']
+            if isinstance(val, list):
+                builder.where_in("t.ChannelID", val)
+            else:
+                builder.where_equals("t.ChannelID", val)
 
         if filters.get('input_month'):
             builder.where_equals("t.InputMonth", filters['input_month'])
@@ -246,8 +254,13 @@ class Expected1PRegularRepository(BaseRepository):
             params = [year_month]
 
             if brand_id is not None:
-                where_clauses.append("t.BrandID = ?")
-                params.append(brand_id)
+                if isinstance(brand_id, list):
+                    placeholders = ','.join(['?' for _ in brand_id])
+                    where_clauses.append(f"t.BrandID IN ({placeholders})")
+                    params.extend(brand_id)
+                else:
+                    where_clauses.append("t.BrandID = ?")
+                    params.append(brand_id)
 
             if input_month:
                 where_clauses.append("t.InputMonth = ?")
@@ -283,8 +296,13 @@ class Expected1PRegularRepository(BaseRepository):
             params = [channel_id, year_month]
 
             if brand_id is not None:
-                where_clauses.append("t.BrandID = ?")
-                params.append(brand_id)
+                if isinstance(brand_id, list):
+                    placeholders = ','.join(['?' for _ in brand_id])
+                    where_clauses.append(f"t.BrandID IN ({placeholders})")
+                    params.extend(brand_id)
+                else:
+                    where_clauses.append("t.BrandID = ?")
+                    params.append(brand_id)
 
             if input_month:
                 where_clauses.append("t.InputMonth = ?")

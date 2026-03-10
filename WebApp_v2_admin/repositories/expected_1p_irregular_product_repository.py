@@ -90,13 +90,25 @@ class Expected1PIrregularProductRepository(BaseRepository):
             builder.where("FORMAT(p.StartDate, 'yyyy-MM') = ?", filters['year_month'])
 
         if filters.get('brand_id'):
-            builder.where_equals("p.BrandID", filters['brand_id'])
+            val = filters['brand_id']
+            if isinstance(val, list):
+                builder.where_in("p.BrandID", val)
+            else:
+                builder.where_equals("p.BrandID", val)
 
         if filters.get('channel_id'):
-            builder.where_equals("p.ChannelID", filters['channel_id'])
+            val = filters['channel_id']
+            if isinstance(val, list):
+                builder.where_in("p.ChannelID", val)
+            else:
+                builder.where_equals("p.ChannelID", val)
 
         if filters.get('irregular_type'):
-            builder.where_equals("p.IrregularType", filters['irregular_type'])
+            val = filters['irregular_type']
+            if isinstance(val, list):
+                builder.where_in("p.IrregularType", val)
+            else:
+                builder.where_equals("p.IrregularType", val)
 
         if filters.get('status'):
             builder.where_equals("p.Status", filters['status'])

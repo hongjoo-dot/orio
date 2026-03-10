@@ -21,6 +21,24 @@ from core.models import BulkDeleteAnyRequest as BulkDeleteRequest
 from utils.helpers import format_time_value
 
 
+def _parse_int_list(value):
+    if not value:
+        return None
+    parts = [int(v.strip()) for v in value.split(',') if v.strip()]
+    if not parts:
+        return None
+    return parts if len(parts) > 1 else parts[0]
+
+
+def _parse_str_list(value):
+    if not value:
+        return None
+    parts = [v.strip() for v in value.split(',') if v.strip()]
+    if not parts:
+        return None
+    return parts if len(parts) > 1 else parts[0]
+
+
 # ========== Repository 인스턴스 ==========
 expected_1p_irregular_repo = Expected1PIrregularRepository()
 expected_1p_irregular_product_repo = Expected1PIrregularProductRepository()
@@ -167,8 +185,8 @@ async def get_expected_1p_irregular_list(
     page: int = 1,
     limit: int = 20,
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     input_month: Optional[str] = None,
@@ -198,12 +216,15 @@ async def get_expected_1p_irregular_list(
         filters = {}
         if year_month:
             filters['year_month'] = year_month
-        if brand_id:
-            filters['brand_id'] = brand_id
-        if channel_id:
-            filters['channel_id'] = channel_id
-        if irregular_type:
-            filters['irregular_type'] = irregular_type
+        parsed_brand = _parse_int_list(brand_id)
+        if parsed_brand is not None:
+            filters['brand_id'] = parsed_brand
+        parsed_channel = _parse_int_list(channel_id)
+        if parsed_channel is not None:
+            filters['channel_id'] = parsed_channel
+        parsed_irregular_type = _parse_str_list(irregular_type)
+        if parsed_irregular_type is not None:
+            filters['irregular_type'] = parsed_irregular_type
         if status:
             filters['status'] = status
         if input_month:
@@ -269,8 +290,8 @@ async def get_expected_1p_irregular_statuses(user: CurrentUser = Depends(require
 @router.get("/master-summary")
 async def get_expected_1p_irregular_master_summary(
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     input_month: Optional[str] = None,
@@ -281,12 +302,15 @@ async def get_expected_1p_irregular_master_summary(
         filters = {}
         if year_month:
             filters['year_month'] = year_month
-        if brand_id:
-            filters['brand_id'] = brand_id
-        if channel_id:
-            filters['channel_id'] = channel_id
-        if irregular_type:
-            filters['irregular_type'] = irregular_type
+        parsed_brand = _parse_int_list(brand_id)
+        if parsed_brand is not None:
+            filters['brand_id'] = parsed_brand
+        parsed_channel = _parse_int_list(channel_id)
+        if parsed_channel is not None:
+            filters['channel_id'] = parsed_channel
+        parsed_irregular_type = _parse_str_list(irregular_type)
+        if parsed_irregular_type is not None:
+            filters['irregular_type'] = parsed_irregular_type
         if status:
             filters['status'] = status
         if input_month:
@@ -303,8 +327,8 @@ async def get_expected_1p_irregular_master_summary(
 @router.get("/download")
 async def download_expected_1p_irregulars(
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     ids: Optional[str] = None,
@@ -333,12 +357,15 @@ async def download_expected_1p_irregulars(
             filters = {}
             if year_month:
                 filters['year_month'] = year_month
-            if brand_id:
-                filters['brand_id'] = brand_id
-            if channel_id:
-                filters['channel_id'] = channel_id
-            if irregular_type:
-                filters['irregular_type'] = irregular_type
+            parsed_brand = _parse_int_list(brand_id)
+            if parsed_brand is not None:
+                filters['brand_id'] = parsed_brand
+            parsed_channel = _parse_int_list(channel_id)
+            if parsed_channel is not None:
+                filters['channel_id'] = parsed_channel
+            parsed_irregular_type = _parse_str_list(irregular_type)
+            if parsed_irregular_type is not None:
+                filters['irregular_type'] = parsed_irregular_type
             if status:
                 filters['status'] = status
 
@@ -1442,8 +1469,8 @@ async def get_expected_1p_irregular_product_list(
     limit: int = 20,
     expected_1p_irregular_id: Optional[str] = None,
     year_month: Optional[str] = None,
-    brand_id: Optional[int] = None,
-    channel_id: Optional[int] = None,
+    brand_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
     irregular_type: Optional[str] = None,
     status: Optional[str] = None,
     user: CurrentUser = Depends(require_permission("Expected1PIrregular", "READ"))
@@ -1455,12 +1482,15 @@ async def get_expected_1p_irregular_product_list(
             filters['expected_1p_irregular_id'] = expected_1p_irregular_id
         if year_month:
             filters['year_month'] = year_month
-        if brand_id:
-            filters['brand_id'] = brand_id
-        if channel_id:
-            filters['channel_id'] = channel_id
-        if irregular_type:
-            filters['irregular_type'] = irregular_type
+        parsed_brand = _parse_int_list(brand_id)
+        if parsed_brand is not None:
+            filters['brand_id'] = parsed_brand
+        parsed_channel = _parse_int_list(channel_id)
+        if parsed_channel is not None:
+            filters['channel_id'] = parsed_channel
+        parsed_irregular_type = _parse_str_list(irregular_type)
+        if parsed_irregular_type is not None:
+            filters['irregular_type'] = parsed_irregular_type
         if status:
             filters['status'] = status
 

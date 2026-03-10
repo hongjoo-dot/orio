@@ -7,6 +7,7 @@
 // ==================== 공통 상태 ====================
 let currentTab = 'base';
 let uploadModal, uploadResultModal;
+let msBrand, msChannel, msIrregularType;
 
 // ==================== 정기 상태 ====================
 let baseMasterTableManager, baseDetailTableManager;
@@ -301,6 +302,11 @@ document.addEventListener('DOMContentLoaded', async function () {
     initPanelResize('baseMasterDetail', 'baseResizeHandle');
     initPanelResize('irregMasterDetail', 'irregResizeHandle');
 
+    // Multi-select 초기화
+    msBrand = new MultiSelect('searchBrand', { placeholder: '전체' });
+    msChannel = new MultiSelect('searchChannel', { placeholder: '전체' });
+    msIrregularType = new MultiSelect('searchIrregularType', { placeholder: '전체' });
+
     // 공통 데이터
     loadBrands();
     loadChannels();
@@ -413,7 +419,7 @@ async function loadChannelMaster() {
     }
 
     try {
-        const brandId = document.getElementById('searchBrand').value;
+        const brandId = msBrand.getSelectedString();
         const inputMonth = document.getElementById('searchInputMonth').value;
         const params = { year_month: yearMonth };
         if (brandId) params.brand_id = brandId;
@@ -478,7 +484,7 @@ function doSelectChannel(channelId, tr) {
 // ==================== 정기: 디테일 ====================
 async function loadChannelDetail(channel) {
     const yearMonth = document.getElementById('searchYearMonth').value;
-    const brandId = document.getElementById('searchBrand').value;
+    const brandId = msBrand.getSelectedString();
     const inputMonth = document.getElementById('searchInputMonth').value;
 
     try {
@@ -708,9 +714,9 @@ async function loadIrregMaster() {
 
         const params = {};
         const yearMonth = document.getElementById('searchYearMonth').value;
-        const brandId = document.getElementById('searchBrand').value;
-        const channelId = document.getElementById('searchChannel').value;
-        const irregularType = document.getElementById('searchIrregularType').value;
+        const brandId = msBrand.getSelectedString();
+        const channelId = msChannel.getSelectedString();
+        const irregularType = msIrregularType.getSelectedString();
         const status = document.getElementById('searchStatus').value;
         const inputMonth = document.getElementById('searchInputMonth').value;
 
@@ -1086,16 +1092,7 @@ async function loadBrands() {
     try {
         const result = await api.get('/api/brands/all');
         const brands = result.data || [];
-
-        const select = document.getElementById('searchBrand');
-        select.innerHTML = '<option value="">전체</option>';
-
-        brands.forEach(brand => {
-            const option = document.createElement('option');
-            option.value = brand.BrandID;
-            option.textContent = brand.Name;
-            select.appendChild(option);
-        });
+        msBrand.setOptions(brands.map(b => ({ value: b.BrandID, label: b.Name })));
     } catch (e) {
         console.error('브랜드 로드 실패:', e);
     }
@@ -1104,16 +1101,7 @@ async function loadBrands() {
 async function loadChannels() {
     try {
         const channels = await api.get('/api/channels/list?contract_type=3P');
-
-        const select = document.getElementById('searchChannel');
-        select.innerHTML = '<option value="">전체</option>';
-
-        channels.forEach(channel => {
-            const option = document.createElement('option');
-            option.value = channel.ChannelID;
-            option.textContent = channel.Name;
-            select.appendChild(option);
-        });
+        msChannel.setOptions(channels.map(ch => ({ value: ch.ChannelID, label: ch.Name })));
     } catch (e) {
         console.error('채널 로드 실패:', e);
     }
@@ -1168,16 +1156,7 @@ async function loadIrregularTypes() {
     try {
         const result = await api.get('/api/expected/3p/irregular/irregular-types');
         const types = result.irregular_types || [];
-
-        const select = document.getElementById('searchIrregularType');
-        select.innerHTML = '<option value="">전체</option>';
-
-        types.forEach(type => {
-            const option = document.createElement('option');
-            option.value = type;
-            option.textContent = type;
-            select.appendChild(option);
-        });
+        msIrregularType.setOptions(types);
     } catch (e) {
         console.error('비정기유형 로드 실패:', e);
     }
@@ -1231,9 +1210,9 @@ function resetFilters() {
     document.getElementById('searchYearMonth').value = '';
     document.getElementById('searchInputMonth').value = '';
     document.getElementById('searchInputMonth').innerHTML = '<option value="">전체</option>';
-    document.getElementById('searchBrand').value = '';
-    document.getElementById('searchChannel').value = '';
-    document.getElementById('searchIrregularType').value = '';
+    msBrand.reset();
+    msChannel.reset();
+    msIrregularType.reset();
     document.getElementById('searchStatus').value = '';
 
     if (currentTab === 'base') {
@@ -1267,7 +1246,7 @@ function downloadMasterEditForm() {
     }
 
     const params = { year_month: yearMonth, channel_ids: selectedIds.join(',') };
-    const brandId = document.getElementById('searchBrand').value;
+    const brandId = msBrand.getSelectedString();
     const inputMonth = document.getElementById('searchInputMonth').value;
     if (brandId) params.brand_id = brandId;
     if (inputMonth) params.input_month = inputMonth;

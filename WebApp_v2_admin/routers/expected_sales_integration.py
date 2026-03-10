@@ -20,11 +20,52 @@ from utils.helpers import calculate_amount_ex_vat
 router = APIRouter(prefix="/api/expected-sales-integration", tags=["ExpectedSalesIntegration"])
 
 
+def _parse_multi(value: str) -> list:
+    """콤마 구분 문자열을 리스트로 변환 (빈 값 제거)"""
+    if not value:
+        return []
+    return [v.strip() for v in value.split(',') if v.strip()]
+
+
+def _get_owner_channels(owner: str) -> list:
+    """Owner 값으로 소유 채널명 목록 조회 (콤마 구분 다중값 지원)"""
+    if not owner:
+        return []
+    owners = _parse_multi(owner)
+    if not owners:
+        return []
+    placeholders = ','.join(['?' for _ in owners])
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute(f"SELECT Name FROM Channel WHERE Owner IN ({placeholders})", *owners)
+        return [row[0] for row in cursor.fetchall()]
+
+
+def _add_in_filter(where_list, params, value_str, column_expr):
+    """콤마 구분 문자열을 IN 필터로 WHERE 절에 추가"""
+    if not value_str:
+        return
+    values = _parse_multi(value_str)
+    if not values:
+        return
+    placeholders = ','.join(['?' for _ in values])
+    where_list.append(f"{column_expr} IN ({placeholders})")
+    params.extend(values)
+
+
+def _add_owner_filter(where_list, params, owner_channels, channel_expr):
+    """owner_channels IN 필터를 WHERE 절에 추가"""
+    if owner_channels:
+        placeholders = ','.join(['?' for _ in owner_channels])
+        where_list.append(f"{channel_expr} IN ({placeholders})")
+        params.extend(owner_channels)
+
+
 def _build_union_query(
     year_month_from: str, year_month_to: str,
     input_month: Optional[str] = None,
     brand: Optional[str] = None,
-    channel: Optional[str] = None
+    channel: Optional[str] = None,
+    owner_channels: Optional[list] = None
 ):
     """UNION ALL 쿼리 및 파라미터 빌드 (연월 범위)"""
     params = []
@@ -35,12 +76,9 @@ def _build_union_query(
     if input_month:
         w3r.append("t.InputMonth = ?")
         params.append(input_month)
-    if brand:
-        w3r.append("t.BrandName = ?")
-        params.append(brand)
-    if channel:
-        w3r.append("t.ChannelName = ?")
-        params.append(channel)
+    _add_in_filter(w3r, params, brand, "t.BrandName")
+    _add_in_filter(w3r, params, channel, "t.ChannelName")
+    _add_owner_filter(w3r, params, owner_channels, "t.ChannelName")
     q3r = f"""
         SELECT FORMAT(t.[Date], 'yyyy-MM') AS YearMonth,
                t.BrandName, t.ChannelName, t.UniqueCode, t.ProductName,
@@ -55,12 +93,9 @@ def _build_union_query(
     if input_month:
         w3i.append("p.InputMonth = ?")
         params.append(input_month)
-    if brand:
-        w3i.append("p.BrandName = ?")
-        params.append(brand)
-    if channel:
-        w3i.append("p.ChannelName = ?")
-        params.append(channel)
+    _add_in_filter(w3i, params, brand, "p.BrandName")
+    _add_in_filter(w3i, params, channel, "p.ChannelName")
+    _add_owner_filter(w3i, params, owner_channels, "p.ChannelName")
     q3i = f"""
         SELECT FORMAT(p.StartDate, 'yyyy-MM') AS YearMonth,
                p.BrandName, p.ChannelName, pp.UniqueCode, pp.ProductName,
@@ -76,12 +111,9 @@ def _build_union_query(
     if input_month:
         w1r.append("t.InputMonth = ?")
         params.append(input_month)
-    if brand:
-        w1r.append("t.BrandName = ?")
-        params.append(brand)
-    if channel:
-        w1r.append("t.ChannelName = ?")
-        params.append(channel)
+    _add_in_filter(w1r, params, brand, "t.BrandName")
+    _add_in_filter(w1r, params, channel, "t.ChannelName")
+    _add_owner_filter(w1r, params, owner_channels, "t.ChannelName")
     q1r = f"""
         SELECT FORMAT(t.[Date], 'yyyy-MM') AS YearMonth,
                t.BrandName, t.ChannelName, t.UniqueCode, t.ProductName,
@@ -96,12 +128,9 @@ def _build_union_query(
     if input_month:
         w1i.append("p.InputMonth = ?")
         params.append(input_month)
-    if brand:
-        w1i.append("p.BrandName = ?")
-        params.append(brand)
-    if channel:
-        w1i.append("p.ChannelName = ?")
-        params.append(channel)
+    _add_in_filter(w1i, params, brand, "p.BrandName")
+    _add_in_filter(w1i, params, channel, "p.ChannelName")
+    _add_owner_filter(w1i, params, owner_channels, "p.ChannelName")
     q1i = f"""
         SELECT FORMAT(p.StartDate, 'yyyy-MM') AS YearMonth,
                p.BrandName, p.ChannelName, pp.UniqueCode, pp.ProductName,
@@ -112,17 +141,17 @@ def _build_union_query(
     """
 
     # --- 불출 ---
-    # 채널 필터가 '불출'이 아닌 값이면 불출 서브쿼리 제외
-    include_withdrawal = (channel is None or channel == '불출')
+    # 채널 필터에 '불출'이 포함되지 않으면 불출 서브쿼리 제외
+    # owner_channels 필터 활성 시 불출 제외 (불출은 채널 소유 개념 없음)
+    channel_list = _parse_multi(channel) if channel else []
+    include_withdrawal = (not channel_list or '불출' in channel_list) and not owner_channels
     if include_withdrawal:
         wwp = ["FORMAT(w.[Date], 'yyyy-MM') BETWEEN ? AND ?"]
         params.extend([year_month_from, year_month_to])
         if input_month:
             wwp.append("w.InputMonth = ?")
             params.append(input_month)
-        if brand:
-            wwp.append("b.Name = ?")
-            params.append(brand)
+        _add_in_filter(wwp, params, brand, "b.Name")
         qwp = f"""
             SELECT FORMAT(w.[Date], 'yyyy-MM') AS YearMonth,
                    ISNULL(b.Name, N'미분류') AS BrandName,
@@ -204,10 +233,14 @@ async def get_integration_data(
     input_month: Optional[str] = Query(None, description="입력월"),
     brand: Optional[str] = Query(None, description="브랜드"),
     channel: Optional[str] = Query(None, description="채널"),
+    owner: Optional[str] = Query(None, description="채널 Owner 필터"),
     user: CurrentUser = Depends(get_current_user)
 ):
     """통합 예상 판매량 피벗 데이터 조회 (열=연월)"""
-    query, params = _build_union_query(year_month_from, year_month_to, input_month, brand, channel)
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return {"year_months": [], "data": []}
+    query, params = _build_union_query(year_month_from, year_month_to, input_month, brand, channel, oc)
 
     with get_db_cursor(commit=False) as cursor:
         cursor.execute(query, *params)
@@ -221,34 +254,50 @@ async def get_integration_data(
 async def get_input_months(
     year_month_from: str = Query(..., description="시작 연월"),
     year_month_to: str = Query(..., description="종료 연월"),
+    owner: Optional[str] = Query(None, description="채널 Owner 필터"),
     user: CurrentUser = Depends(get_current_user)
 ):
     """연월 범위 기준 입력월 목록"""
-    query = """
-        SELECT DISTINCT im FROM (
-            SELECT t.InputMonth AS im FROM Expected3PRegularProduct t
-            WHERE FORMAT(t.[Date], 'yyyy-MM') BETWEEN ? AND ? AND t.InputMonth IS NOT NULL
-            UNION
-            SELECT p.InputMonth AS im FROM Expected3PIrregular p
-            WHERE FORMAT(p.StartDate, 'yyyy-MM') BETWEEN ? AND ? AND p.InputMonth IS NOT NULL
-            UNION
-            SELECT t.InputMonth AS im FROM Expected1PRegularProduct t
-            WHERE FORMAT(t.[Date], 'yyyy-MM') BETWEEN ? AND ? AND t.InputMonth IS NOT NULL
-            UNION
-            SELECT p.InputMonth AS im FROM Expected1PIrregular p
-            WHERE FORMAT(p.StartDate, 'yyyy-MM') BETWEEN ? AND ? AND p.InputMonth IS NOT NULL
-            UNION
-            SELECT w.InputMonth AS im FROM WithdrawalPlan w
-            WHERE FORMAT(w.[Date], 'yyyy-MM') BETWEEN ? AND ? AND w.InputMonth IS NOT NULL
-        ) AS AllInputMonths
-        WHERE im IS NOT NULL
-        ORDER BY im DESC
-    """
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return []
+
+    params = []
+    subs = []
+
+    # 3P 정기
+    w = ["FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?", "t.InputMonth IS NOT NULL"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "t.ChannelName")
+    subs.append(f"SELECT t.InputMonth AS im FROM Expected3PRegularProduct t WHERE {' AND '.join(w)}")
+
+    # 3P 비정기
+    w = ["FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?", "p.InputMonth IS NOT NULL"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "p.ChannelName")
+    subs.append(f"SELECT p.InputMonth AS im FROM Expected3PIrregular p WHERE {' AND '.join(w)}")
+
+    # 1P 정기
+    w = ["FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?", "t.InputMonth IS NOT NULL"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "t.ChannelName")
+    subs.append(f"SELECT t.InputMonth AS im FROM Expected1PRegularProduct t WHERE {' AND '.join(w)}")
+
+    # 1P 비정기
+    w = ["FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?", "p.InputMonth IS NOT NULL"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "p.ChannelName")
+    subs.append(f"SELECT p.InputMonth AS im FROM Expected1PIrregular p WHERE {' AND '.join(w)}")
+
+    # 불출 (owner 필터 시 제외)
+    if not oc:
+        w = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?", "w.InputMonth IS NOT NULL"]
+        params.extend([year_month_from, year_month_to])
+        subs.append(f"SELECT w.InputMonth AS im FROM WithdrawalPlan w WHERE {' AND '.join(w)}")
+
+    query = f"SELECT DISTINCT im FROM ({' UNION '.join(subs)}) AS A WHERE im IS NOT NULL ORDER BY im DESC"
     with get_db_cursor(commit=False) as cursor:
-        cursor.execute(query,
-            year_month_from, year_month_to, year_month_from, year_month_to,
-            year_month_from, year_month_to, year_month_from, year_month_to,
-            year_month_from, year_month_to)
+        cursor.execute(query, *params)
         return [row[0] for row in cursor.fetchall()]
 
 
@@ -256,37 +305,52 @@ async def get_input_months(
 async def get_brands(
     year_month_from: str = Query(..., description="시작 연월"),
     year_month_to: str = Query(..., description="종료 연월"),
+    owner: Optional[str] = Query(None, description="채널 Owner 필터"),
     user: CurrentUser = Depends(get_current_user)
 ):
     """연월 범위 기준 브랜드 목록"""
-    query = """
-        SELECT DISTINCT bn FROM (
-            SELECT t.BrandName AS bn FROM Expected3PRegularProduct t
-            WHERE FORMAT(t.[Date], 'yyyy-MM') BETWEEN ? AND ?
-            UNION
-            SELECT p.BrandName AS bn FROM Expected3PIrregular p
-            WHERE FORMAT(p.StartDate, 'yyyy-MM') BETWEEN ? AND ?
-            UNION
-            SELECT t.BrandName AS bn FROM Expected1PRegularProduct t
-            WHERE FORMAT(t.[Date], 'yyyy-MM') BETWEEN ? AND ?
-            UNION
-            SELECT p.BrandName AS bn FROM Expected1PIrregular p
-            WHERE FORMAT(p.StartDate, 'yyyy-MM') BETWEEN ? AND ?
-            UNION
-            SELECT ISNULL(b.Name, N'미분류') AS bn
-            FROM WithdrawalPlan w
-            LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
-            LEFT JOIN Brand b ON pr.BrandID = b.BrandID
-            WHERE FORMAT(w.[Date], 'yyyy-MM') BETWEEN ? AND ?
-        ) AS AllBrands
-        WHERE bn IS NOT NULL
-        ORDER BY bn
-    """
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return []
+
+    params = []
+    subs = []
+
+    # 3P 정기
+    w = ["FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "t.ChannelName")
+    subs.append(f"SELECT t.BrandName AS bn FROM Expected3PRegularProduct t WHERE {' AND '.join(w)}")
+
+    # 3P 비정기
+    w = ["FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "p.ChannelName")
+    subs.append(f"SELECT p.BrandName AS bn FROM Expected3PIrregular p WHERE {' AND '.join(w)}")
+
+    # 1P 정기
+    w = ["FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "t.ChannelName")
+    subs.append(f"SELECT t.BrandName AS bn FROM Expected1PRegularProduct t WHERE {' AND '.join(w)}")
+
+    # 1P 비정기
+    w = ["FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "p.ChannelName")
+    subs.append(f"SELECT p.BrandName AS bn FROM Expected1PIrregular p WHERE {' AND '.join(w)}")
+
+    # 불출 (owner 필터 시 제외)
+    if not oc:
+        w = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+        params.extend([year_month_from, year_month_to])
+        subs.append(f"""SELECT ISNULL(b.Name, N'미분류') AS bn
+            FROM WithdrawalPlan w LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
+            LEFT JOIN Brand b ON pr.BrandID = b.BrandID WHERE {' AND '.join(w)}""")
+
+    query = f"SELECT DISTINCT bn FROM ({' UNION '.join(subs)}) AS A WHERE bn IS NOT NULL ORDER BY bn"
     with get_db_cursor(commit=False) as cursor:
-        cursor.execute(query,
-            year_month_from, year_month_to, year_month_from, year_month_to,
-            year_month_from, year_month_to, year_month_from, year_month_to,
-            year_month_from, year_month_to)
+        cursor.execute(query, *params)
         return [row[0] for row in cursor.fetchall()]
 
 
@@ -294,34 +358,62 @@ async def get_brands(
 async def get_channels(
     year_month_from: str = Query(..., description="시작 연월"),
     year_month_to: str = Query(..., description="종료 연월"),
+    owner: Optional[str] = Query(None, description="채널 Owner 필터"),
     user: CurrentUser = Depends(get_current_user)
 ):
     """연월 범위 기준 채널 목록"""
-    query = """
-        SELECT DISTINCT cn FROM (
-            SELECT t.ChannelName AS cn FROM Expected3PRegularProduct t
-            WHERE FORMAT(t.[Date], 'yyyy-MM') BETWEEN ? AND ?
-            UNION
-            SELECT p.ChannelName AS cn FROM Expected3PIrregular p
-            WHERE FORMAT(p.StartDate, 'yyyy-MM') BETWEEN ? AND ?
-            UNION
-            SELECT t.ChannelName AS cn FROM Expected1PRegularProduct t
-            WHERE FORMAT(t.[Date], 'yyyy-MM') BETWEEN ? AND ?
-            UNION
-            SELECT p.ChannelName AS cn FROM Expected1PIrregular p
-            WHERE FORMAT(p.StartDate, 'yyyy-MM') BETWEEN ? AND ?
-            UNION
-            SELECT N'불출' AS cn FROM WithdrawalPlan w
-            WHERE FORMAT(w.[Date], 'yyyy-MM') BETWEEN ? AND ?
-        ) AS AllChannels
-        WHERE cn IS NOT NULL
-        ORDER BY cn
-    """
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return []
+
+    params = []
+    subs = []
+
+    # 3P 정기
+    w = ["FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "t.ChannelName")
+    subs.append(f"SELECT t.ChannelName AS cn FROM Expected3PRegularProduct t WHERE {' AND '.join(w)}")
+
+    # 3P 비정기
+    w = ["FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "p.ChannelName")
+    subs.append(f"SELECT p.ChannelName AS cn FROM Expected3PIrregular p WHERE {' AND '.join(w)}")
+
+    # 1P 정기
+    w = ["FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "t.ChannelName")
+    subs.append(f"SELECT t.ChannelName AS cn FROM Expected1PRegularProduct t WHERE {' AND '.join(w)}")
+
+    # 1P 비정기
+    w = ["FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?"]
+    params.extend([year_month_from, year_month_to])
+    _add_owner_filter(w, params, oc, "p.ChannelName")
+    subs.append(f"SELECT p.ChannelName AS cn FROM Expected1PIrregular p WHERE {' AND '.join(w)}")
+
+    # 불출 (owner 필터 시 제외)
+    if not oc:
+        w = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+        params.extend([year_month_from, year_month_to])
+        subs.append(f"SELECT N'불출' AS cn FROM WithdrawalPlan w WHERE {' AND '.join(w)}")
+
+    query = f"SELECT DISTINCT cn FROM ({' UNION '.join(subs)}) AS A WHERE cn IS NOT NULL ORDER BY cn"
     with get_db_cursor(commit=False) as cursor:
-        cursor.execute(query,
-            year_month_from, year_month_to, year_month_from, year_month_to,
-            year_month_from, year_month_to, year_month_from, year_month_to,
-            year_month_from, year_month_to)
+        cursor.execute(query, *params)
+        return [row[0] for row in cursor.fetchall()]
+
+
+@router.get("/owners")
+async def get_owners(
+    user: CurrentUser = Depends(get_current_user)
+):
+    """Channel.Owner DISTINCT 목록 조회"""
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute(
+            "SELECT DISTINCT Owner FROM Channel WHERE Owner IS NOT NULL AND Owner != '' ORDER BY Owner"
+        )
         return [row[0] for row in cursor.fetchall()]
 
 
@@ -332,12 +424,14 @@ async def download_excel(
     input_month: Optional[str] = Query(None, description="입력월"),
     brand: Optional[str] = Query(None, description="브랜드"),
     channel: Optional[str] = Query(None, description="채널"),
+    owner: Optional[str] = Query(None, description="채널 Owner 필터"),
     user: CurrentUser = Depends(get_current_user)
 ):
     """통합 예상 판매량 엑셀 다운로드 (피벗 형태, 열=연월)"""
     import xlsxwriter
 
-    query, params = _build_union_query(year_month_from, year_month_to, input_month, brand, channel)
+    oc = _get_owner_channels(owner) if owner else None
+    query, params = _build_union_query(year_month_from, year_month_to, input_month, brand, channel, oc)
 
     with get_db_cursor(commit=False) as cursor:
         cursor.execute(query, *params)
@@ -424,7 +518,8 @@ def _build_bom_query(
     year_month_from: str, year_month_to: str,
     input_month: Optional[str] = None,
     brand: Optional[str] = None,
-    channel: Optional[str] = None
+    channel: Optional[str] = None,
+    owner_channels: Optional[list] = None
 ):
     """BOM 분해 UNION ALL 쿼리 빌드 (단품 pass-through + 세트 분해, 불출 포함)"""
     params = []
@@ -435,10 +530,12 @@ def _build_bom_query(
         p = [year_month_from, year_month_to]
         if input_month:
             w.append(f"{alias}.InputMonth = ?"); p.append(input_month)
-        if brand:
-            w.append(f"{alias}.BrandName = ?"); p.append(brand)
-        if channel:
-            w.append(f"{alias}.ChannelName = ?"); p.append(channel)
+        _add_in_filter(w, p, brand, f"{alias}.BrandName")
+        _add_in_filter(w, p, channel, f"{alias}.ChannelName")
+        if owner_channels:
+            ph = ','.join(['?' for _ in owner_channels])
+            w.append(f"{alias}.ChannelName IN ({ph})")
+            p.extend(owner_channels)
         return ' AND '.join(w), p
 
     def _irreg_where(pa):
@@ -446,10 +543,12 @@ def _build_bom_query(
         p = [year_month_from, year_month_to]
         if input_month:
             w.append(f"{pa}.InputMonth = ?"); p.append(input_month)
-        if brand:
-            w.append(f"{pa}.BrandName = ?"); p.append(brand)
-        if channel:
-            w.append(f"{pa}.ChannelName = ?"); p.append(channel)
+        _add_in_filter(w, p, brand, f"{pa}.BrandName")
+        _add_in_filter(w, p, channel, f"{pa}.ChannelName")
+        if owner_channels:
+            ph = ','.join(['?' for _ in owner_channels])
+            w.append(f"{pa}.ChannelName IN ({ph})")
+            p.extend(owner_channels)
         return ' AND '.join(w), p
 
     # --- 3P 정기 단품 ---
@@ -561,14 +660,15 @@ def _build_bom_query(
     """)
 
     # --- 불출 ---
-    include_withdrawal = (channel is None or channel == '불출')
+    # owner_channels 필터 활성 시 불출 제외
+    channel_list = _parse_multi(channel) if channel else []
+    include_withdrawal = (not channel_list or '불출' in channel_list) and not owner_channels
     if include_withdrawal:
         ww = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?"]
         wp = [year_month_from, year_month_to]
         if input_month:
             ww.append("w.InputMonth = ?"); wp.append(input_month)
-        if brand:
-            ww.append("b.Name = ?"); wp.append(brand)
+        _add_in_filter(ww, wp, brand, "b.Name")
         ww_str = ' AND '.join(ww)
 
         # 불출 단품
@@ -659,10 +759,14 @@ async def get_bom_data(
     input_month: Optional[str] = Query(None, description="입력월"),
     brand: Optional[str] = Query(None, description="브랜드"),
     channel: Optional[str] = Query(None, description="채널"),
+    owner: Optional[str] = Query(None, description="채널 Owner 필터"),
     user: CurrentUser = Depends(get_current_user)
 ):
     """BOM 분해 피벗 데이터 조회 (수량만)"""
-    query, params = _build_bom_query(year_month_from, year_month_to, input_month, brand, channel)
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return {"year_months": [], "data": []}
+    query, params = _build_bom_query(year_month_from, year_month_to, input_month, brand, channel, oc)
 
     with get_db_cursor(commit=False) as cursor:
         cursor.execute(query, *params)
@@ -679,12 +783,14 @@ async def download_bom_excel(
     input_month: Optional[str] = Query(None, description="입력월"),
     brand: Optional[str] = Query(None, description="브랜드"),
     channel: Optional[str] = Query(None, description="채널"),
+    owner: Optional[str] = Query(None, description="채널 Owner 필터"),
     user: CurrentUser = Depends(get_current_user)
 ):
     """BOM 분해 엑셀 다운로드 (수량만 피벗)"""
     import xlsxwriter
 
-    query, params = _build_bom_query(year_month_from, year_month_to, input_month, brand, channel)
+    oc = _get_owner_channels(owner) if owner else None
+    query, params = _build_bom_query(year_month_from, year_month_to, input_month, brand, channel, oc)
 
     with get_db_cursor(commit=False) as cursor:
         cursor.execute(query, *params)
@@ -763,7 +869,8 @@ def _build_sku_summary_query(
     year_month_from: str, year_month_to: str,
     input_month: Optional[str] = None,
     brand: Optional[str] = None,
-    channel: Optional[str] = None
+    channel: Optional[str] = None,
+    owner_channels: Optional[list] = None
 ):
     """SKU 단위 합산 쿼리 (UniqueCode+ProductName 기준)"""
     params = []
@@ -773,10 +880,9 @@ def _build_sku_summary_query(
     params.extend([year_month_from, year_month_to])
     if input_month:
         w3r.append("t.InputMonth = ?"); params.append(input_month)
-    if brand:
-        w3r.append("t.BrandName = ?"); params.append(brand)
-    if channel:
-        w3r.append("t.ChannelName = ?"); params.append(channel)
+    _add_in_filter(w3r, params, brand, "t.BrandName")
+    _add_in_filter(w3r, params, channel, "t.ChannelName")
+    _add_owner_filter(w3r, params, owner_channels, "t.ChannelName")
     q3r = f"""
         SELECT t.UniqueCode, t.ProductName, t.BrandName,
                t.ExpectedAmount, t.ExpectedQuantity
@@ -789,10 +895,9 @@ def _build_sku_summary_query(
     params.extend([year_month_from, year_month_to])
     if input_month:
         w3i.append("p.InputMonth = ?"); params.append(input_month)
-    if brand:
-        w3i.append("p.BrandName = ?"); params.append(brand)
-    if channel:
-        w3i.append("p.ChannelName = ?"); params.append(channel)
+    _add_in_filter(w3i, params, brand, "p.BrandName")
+    _add_in_filter(w3i, params, channel, "p.ChannelName")
+    _add_owner_filter(w3i, params, owner_channels, "p.ChannelName")
     q3i = f"""
         SELECT pp.UniqueCode, pp.ProductName, p.BrandName,
                pp.ExpectedSalesAmount AS ExpectedAmount, pp.ExpectedQuantity
@@ -806,10 +911,9 @@ def _build_sku_summary_query(
     params.extend([year_month_from, year_month_to])
     if input_month:
         w1r.append("t.InputMonth = ?"); params.append(input_month)
-    if brand:
-        w1r.append("t.BrandName = ?"); params.append(brand)
-    if channel:
-        w1r.append("t.ChannelName = ?"); params.append(channel)
+    _add_in_filter(w1r, params, brand, "t.BrandName")
+    _add_in_filter(w1r, params, channel, "t.ChannelName")
+    _add_owner_filter(w1r, params, owner_channels, "t.ChannelName")
     q1r = f"""
         SELECT t.UniqueCode, t.ProductName, t.BrandName,
                t.ExpectedAmount, t.ExpectedQuantity
@@ -822,10 +926,9 @@ def _build_sku_summary_query(
     params.extend([year_month_from, year_month_to])
     if input_month:
         w1i.append("p.InputMonth = ?"); params.append(input_month)
-    if brand:
-        w1i.append("p.BrandName = ?"); params.append(brand)
-    if channel:
-        w1i.append("p.ChannelName = ?"); params.append(channel)
+    _add_in_filter(w1i, params, brand, "p.BrandName")
+    _add_in_filter(w1i, params, channel, "p.ChannelName")
+    _add_owner_filter(w1i, params, owner_channels, "p.ChannelName")
     q1i = f"""
         SELECT pp.UniqueCode, pp.ProductName, p.BrandName,
                pp.ExpectedSalesAmount AS ExpectedAmount, pp.ExpectedQuantity
@@ -835,14 +938,14 @@ def _build_sku_summary_query(
     """
 
     # --- 불출 ---
-    include_withdrawal = (channel is None or channel == '불출')
+    channel_list = _parse_multi(channel) if channel else []
+    include_withdrawal = (not channel_list or '불출' in channel_list) and not owner_channels
     if include_withdrawal:
         wwp = ["FORMAT(w.[Date], 'yyyy-MM') BETWEEN ? AND ?"]
         params.extend([year_month_from, year_month_to])
         if input_month:
             wwp.append("w.InputMonth = ?"); params.append(input_month)
-        if brand:
-            wwp.append("b.Name = ?"); params.append(brand)
+        _add_in_filter(wwp, params, brand, "b.Name")
         qwp = f"""
             SELECT w.UniqueCode, w.ProductName,
                    ISNULL(b.Name, N'미분류') AS BrandName,
@@ -876,7 +979,8 @@ def _build_sku_detail_query(
     year_month_from: str, year_month_to: str,
     input_month: Optional[str] = None,
     brand: Optional[str] = None,
-    channel: Optional[str] = None
+    channel: Optional[str] = None,
+    owner_channels: Optional[list] = None
 ):
     """특정 SKU의 채널/구분별 상세 쿼리 (개별 레코드 ID 포함, 인라인 편집용)"""
     params = []
@@ -886,10 +990,9 @@ def _build_sku_detail_query(
     params.extend([unique_code, year_month_from, year_month_to])
     if input_month:
         w3r.append("t.InputMonth = ?"); params.append(input_month)
-    if brand:
-        w3r.append("t.BrandName = ?"); params.append(brand)
-    if channel:
-        w3r.append("t.ChannelName = ?"); params.append(channel)
+    _add_in_filter(w3r, params, brand, "t.BrandName")
+    _add_in_filter(w3r, params, channel, "t.ChannelName")
+    _add_owner_filter(w3r, params, owner_channels, "t.ChannelName")
     q3r = f"""
         SELECT t.Expected3PRegularID AS RecordID,
                FORMAT(t.[Date], 'yyyy-MM') AS YearMonth,
@@ -905,10 +1008,9 @@ def _build_sku_detail_query(
     params.extend([unique_code, year_month_from, year_month_to])
     if input_month:
         w3i.append("p.InputMonth = ?"); params.append(input_month)
-    if brand:
-        w3i.append("p.BrandName = ?"); params.append(brand)
-    if channel:
-        w3i.append("p.ChannelName = ?"); params.append(channel)
+    _add_in_filter(w3i, params, brand, "p.BrandName")
+    _add_in_filter(w3i, params, channel, "p.ChannelName")
+    _add_owner_filter(w3i, params, owner_channels, "p.ChannelName")
     q3i = f"""
         SELECT pp.Expected3PIrregularProductID AS RecordID,
                FORMAT(p.StartDate, 'yyyy-MM') AS YearMonth,
@@ -925,10 +1027,9 @@ def _build_sku_detail_query(
     params.extend([unique_code, year_month_from, year_month_to])
     if input_month:
         w1r.append("t.InputMonth = ?"); params.append(input_month)
-    if brand:
-        w1r.append("t.BrandName = ?"); params.append(brand)
-    if channel:
-        w1r.append("t.ChannelName = ?"); params.append(channel)
+    _add_in_filter(w1r, params, brand, "t.BrandName")
+    _add_in_filter(w1r, params, channel, "t.ChannelName")
+    _add_owner_filter(w1r, params, owner_channels, "t.ChannelName")
     q1r = f"""
         SELECT t.Expected1PRegularID AS RecordID,
                FORMAT(t.[Date], 'yyyy-MM') AS YearMonth,
@@ -944,10 +1045,9 @@ def _build_sku_detail_query(
     params.extend([unique_code, year_month_from, year_month_to])
     if input_month:
         w1i.append("p.InputMonth = ?"); params.append(input_month)
-    if brand:
-        w1i.append("p.BrandName = ?"); params.append(brand)
-    if channel:
-        w1i.append("p.ChannelName = ?"); params.append(channel)
+    _add_in_filter(w1i, params, brand, "p.BrandName")
+    _add_in_filter(w1i, params, channel, "p.ChannelName")
+    _add_owner_filter(w1i, params, owner_channels, "p.ChannelName")
     q1i = f"""
         SELECT pp.Expected1PIrregularProductID AS RecordID,
                FORMAT(p.StartDate, 'yyyy-MM') AS YearMonth,
@@ -960,14 +1060,14 @@ def _build_sku_detail_query(
     """
 
     # --- 불출 ---
-    include_withdrawal = (channel is None or channel == '불출')
+    channel_list = _parse_multi(channel) if channel else []
+    include_withdrawal = (not channel_list or '불출' in channel_list) and not owner_channels
     if include_withdrawal:
         wwp = ["w.UniqueCode = ?", "FORMAT(w.[Date], 'yyyy-MM') BETWEEN ? AND ?"]
         params.extend([unique_code, year_month_from, year_month_to])
         if input_month:
             wwp.append("w.InputMonth = ?"); params.append(input_month)
-        if brand:
-            wwp.append("b.Name = ?"); params.append(brand)
+        _add_in_filter(wwp, params, brand, "b.Name")
         qwp = f"""
             SELECT w.PlanID AS RecordID,
                    FORMAT(w.[Date], 'yyyy-MM') AS YearMonth,
@@ -1003,11 +1103,15 @@ async def get_sku_data(
     input_month: Optional[str] = Query(None),
     brand: Optional[str] = Query(None),
     channel: Optional[str] = Query(None),
+    owner: Optional[str] = Query(None),
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """SKU 단위 합산 데이터 조회"""
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return {"data": [], "summary": {"totalAmount": 0, "totalQuantity": 0, "productCount": 0}}
     query, params = _build_sku_summary_query(
-        year_month_from, year_month_to, input_month, brand, channel
+        year_month_from, year_month_to, input_month, brand, channel, oc
     )
 
     with get_db_cursor(commit=False) as cursor:
@@ -1049,12 +1153,16 @@ async def get_sku_detail(
     input_month: Optional[str] = Query(None),
     brand: Optional[str] = Query(None),
     channel: Optional[str] = Query(None),
+    owner: Optional[str] = Query(None),
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """특정 SKU의 채널/구분별 상세 데이터 (개별 레코드 ID 포함)"""
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return []
     query, params = _build_sku_detail_query(
         unique_code, year_month_from, year_month_to,
-        input_month, brand, channel
+        input_month, brand, channel, oc
     )
 
     with get_db_cursor(commit=False) as cursor:

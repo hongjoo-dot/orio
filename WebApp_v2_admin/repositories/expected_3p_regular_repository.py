@@ -66,10 +66,18 @@ class Expected3PRegularRepository(BaseRepository):
             builder.where("FORMAT(t.[Date], 'yyyy-MM') = ?", year_month)
 
         if 'brand_id' in filters:
-            builder.where_equals("t.BrandID", filters['brand_id'])
+            val = filters['brand_id']
+            if isinstance(val, list):
+                builder.where_in("t.BrandID", val)
+            else:
+                builder.where_equals("t.BrandID", val)
 
         if 'channel_id' in filters:
-            builder.where_equals("t.ChannelID", filters['channel_id'])
+            val = filters['channel_id']
+            if isinstance(val, list):
+                builder.where_in("t.ChannelID", val)
+            else:
+                builder.where_equals("t.ChannelID", val)
 
         if filters.get('input_month'):
             builder.where_equals("t.InputMonth", filters['input_month'])
@@ -252,15 +260,20 @@ class Expected3PRegularRepository(BaseRepository):
             cursor.execute(query)
             return [row[0] for row in cursor.fetchall()]
 
-    def get_channels_summary(self, year_month: str, brand_id: Optional[int] = None, input_month: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_channels_summary(self, year_month: str, brand_id=None, input_month: Optional[str] = None) -> List[Dict[str, Any]]:
         """채널별 예상 매출 요약 조회 (마스터 패널용, 위탁 3P 채널만)"""
         with get_db_cursor(commit=False) as cursor:
             where_clauses = ["FORMAT(t.[Date], 'yyyy-MM') = ?", "c.ContractType = '3P'"]
             params = [year_month]
 
             if brand_id is not None:
-                where_clauses.append("t.BrandID = ?")
-                params.append(brand_id)
+                if isinstance(brand_id, list):
+                    ph = ','.join(['?' for _ in brand_id])
+                    where_clauses.append(f"t.BrandID IN ({ph})")
+                    params.extend(brand_id)
+                else:
+                    where_clauses.append("t.BrandID = ?")
+                    params.append(brand_id)
 
             if input_month:
                 where_clauses.append("t.InputMonth = ?")
@@ -288,7 +301,7 @@ class Expected3PRegularRepository(BaseRepository):
                 "TotalQuantity": int(row[4]) if row[4] else 0,
             } for row in cursor.fetchall()]
 
-    def get_by_channel(self, channel_id: int, year_month: str, brand_id: Optional[int] = None, input_month: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_by_channel(self, channel_id: int, year_month: str, brand_id=None, input_month: Optional[str] = None) -> List[Dict[str, Any]]:
         """특정 채널의 예상 매출 상품 목록 조회 (디테일 패널용)"""
         with get_db_cursor(commit=False) as cursor:
             columns = ", ".join(self.SELECT_COLUMNS)
@@ -296,8 +309,13 @@ class Expected3PRegularRepository(BaseRepository):
             params = [channel_id, year_month]
 
             if brand_id is not None:
-                where_clauses.append("t.BrandID = ?")
-                params.append(brand_id)
+                if isinstance(brand_id, list):
+                    ph = ','.join(['?' for _ in brand_id])
+                    where_clauses.append(f"t.BrandID IN ({ph})")
+                    params.extend(brand_id)
+                else:
+                    where_clauses.append("t.BrandID = ?")
+                    params.append(brand_id)
 
             if input_month:
                 where_clauses.append("t.InputMonth = ?")

@@ -40,15 +40,15 @@
         </div>
         <div>
             <label class="form-label">브랜드</label>
-            <select id="filterBrand" class="form-select">
-                <option value="">전체</option>
-            </select>
+            <div id="filterBrand"></div>
         </div>
         <div>
             <label class="form-label">채널</label>
-            <select id="filterChannel" class="form-select">
-                <option value="">전체</option>
-            </select>
+            <div id="filterChannel"></div>
+        </div>
+        <div>
+            <label class="form-label">담당자</label>
+            <div id="filterOwner"></div>
         </div>
     </div>
 </div>
@@ -202,5 +202,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/pages/expected_sales_integration.js?v=8"></script>
+<script src="/static/js/pages/expected_sales_integration.js?v=11"></script>
 {% endblock %}

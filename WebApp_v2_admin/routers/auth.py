@@ -163,9 +163,11 @@ async def get_current_user_info(current_user: CurrentUser = Depends(get_current_
     """
     현재 로그인한 사용자 정보 조회
     """
+    user = user_repo.get_by_email(current_user.email)
     return {
         "user_id": current_user.user_id,
         "email": current_user.email,
+        "name": user.get("Name") if user else None,
         "role": current_user.role,
         "can_write": current_user.can_write,
         "is_admin": current_user.is_admin

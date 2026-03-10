@@ -7,6 +7,7 @@
 // ==================== 상태 변수 ====================
 let masterTableManager, detailTableManager;
 let uploadModal, uploadResultModal;
+let msType;
 
 // 마스터 데이터
 let currentMasterData = [];
@@ -153,6 +154,9 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // 업로드 존 드래그앤드롭
     setupUploadZone();
+
+    // MultiSelect 초기화
+    msType = new MultiSelect('filterType', { placeholder: '전체' });
 
     // 사용유형, 입력월 로드
     loadTypes();
@@ -546,7 +550,7 @@ function doApplyFilters() {
     currentFilters = {};
 
     const yearMonth = document.getElementById('filterYearMonth').value;
-    const type = document.getElementById('filterType').value;
+    const type = msType.getSelectedString();
     const inputMonth = document.getElementById('filterInputMonth').value;
     const title = document.getElementById('filterTitle').value.trim();
 
@@ -561,7 +565,7 @@ function doApplyFilters() {
 
 function resetFilters() {
     document.getElementById('filterYearMonth').value = '';
-    document.getElementById('filterType').value = '';
+    msType.reset();
     document.getElementById('filterInputMonth').value = '';
     document.getElementById('filterTitle').value = '';
 
@@ -575,14 +579,7 @@ async function loadTypes() {
     try {
         const result = await api.get('/api/withdrawal-plans/types');
         const types = result.types || [];
-        const select = document.getElementById('filterType');
-        select.innerHTML = '<option value="">전체</option>';
-        types.forEach(type => {
-            const option = document.createElement('option');
-            option.value = type;
-            option.textContent = type;
-            select.appendChild(option);
-        });
+        msType.setOptions(types);
     } catch (e) {
         console.error('사용유형 로드 실패:', e);
     }

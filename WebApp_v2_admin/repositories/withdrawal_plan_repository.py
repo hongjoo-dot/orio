@@ -51,7 +51,10 @@ class WithdrawalPlanRepository(BaseRepository):
         if filters.get('year_month'):
             builder.where("FORMAT(p.[Date], 'yyyy-MM') = ?", filters['year_month'])
         if filters.get('type'):
-            builder.where_equals("p.Type", filters['type'])
+            if isinstance(filters['type'], list):
+                builder.where_in("p.Type", filters['type'])
+            else:
+                builder.where_equals("p.Type", filters['type'])
         if filters.get('title'):
             builder.where("p.Title LIKE ?", f"%{filters['title']}%")
         if filters.get('group_id'):
@@ -86,8 +89,13 @@ class WithdrawalPlanRepository(BaseRepository):
                     where_clauses.append("FORMAT(p.[Date], 'yyyy-MM') = ?")
                     params.append(filters['year_month'])
                 if filters.get('type'):
-                    where_clauses.append("p.Type = ?")
-                    params.append(filters['type'])
+                    if isinstance(filters['type'], list):
+                        placeholders = ','.join(['?'] * len(filters['type']))
+                        where_clauses.append(f"p.Type IN ({placeholders})")
+                        params.extend(filters['type'])
+                    else:
+                        where_clauses.append("p.Type = ?")
+                        params.append(filters['type'])
                 if filters.get('title'):
                     where_clauses.append("p.Title LIKE ?")
                     params.append(f"%{filters['title']}%")

@@ -79,14 +79,26 @@ class Expected3PIrregularRepository(BaseRepository):
         if filters.get('year_month'):
             builder.where("FORMAT(p.StartDate, 'yyyy-MM') = ?", filters['year_month'])
 
-        if filters.get('brand_id'):
-            builder.where_equals("p.BrandID", filters['brand_id'])
+        if 'brand_id' in filters:
+            val = filters['brand_id']
+            if isinstance(val, list):
+                builder.where_in("p.BrandID", val)
+            else:
+                builder.where_equals("p.BrandID", val)
 
-        if filters.get('channel_id'):
-            builder.where_equals("p.ChannelID", filters['channel_id'])
+        if 'channel_id' in filters:
+            val = filters['channel_id']
+            if isinstance(val, list):
+                builder.where_in("p.ChannelID", val)
+            else:
+                builder.where_equals("p.ChannelID", val)
 
-        if filters.get('irregular_type'):
-            builder.where_equals("p.IrregularType", filters['irregular_type'])
+        if 'irregular_type' in filters:
+            val = filters['irregular_type']
+            if isinstance(val, list):
+                builder.where_in("p.IrregularType", val)
+            else:
+                builder.where_equals("p.IrregularType", val)
 
         if filters.get('status'):
             status_val = filters['status']
@@ -399,15 +411,33 @@ class Expected3PIrregularRepository(BaseRepository):
                 if filters.get('year_month'):
                     where_clauses.append("FORMAT(p.StartDate, 'yyyy-MM') = ?")
                     params.append(filters['year_month'])
-                if filters.get('brand_id'):
-                    where_clauses.append("p.BrandID = ?")
-                    params.append(filters['brand_id'])
-                if filters.get('channel_id'):
-                    where_clauses.append("p.ChannelID = ?")
-                    params.append(filters['channel_id'])
-                if filters.get('irregular_type'):
-                    where_clauses.append("p.IrregularType = ?")
-                    params.append(filters['irregular_type'])
+                if 'brand_id' in filters:
+                    val = filters['brand_id']
+                    if isinstance(val, list):
+                        placeholders = ','.join(['?' for _ in val])
+                        where_clauses.append(f"p.BrandID IN ({placeholders})")
+                        params.extend(val)
+                    else:
+                        where_clauses.append("p.BrandID = ?")
+                        params.append(val)
+                if 'channel_id' in filters:
+                    val = filters['channel_id']
+                    if isinstance(val, list):
+                        placeholders = ','.join(['?' for _ in val])
+                        where_clauses.append(f"p.ChannelID IN ({placeholders})")
+                        params.extend(val)
+                    else:
+                        where_clauses.append("p.ChannelID = ?")
+                        params.append(val)
+                if 'irregular_type' in filters:
+                    val = filters['irregular_type']
+                    if isinstance(val, list):
+                        placeholders = ','.join(['?' for _ in val])
+                        where_clauses.append(f"p.IrregularType IN ({placeholders})")
+                        params.extend(val)
+                    else:
+                        where_clauses.append("p.IrregularType = ?")
+                        params.append(val)
                 if filters.get('status'):
                     status_val = filters['status']
                     if status_val == 'CANCELLED':
