@@ -11,6 +11,10 @@ let currentData = [];
 let currentTab = 'integration';
 let selectedSkuCode = null;
 
+// Sort state
+let pivotSortKey = null, pivotSortDir = null;
+let skuSortKey = null, skuSortDir = null;
+
 // Multi-select instances
 let msBrand, msChannel, msOwner;
 
@@ -43,6 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ==================== 탭 전환 ====================
 function switchTab(tab) {
     currentTab = tab;
+    pivotSortKey = null; pivotSortDir = null;
+    skuSortKey = null; skuSortDir = null;
     document.getElementById('tabIntegration').className =
         tab === 'integration' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
     document.getElementById('tabBom').className =
@@ -201,13 +207,25 @@ async function loadData() {
 
 // ==================== 통합 조회 피벗 테이블 렌더링 ====================
 function renderPivotTable(yearMonths, data) {
-    const thead = document.querySelector('#pivotTable thead tr');
-    const tbody = document.querySelector('#pivotTable tbody');
+    const table = document.getElementById('pivotTable');
+    const thead = table.querySelector('thead tr');
+    const tbody = table.querySelector('tbody');
 
     thead.innerHTML = '';
-    ['브랜드', '채널', '상품명'].forEach(h => {
+    table._layoutFixed = false;
+    table.style.tableLayout = '';
+
+    const staticCols = [
+        { header: '브랜드', sortKey: 'brand' },
+        { header: '채널', sortKey: 'channel' },
+        { header: '상품명', sortKey: 'name' }
+    ];
+
+    staticCols.forEach(col => {
         const th = document.createElement('th');
-        th.textContent = h;
+        th.textContent = col.header;
+        _makeSortable(th, col.sortKey, pivotSortKey, pivotSortDir, _handlePivotSort);
+        _addResizeHandle(th, table);
         thead.appendChild(th);
     });
 
@@ -215,19 +233,25 @@ function renderPivotTable(yearMonths, data) {
         const thAmt = document.createElement('th');
         thAmt.textContent = `${ym}(매출)`;
         thAmt.style.textAlign = 'right';
+        _makeSortable(thAmt, `amt_${ym}`, pivotSortKey, pivotSortDir, _handlePivotSort);
+        _addResizeHandle(thAmt, table);
         thead.appendChild(thAmt);
 
         const thQty = document.createElement('th');
         thQty.textContent = `${ym}(수량)`;
         thQty.style.textAlign = 'right';
+        _makeSortable(thQty, `qty_${ym}`, pivotSortKey, pivotSortDir, _handlePivotSort);
+        _addResizeHandle(thQty, table);
         thead.appendChild(thQty);
     });
 
-    ['합계(매출)', '합계(수량)'].forEach(h => {
+    [{ header: '합계(매출)', key: 'totalAmount' }, { header: '합계(수량)', key: 'totalQuantity' }].forEach(col => {
         const th = document.createElement('th');
-        th.textContent = h;
+        th.textContent = col.header;
         th.style.textAlign = 'right';
         th.style.background = 'rgba(34,197,94,0.1)';
+        _makeSortable(th, col.key, pivotSortKey, pivotSortDir, _handlePivotSort);
+        _addResizeHandle(th, table);
         thead.appendChild(th);
     });
 
@@ -240,7 +264,8 @@ function renderPivotTable(yearMonths, data) {
         return;
     }
 
-    data.forEach(item => {
+    const sorted = _sortData(data, pivotSortKey, pivotSortDir);
+    sorted.forEach(item => {
         const tr = document.createElement('tr');
 
         tr.innerHTML = `
@@ -279,13 +304,25 @@ function renderPivotTable(yearMonths, data) {
 
 // ==================== BOM 분해 테이블 렌더링 ====================
 function renderBomTable(yearMonths, data) {
-    const thead = document.querySelector('#pivotTable thead tr');
-    const tbody = document.querySelector('#pivotTable tbody');
+    const table = document.getElementById('pivotTable');
+    const thead = table.querySelector('thead tr');
+    const tbody = table.querySelector('tbody');
 
     thead.innerHTML = '';
-    ['브랜드', '채널', '상품명'].forEach(h => {
+    table._layoutFixed = false;
+    table.style.tableLayout = '';
+
+    const staticCols = [
+        { header: '브랜드', sortKey: 'brand' },
+        { header: '채널', sortKey: 'channel' },
+        { header: '상품명', sortKey: 'name' }
+    ];
+
+    staticCols.forEach(col => {
         const th = document.createElement('th');
-        th.textContent = h;
+        th.textContent = col.header;
+        _makeSortable(th, col.sortKey, pivotSortKey, pivotSortDir, _handlePivotSort);
+        _addResizeHandle(th, table);
         thead.appendChild(th);
     });
 
@@ -293,6 +330,8 @@ function renderBomTable(yearMonths, data) {
         const th = document.createElement('th');
         th.textContent = `${ym}(수량)`;
         th.style.textAlign = 'right';
+        _makeSortable(th, `qty_${ym}`, pivotSortKey, pivotSortDir, _handlePivotSort);
+        _addResizeHandle(th, table);
         thead.appendChild(th);
     });
 
@@ -300,6 +339,8 @@ function renderBomTable(yearMonths, data) {
     thTotal.textContent = '합계(수량)';
     thTotal.style.textAlign = 'right';
     thTotal.style.background = 'rgba(34,197,94,0.1)';
+    _makeSortable(thTotal, 'totalQuantity', pivotSortKey, pivotSortDir, _handlePivotSort);
+    _addResizeHandle(thTotal, table);
     thead.appendChild(thTotal);
 
     tbody.innerHTML = '';
@@ -311,7 +352,8 @@ function renderBomTable(yearMonths, data) {
         return;
     }
 
-    data.forEach(item => {
+    const sorted = _sortData(data, pivotSortKey, pivotSortDir);
+    sorted.forEach(item => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${escapeHtml(item.brand)}</td>
@@ -378,10 +420,17 @@ function renderSkuTable(data, summary) {
         summary.totalQuantity ? summary.totalQuantity.toLocaleString() : '-';
     document.getElementById('skuProductCount').textContent =
         summary.productCount ? summary.productCount.toLocaleString() : '-';
-    const tbody = document.querySelector('#skuTable tbody');
-    tbody.innerHTML = '';
 
     document.getElementById('skuDataCount').textContent = `(${data.length}개 SKU)`;
+
+    // SKU 데이터를 전역 배열에 저장
+    window._skuItems = data;
+
+    // 헤더에 정렬/리사이즈 적용 (최초 1회)
+    _renderSkuHeader();
+
+    const tbody = document.querySelector('#skuTable tbody');
+    tbody.innerHTML = '';
 
     if (data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted);">
@@ -389,18 +438,50 @@ function renderSkuTable(data, summary) {
         return;
     }
 
-    // SKU 데이터를 전역 배열에 저장 (inline onclick에서 참조)
-    window._skuItems = data;
+    const sorted = _sortData(data, skuSortKey, skuSortDir);
+    _renderSkuRows(sorted, tbody);
+}
 
-    tbody.innerHTML = data.map((item, idx) => `
-        <tr style="cursor:pointer" onclick="onSkuRowClick(${idx}, this)">
+function _renderSkuHeader() {
+    const table = document.getElementById('skuTable');
+    const thead = table.querySelector('thead tr');
+    thead.innerHTML = '';
+    table._layoutFixed = false;
+    table.style.tableLayout = '';
+
+    const cols = [
+        { header: '코드', sortKey: 'code' },
+        { header: '상품명', sortKey: 'name' },
+        { header: '매출합계', sortKey: 'totalAmount', align: 'right' },
+        { header: '수량합계', sortKey: 'totalQuantity', align: 'right' },
+        { header: '상세', sortKey: null }
+    ];
+
+    cols.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col.header;
+        if (col.align) th.style.textAlign = col.align;
+        if (col.sortKey) {
+            _makeSortable(th, col.sortKey, skuSortKey, skuSortDir, _handleSkuSort);
+        }
+        _addResizeHandle(th, table);
+        thead.appendChild(th);
+    });
+}
+
+function _renderSkuRows(data, tbody) {
+    // Re-index based on original _skuItems for onclick reference
+    tbody.innerHTML = data.map(item => {
+        const origIdx = window._skuItems.indexOf(item);
+        return `
+        <tr style="cursor:pointer" onclick="onSkuRowClick(${origIdx}, this)">
             <td>${escapeHtml(item.code)}</td>
             <td>${escapeHtml(item.name)}</td>
             <td class="col-amount">${item.totalAmount ? item.totalAmount.toLocaleString() : '-'}</td>
             <td class="col-qty">${item.totalQuantity ? item.totalQuantity.toLocaleString() : '-'}</td>
-            <td style="text-align:center;"><button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); onSkuRowClick(${idx}, this.closest('tr'));" style="padding:2px 10px;font-size:11px;">상세</button></td>
-        </tr>
-    `).join('');
+            <td style="text-align:center;"><button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); onSkuRowClick(${origIdx}, this.closest('tr'));" style="padding:2px 10px;font-size:11px;">상세</button></td>
+        </tr>`;
+    }).join('');
 }
 
 // ==================== SKU 행 클릭 핸들러 ====================
@@ -626,6 +707,142 @@ function resetFilters() {
 }
 
 // ==================== 엑셀 다운로드 ====================
+// ==================== 테이블 헤더 정렬/리사이즈 유틸 ====================
+function _makeSortable(th, sortKey, currentKey, currentDir, onSortClick) {
+    th.setAttribute('data-sortable', sortKey);
+    th.style.position = 'relative';
+    th.style.cursor = 'pointer';
+    th.style.userSelect = 'none';
+    th.style.paddingRight = '28px';
+
+    if (currentKey === sortKey) {
+        th.classList.add(currentDir === 'ASC' ? 'sort-asc' : 'sort-desc');
+    }
+
+    th.addEventListener('click', (e) => {
+        if (e.target.classList.contains('resize-handle')) return;
+        onSortClick(sortKey);
+    });
+}
+
+function _addResizeHandle(th, table) {
+    th.style.position = 'relative';
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!table._layoutFixed) {
+            table.querySelectorAll('thead th').forEach(t => {
+                t.style.width = t.offsetWidth + 'px';
+            });
+            table.style.tableLayout = 'fixed';
+            table._layoutFixed = true;
+        }
+
+        const startX = e.pageX;
+        const startWidth = th.offsetWidth;
+        handle.classList.add('resizing');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+
+        const onMove = (ev) => {
+            th.style.width = Math.max(40, startWidth + (ev.pageX - startX)) + 'px';
+        };
+        const onUp = () => {
+            handle.classList.remove('resizing');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    });
+    th.appendChild(handle);
+}
+
+function _handlePivotSort(sortKey) {
+    if (pivotSortKey === sortKey) {
+        pivotSortDir = pivotSortDir === 'DESC' ? 'ASC' : 'DESC';
+    } else {
+        pivotSortKey = sortKey;
+        pivotSortDir = 'DESC';
+    }
+    if (currentTab === 'bom') {
+        renderBomTable(currentYearMonths, currentData);
+    } else {
+        renderPivotTable(currentYearMonths, currentData);
+    }
+}
+
+function _handleSkuSort(sortKey) {
+    if (skuSortKey === sortKey) {
+        skuSortDir = skuSortDir === 'DESC' ? 'ASC' : 'DESC';
+    } else {
+        skuSortKey = sortKey;
+        skuSortDir = 'DESC';
+    }
+    // Re-render with current data (summary cards already set)
+    const tbody = document.querySelector('#skuTable tbody');
+    if (!window._skuItems || window._skuItems.length === 0) return;
+    _renderSkuRows(_sortData(window._skuItems, skuSortKey, skuSortDir), tbody);
+    // Update sort indicator on headers
+    document.querySelectorAll('#skuTable thead th[data-sortable]').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.getAttribute('data-sortable') === skuSortKey) {
+            th.classList.add(skuSortDir === 'ASC' ? 'sort-asc' : 'sort-desc');
+        }
+    });
+}
+
+function _sortData(data, key, dir) {
+    if (!key || !dir) return data;
+    const sorted = [...data];
+    const mult = dir === 'ASC' ? 1 : -1;
+
+    sorted.sort((a, b) => {
+        let va, vb;
+        // Pivot/BOM table keys
+        if (key === 'brand' || key === 'channel' || key === 'name') {
+            va = (a[key] || ''); vb = (b[key] || '');
+            return mult * va.localeCompare(vb, 'ko');
+        }
+        if (key === 'totalAmount' || key === 'totalQuantity') {
+            va = a[key] || 0; vb = b[key] || 0;
+            return mult * (va - vb);
+        }
+        // SKU table keys
+        if (key === 'code') {
+            va = (a.code || ''); vb = (b.code || '');
+            return mult * va.localeCompare(vb, 'ko');
+        }
+        // Month-specific keys: amt_2025-01, qty_2025-01
+        const amtMatch = key.match(/^amt_(.+)$/);
+        if (amtMatch) {
+            const ym = amtMatch[1];
+            va = (a.months && a.months[ym]) ? a.months[ym].amount || 0 : 0;
+            vb = (b.months && b.months[ym]) ? b.months[ym].amount || 0 : 0;
+            return mult * (va - vb);
+        }
+        const qtyMatch = key.match(/^qty_(.+)$/);
+        if (qtyMatch) {
+            const ym = qtyMatch[1];
+            if (a.months && typeof a.months[qtyMatch[1]] === 'number') {
+                // BOM: months[ym] is a number
+                va = a.months[ym] || 0; vb = b.months[ym] || 0;
+            } else {
+                va = (a.months && a.months[ym]) ? a.months[ym].quantity || 0 : 0;
+                vb = (b.months && b.months[ym]) ? b.months[ym].quantity || 0 : 0;
+            }
+            return mult * (va - vb);
+        }
+        return 0;
+    });
+    return sorted;
+}
+
 function downloadExcel() {
     const from = document.getElementById('filterYearMonthFrom').value;
     const to = document.getElementById('filterYearMonthTo').value;
