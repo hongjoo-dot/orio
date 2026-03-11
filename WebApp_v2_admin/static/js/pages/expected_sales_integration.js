@@ -378,9 +378,9 @@ async function loadSkuData(keepDetail = false) {
         <div style="margin-top:12px;color:var(--text-muted);">데이터를 불러오는 중...</div>
     </td></tr>`;
 
-    // 디테일 모달 숨김 (keepDetail이면 유지)
+    // 디테일 패널 초기화 (keepDetail이면 유지)
     if (!keepDetail) {
-        closeSkuDetail();
+        _resetDetailPanel();
     }
 
     try {
@@ -483,31 +483,7 @@ function onSkuRowClick(idx, trEl) {
     selectSku(item.code, item.name, trEl);
 }
 
-// ==================== SKU 디테일 모달 ====================
-let skuDetailModal = null;
-
-function getSkuDetailModal() {
-    if (!skuDetailModal) {
-        skuDetailModal = new ModalManager('skuDetailModal');
-        // hide() 오버라이드: 미저장 변경사항 확인
-        const originalHide = skuDetailModal.hide.bind(skuDetailModal);
-        skuDetailModal.hide = function() {
-            if (window._skuDirtySet && window._skuDirtySet.size > 0) {
-                showConfirm('저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?', () => {
-                    window._skuDirtySet = new Set();
-                    originalHide();
-                    selectedSkuCode = null;
-                    document.querySelectorAll('#skuTable tbody tr').forEach(tr => tr.classList.remove('active'));
-                });
-                return;
-            }
-            originalHide();
-            selectedSkuCode = null;
-            document.querySelectorAll('#skuTable tbody tr').forEach(tr => tr.classList.remove('active'));
-        };
-    }
-    return skuDetailModal;
-}
+// ==================== SKU 디테일 패널 ====================
 
 // ==================== SKU 선택 (디테일 로드) ====================
 async function selectSku(code, name, rowEl) {
@@ -529,14 +505,13 @@ async function _doSelectSku(code, name, rowEl) {
     document.querySelectorAll('#skuTable tbody tr').forEach(tr => tr.classList.remove('active'));
     if (rowEl) rowEl.classList.add('active');
 
-    // 모달 표시
+    // 패널 표시
     document.getElementById('skuDetailTitle').textContent = `${code} - ${name}`;
     const contentEl = document.getElementById('skuDetailContent');
-    contentEl.innerHTML = `<div style="text-align:center;padding:40px;">
-        <div class="spinner spinner-lg"></div>
-        <div style="margin-top:12px;color:var(--text-muted);">데이터를 불러오는 중...</div>
+    contentEl.innerHTML = `<div style="text-align:center;padding:30px;">
+        <div class="spinner"></div>
+        <div style="margin-top:8px;color:var(--text-muted);font-size:11px;">불러오는 중...</div>
     </div>`;
-    getSkuDetailModal().show();
 
     try {
         const detailParams = {
@@ -775,7 +750,26 @@ async function saveSkuDetail() {
 
 // ==================== SKU 디테일 닫기 ====================
 function closeSkuDetail() {
-    if (skuDetailModal) skuDetailModal.hide();
+    if (window._skuDirtySet && window._skuDirtySet.size > 0) {
+        showConfirm('저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?', () => {
+            window._skuDirtySet = new Set();
+            _resetDetailPanel();
+        });
+        return;
+    }
+    _resetDetailPanel();
+}
+
+function _resetDetailPanel() {
+    selectedSkuCode = null;
+    document.querySelectorAll('#skuTable tbody tr').forEach(tr => tr.classList.remove('active'));
+    document.getElementById('skuDetailTitle').textContent = 'SKU 상세';
+    document.getElementById('skuDetailContent').innerHTML = `
+        <div class="sku-detail-empty">
+            <i class="fa-solid fa-arrow-left" style="font-size:20px;margin-bottom:8px;opacity:0.3;"></i>
+            <div>좌측 목록에서 SKU를 선택해주세요</div>
+        </div>`;
+    document.getElementById('skuDetailFooter').style.display = 'none';
 }
 
 // ==================== 필터 초기화 ====================

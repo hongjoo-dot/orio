@@ -83,59 +83,66 @@
 
 <!-- SKU 관리 섹션 (SKU 탭에서만 표시) -->
 <div id="skuSection" style="display:none;">
-    <!-- 요약 카드 -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px;">
-        <div class="card" style="text-align:center;padding:20px;">
-            <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">총매출 (VAT별도)</div>
-            <div id="skuTotalAmount" style="font-size:22px;font-weight:700;color:var(--primary);">-</div>
-        </div>
-        <div class="card" style="text-align:center;padding:20px;">
-            <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">총수량</div>
-            <div id="skuTotalQty" style="font-size:22px;font-weight:700;color:#6366f1;">-</div>
-        </div>
-        <div class="card" style="text-align:center;padding:20px;">
-            <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">상품수</div>
-            <div id="skuProductCount" style="font-size:22px;font-weight:700;color:var(--text-primary);">-</div>
-        </div>
-    </div>
-
-    <!-- SKU 테이블 -->
-    <div class="card" style="margin-bottom:24px;">
-        <div class="card-title" style="margin-bottom:16px;">
-            <i class="fa-solid fa-boxes-stacked"></i> SKU 목록
-            <span id="skuDataCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
-        </div>
-        <div class="table-wrapper">
-            <table class="table" id="skuTable">
-                <thead>
-                    <tr></tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
-    </div>
-
-</div>
-
-<!-- SKU 디테일 모달 -->
-<div class="modal" id="skuDetailModal">
-    <div class="modal-content" style="max-width:900px;">
-        <div class="modal-header">
-            <div class="modal-title">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <span id="skuDetailTitle">SKU 상세</span>
+    <!-- Master-Detail 7:3 레이아웃 -->
+    <div class="sku-master-detail">
+        <!-- 좌측: SKU 테이블 (70%) -->
+        <div class="sku-master">
+            <div class="card">
+                <div class="card-title" style="margin-bottom:16px;">
+                    <i class="fa-solid fa-boxes-stacked"></i> SKU 목록
+                    <span id="skuDataCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                </div>
+                <div class="table-wrapper">
+                    <table class="table" id="skuTable">
+                        <thead>
+                            <tr></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
-            <button class="modal-close" data-modal-close>&times;</button>
         </div>
-        <div class="modal-body" style="margin-bottom:0;padding:16px 24px;">
-            <div id="skuDetailContent"></div>
-        </div>
-        <div class="modal-footer" id="skuDetailFooter" style="display:none;padding:12px 24px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
-                <span id="skuDirtyCount" style="color:var(--warning);font-size:13px;"></span>
-                <button class="btn btn-primary btn-sm" onclick="saveSkuDetail()">
-                    <i class="fa-solid fa-check"></i> 저장
-                </button>
+
+        <!-- 우측: 디테일 패널 (30%, Sticky) -->
+        <div class="sku-detail-panel">
+            <!-- 요약 카드 -->
+            <div class="sku-summary-cards">
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">총매출 (VAT별도)</span>
+                    <span id="skuTotalAmount" class="sku-summary-value" style="color:var(--primary);">-</span>
+                </div>
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">총수량</span>
+                    <span id="skuTotalQty" class="sku-summary-value" style="color:#6366f1;">-</span>
+                </div>
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">상품수</span>
+                    <span id="skuProductCount" class="sku-summary-value" style="color:var(--text-main);">-</span>
+                </div>
+            </div>
+
+            <!-- SKU 상세 카드 -->
+            <div class="card sku-detail-card">
+                <div class="sku-detail-panel-header">
+                    <span class="sku-detail-panel-title">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <span id="skuDetailTitle">SKU 상세</span>
+                    </span>
+                </div>
+                <div id="skuDetailContent">
+                    <div class="sku-detail-empty">
+                        <i class="fa-solid fa-arrow-left" style="font-size:20px;margin-bottom:8px;opacity:0.3;"></i>
+                        <div>좌측 목록에서 SKU를 선택해주세요</div>
+                    </div>
+                </div>
+                <div id="skuDetailFooter" style="display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+                        <span id="skuDirtyCount" style="color:var(--warning);font-size:12px;"></span>
+                        <button class="btn btn-primary btn-sm" onclick="saveSkuDetail()" style="font-size:11px;padding:4px 12px;">
+                            <i class="fa-solid fa-check"></i> 저장
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -144,6 +151,102 @@
 
 {% block extra_css %}
 <style>
+    /* ===== SKU Master-Detail 레이아웃 ===== */
+    .sku-master-detail {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
+    }
+    .sku-master {
+        flex: 7;
+        min-width: 0;
+    }
+    .sku-detail-panel {
+        flex: 3;
+        min-width: 280px;
+        max-width: 360px;
+        position: sticky;
+        top: 20px;
+        max-height: calc(100vh - 40px);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-y: auto;
+    }
+    /* 요약 카드 */
+    .sku-summary-cards {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .sku-summary-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .sku-summary-label {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+    .sku-summary-value {
+        font-size: 15px;
+        font-weight: 700;
+    }
+    .sku-detail-card {
+        padding: 20px 18px !important;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+    }
+    .sku-detail-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+    }
+    .sku-detail-panel-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+    .sku-detail-panel-title i {
+        margin-right: 6px;
+        color: var(--primary);
+    }
+    .sku-detail-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 16px;
+        color: var(--text-muted);
+        font-size: 12px;
+        text-align: center;
+    }
+    /* 디테일 패널 내부 폰트 축소 & 여백 */
+    .sku-detail-panel .sku-channel-group { margin-bottom: 14px; }
+    .sku-detail-panel .sku-channel-header { font-size: 12px; padding: 8px 12px; }
+    .sku-detail-panel .sku-channel-subtotal { font-size: 11px; }
+    .sku-detail-panel .sku-source-section { padding: 6px 8px; }
+    .sku-detail-panel .sku-source-header { padding: 4px 0; margin-bottom: 4px; }
+    .sku-detail-panel .sku-source-badge { font-size: 10px; padding: 2px 8px; }
+    .sku-detail-panel .sku-irregular-label { font-size: 10px; }
+    .sku-detail-panel .sku-detail-table { margin: 4px 0 8px; }
+    .sku-detail-panel .sku-detail-table th { font-size: 10px; padding: 4px 8px; }
+    .sku-detail-panel .sku-detail-table td { font-size: 11px; padding: 4px 8px; }
+    .sku-detail-panel .sku-detail-table input[type="text"] { width: 76px; font-size: 11px; padding: 2px 6px; }
+    #skuDetailFooter {
+        padding: 10px 0 0;
+        margin-top: 12px;
+        border-top: 1px solid var(--border);
+    }
+
     #pivotTable th {
         white-space: nowrap;
         font-size: 12px;
@@ -277,5 +380,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/pages/expected_sales_integration.js?v=15"></script>
+<script src="/static/js/pages/expected_sales_integration.js?v=16"></script>
 {% endblock %}
