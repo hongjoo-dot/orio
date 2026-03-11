@@ -1,14 +1,14 @@
 /**
  * 예상 판매량 통합 조회 JavaScript
- * - 탭: 통합 조회 / BOM 분해 / SKU 관리
- * - 피벗 테이블: 행(브랜드/채널/상품) × 열(연월별)
- * - SKU 관리: SKU 합산 + 디테일 패널
+ * - 탭: 예상 매출 관리 / BOM 분해
+ * - 예상 매출 관리: 상품 합산 + 디테일 패널
+ * - BOM 분해: 피벗 테이블
  */
 
 const API_BASE = '/api/expected-sales-integration';
 let currentYearMonths = [];
 let currentData = [];
-let currentTab = 'integration';
+let currentTab = 'sku';
 let selectedSkuCode = null;
 
 // Sort state
@@ -49,20 +49,17 @@ function switchTab(tab) {
     currentTab = tab;
     pivotSortKey = null; pivotSortDir = null;
     skuSortKey = null; skuSortDir = null;
-    document.getElementById('tabIntegration').className =
-        tab === 'integration' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
-    document.getElementById('tabBom').className =
-        tab === 'bom' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
     document.getElementById('tabSku').className =
         tab === 'sku' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+    document.getElementById('tabBom').className =
+        tab === 'bom' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
 
     // 섹션 표시/숨김
-    document.getElementById('pivotSection').style.display = (tab === 'sku') ? 'none' : '';
+    document.getElementById('pivotSection').style.display = (tab === 'bom') ? '' : 'none';
     document.getElementById('skuSection').style.display = (tab === 'sku') ? '' : 'none';
 
-    if (tab !== 'sku') {
-        document.getElementById('tableTitle').textContent =
-            tab === 'bom' ? 'BOM 분해 결과' : '통합 조회 결과';
+    if (tab === 'bom') {
+        document.getElementById('tableTitle').textContent = 'BOM 분해 결과';
     }
 
     loadData();
@@ -178,120 +175,18 @@ async function loadData() {
         { const ow = msOwner.getSelectedString(); if (ow) params.owner = ow; }
         const qs = api.buildQueryString(params);
 
-        const endpoint = currentTab === 'bom' ? '/bom-data' : '/data';
-        const result = await api.get(`${API_BASE}${endpoint}${qs}`);
+        const result = await api.get(`${API_BASE}/bom-data${qs}`);
 
         currentYearMonths = result.year_months || [];
         currentData = result.data || [];
 
-        if (currentTab === 'bom') {
-            renderBomTable(currentYearMonths, currentData);
-        } else {
-            renderPivotTable(currentYearMonths, currentData);
-        }
+        renderBomTable(currentYearMonths, currentData);
         document.getElementById('dataCount').textContent = `(${currentData.length}개 상품)`;
     } catch (e) {
         console.error('데이터 로드 실패:', e);
         tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:40px;color:var(--danger);">
             데이터 로드 실패: ${escapeHtml(e.message)}</td></tr>`;
     }
-}
-
-// ==================== 통합 조회 피벗 테이블 렌더링 ====================
-function renderPivotTable(yearMonths, data) {
-    const table = document.getElementById('pivotTable');
-    const thead = table.querySelector('thead tr');
-    const tbody = table.querySelector('tbody');
-
-    thead.innerHTML = '';
-    table._layoutFixed = false;
-    table.style.tableLayout = '';
-
-    const staticCols = [
-        { header: '브랜드', sortKey: 'brand' },
-        { header: '채널', sortKey: 'channel' },
-        { header: '상품명', sortKey: 'name' }
-    ];
-
-    staticCols.forEach(col => {
-        const th = document.createElement('th');
-        th.textContent = col.header;
-        _makeSortable(th, col.sortKey, pivotSortKey, pivotSortDir, _handlePivotSort);
-        _addResizeHandle(th, table);
-        thead.appendChild(th);
-    });
-
-    yearMonths.forEach(ym => {
-        const thAmt = document.createElement('th');
-        thAmt.textContent = `${ym}(매출)`;
-        thAmt.style.textAlign = 'right';
-        _makeSortable(thAmt, `amt_${ym}`, pivotSortKey, pivotSortDir, _handlePivotSort);
-        _addResizeHandle(thAmt, table);
-        thead.appendChild(thAmt);
-
-        const thQty = document.createElement('th');
-        thQty.textContent = `${ym}(수량)`;
-        thQty.style.textAlign = 'right';
-        _makeSortable(thQty, `qty_${ym}`, pivotSortKey, pivotSortDir, _handlePivotSort);
-        _addResizeHandle(thQty, table);
-        thead.appendChild(thQty);
-    });
-
-    [{ header: '합계(매출)', key: 'totalAmount' }, { header: '합계(수량)', key: 'totalQuantity' }].forEach(col => {
-        const th = document.createElement('th');
-        th.textContent = col.header;
-        th.style.textAlign = 'right';
-        th.style.background = 'rgba(34,197,94,0.1)';
-        _makeSortable(th, col.key, pivotSortKey, pivotSortDir, _handlePivotSort);
-        _addResizeHandle(th, table);
-        thead.appendChild(th);
-    });
-
-    tbody.innerHTML = '';
-    const totalCols = 3 + yearMonths.length * 2 + 2;
-
-    if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align:center;padding:40px;color:var(--text-muted);">
-            데이터가 없습니다</td></tr>`;
-        return;
-    }
-
-    const sorted = _sortData(data, pivotSortKey, pivotSortDir);
-    sorted.forEach(item => {
-        const tr = document.createElement('tr');
-
-        tr.innerHTML = `
-            <td>${escapeHtml(item.brand)}</td>
-            <td>${escapeHtml(item.channel)}</td>
-            <td>${escapeHtml(item.name)}</td>
-        `;
-
-        yearMonths.forEach(ym => {
-            const ymData = item.months[ym] || { amount: 0, quantity: 0 };
-
-            const tdAmt = document.createElement('td');
-            tdAmt.className = 'col-amount';
-            tdAmt.textContent = ymData.amount ? ymData.amount.toLocaleString() : '-';
-            tr.appendChild(tdAmt);
-
-            const tdQty = document.createElement('td');
-            tdQty.className = 'col-qty';
-            tdQty.textContent = ymData.quantity ? ymData.quantity.toLocaleString() : '-';
-            tr.appendChild(tdQty);
-        });
-
-        const tdTotalAmt = document.createElement('td');
-        tdTotalAmt.className = 'col-total';
-        tdTotalAmt.textContent = item.totalAmount ? item.totalAmount.toLocaleString() : '-';
-        tr.appendChild(tdTotalAmt);
-
-        const tdTotalQty = document.createElement('td');
-        tdTotalQty.className = 'col-total';
-        tdTotalQty.textContent = item.totalQuantity ? item.totalQuantity.toLocaleString() : '-';
-        tr.appendChild(tdTotalQty);
-
-        tbody.appendChild(tr);
-    });
 }
 
 // ==================== BOM 분해 테이블 렌더링 ====================
@@ -407,7 +302,7 @@ async function loadSkuData(keepDetail = false) {
 function renderSkuTable(data, summary) {
     // 요약 카드 업데이트
     document.getElementById('skuTotalAmount').textContent =
-        summary.totalAmount ? Math.round(summary.totalAmount / 1.1).toLocaleString() : '-';
+        summary.totalAmount ? summary.totalAmount.toLocaleString() : '-';
     document.getElementById('skuTotalQty').textContent =
         summary.totalQuantity ? summary.totalQuantity.toLocaleString() : '-';
     document.getElementById('skuProductCount').textContent =
@@ -444,7 +339,7 @@ function _renderSkuHeader() {
     const cols = [
         { header: '코드', sortKey: 'code' },
         { header: '상품명', sortKey: 'name' },
-        { header: '매출합계', sortKey: 'totalAmount', align: 'right' },
+        { header: '매출합계(VAT포함)', sortKey: 'totalAmount', align: 'right' },
         { header: '수량합계', sortKey: 'totalQuantity', align: 'right' },
         { header: '상세', sortKey: null }
     ];
@@ -594,7 +489,7 @@ function renderSkuDetail(detailData) {
             table.className = 'sku-detail-table';
 
             const thead = document.createElement('thead');
-            thead.innerHTML = `<tr><th style="width:100px;">연월</th><th>매출</th><th>수량</th></tr>`;
+            thead.innerHTML = `<tr><th style="width:100px;">연월</th><th>매출(VAT포함)</th><th>수량</th></tr>`;
             table.appendChild(thead);
 
             const tbody = document.createElement('tbody');
@@ -610,7 +505,8 @@ function renderSkuDetail(detailData) {
                     <td>${escapeHtml(item.yearMonth)}</td>
                     <td style="text-align:right;">
                         <input type="text" value="${fmtAmt}" data-idx="${idx}" data-field="amount"
-                               onfocus="_skuInputFocus(this)" onblur="_skuInputBlur(this, ${idx})"
+                               readonly
+                               style="background:#f3f4f6;color:#6b7280;cursor:default;"
                                ${isWithdrawal ? 'disabled' : ''}>
                     </td>
                     <td style="text-align:right;">
@@ -674,6 +570,21 @@ function _skuInputBlur(el, idx) {
     // 블러 시 천단위 쉼표 적용
     const raw = _parseNum(el.value);
     el.value = raw.toLocaleString();
+
+    // 수량 변경 시 매출 자동 계산: 단가(기존매출/기존수량) × 새수량
+    if (el.dataset.field === 'quantity') {
+        const item = window._skuDetailItems[idx];
+        const origAmt = item.amount || 0;
+        const origQty = item.quantity || 0;
+        if (origQty > 0) {
+            const unitPrice = origAmt / origQty;
+            const newAmt = Math.round(unitPrice * raw);
+            const tr = document.getElementById(`skuDetail-${idx}`);
+            const amtInput = tr.querySelector('input[data-field="amount"]');
+            if (amtInput) amtInput.value = newAmt.toLocaleString();
+        }
+    }
+
     onSkuDetailInput(idx);
 }
 
@@ -721,13 +632,19 @@ async function saveSkuDetail() {
         items.push({
             recordId: item.recordId,
             sourceType: item.sourceCode,
+            channel: item.channel,
+            yearMonth: item.yearMonth,
             amount: _parseNum(inputs[0].value),
             quantity: _parseNum(inputs[1].value)
         });
     });
 
     try {
-        const result = await api.put(`${API_BASE}/sku-inline-update`, { items });
+        const result = await api.put(`${API_BASE}/sku-inline-update`, {
+            uniqueCode: selectedSkuCode,
+            productName: document.getElementById('skuDetailTitle').textContent.split(' - ').slice(1).join(' - '),
+            items
+        });
         showAlert(result.message, 'success');
 
         // 로컬 데이터 업데이트 & dirty 초기화
@@ -763,7 +680,7 @@ function closeSkuDetail() {
 function _resetDetailPanel() {
     selectedSkuCode = null;
     document.querySelectorAll('#skuTable tbody tr').forEach(tr => tr.classList.remove('active'));
-    document.getElementById('skuDetailTitle').textContent = 'SKU 상세';
+    document.getElementById('skuDetailTitle').textContent = '상품 상세';
     document.getElementById('skuDetailContent').innerHTML = `
         <div class="sku-detail-empty">
             <i class="fa-solid fa-arrow-left" style="font-size:20px;margin-bottom:8px;opacity:0.3;"></i>
@@ -846,11 +763,7 @@ function _handlePivotSort(sortKey) {
         pivotSortKey = sortKey;
         pivotSortDir = 'DESC';
     }
-    if (currentTab === 'bom') {
-        renderBomTable(currentYearMonths, currentData);
-    } else {
-        renderPivotTable(currentYearMonths, currentData);
-    }
+    renderBomTable(currentYearMonths, currentData);
 }
 
 function _handleSkuSort(sortKey) {
@@ -937,8 +850,8 @@ function downloadExcel() {
     { const ow = msOwner.getSelectedString(); if (ow) dlParams.owner = ow; }
     const qs = api.buildQueryString(dlParams);
 
-    const endpoint = currentTab === 'bom' ? '/bom-download' : '/download';
-    const filePrefix = currentTab === 'bom' ? 'BOM분해' : '예상판매량_통합';
+    const endpoint = '/bom-download';
+    const filePrefix = 'BOM분해';
 
     fetch(`${API_BASE}${endpoint}${qs}`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -951,7 +864,7 @@ function downloadExcel() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${filePrefix}_${from}~${to}.xlsx`;
+        a.download = `${filePrefix}_${ym}.xlsx`;
         document.body.appendChild(a);
         a.click();
         a.remove();

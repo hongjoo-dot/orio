@@ -51,22 +51,19 @@
 
 <!-- Tab Buttons -->
 <div style="display:flex;gap:8px;margin-bottom:24px;">
-    <button class="btn btn-primary btn-sm" id="tabIntegration" onclick="switchTab('integration')">
-        <i class="fa-solid fa-table"></i> 통합 조회
+    <button class="btn btn-primary btn-sm" id="tabSku" onclick="switchTab('sku')">
+        <i class="fa-solid fa-boxes-stacked"></i> 예상 매출 관리
     </button>
     <button class="btn btn-secondary btn-sm" id="tabBom" onclick="switchTab('bom')">
         <i class="fa-solid fa-sitemap"></i> BOM 분해
     </button>
-    <button class="btn btn-secondary btn-sm" id="tabSku" onclick="switchTab('sku')">
-        <i class="fa-solid fa-boxes-stacked"></i> SKU 관리
-    </button>
 </div>
 
-<!-- Pivot Table (통합 조회 / BOM 분해) -->
-<div id="pivotSection" class="card">
+<!-- Pivot Table (BOM 분해) -->
+<div id="pivotSection" class="card" style="display:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <div class="card-title" style="margin:0;">
-            <i class="fa-solid fa-table"></i> <span id="tableTitle">통합 조회 결과</span>
+            <i class="fa-solid fa-table"></i> <span id="tableTitle">BOM 분해 결과</span>
             <span id="dataCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
         </div>
         <button class="btn btn-success btn-sm" onclick="downloadExcel()">
@@ -81,15 +78,15 @@
     </div>
 </div>
 
-<!-- SKU 관리 섹션 (SKU 탭에서만 표시) -->
-<div id="skuSection" style="display:none;">
+<!-- 예상 매출 관리 섹션 (SKU 탭에서만 표시) -->
+<div id="skuSection">
     <!-- Master-Detail 7:3 레이아웃 -->
     <div class="sku-master-detail">
         <!-- 좌측: SKU 테이블 (70%) -->
         <div class="sku-master">
             <div class="card">
                 <div class="card-title" style="margin-bottom:16px;">
-                    <i class="fa-solid fa-boxes-stacked"></i> SKU 목록
+                    <i class="fa-solid fa-boxes-stacked"></i> 상품 목록
                     <span id="skuDataCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
                 </div>
                 <div class="table-wrapper">
@@ -108,7 +105,7 @@
             <!-- 요약 카드 -->
             <div class="sku-summary-cards">
                 <div class="sku-summary-item">
-                    <span class="sku-summary-label">총매출 (VAT별도)</span>
+                    <span class="sku-summary-label">총매출 (VAT포함)</span>
                     <span id="skuTotalAmount" class="sku-summary-value" style="color:var(--primary);">-</span>
                 </div>
                 <div class="sku-summary-item">
@@ -121,12 +118,12 @@
                 </div>
             </div>
 
-            <!-- SKU 상세 카드 -->
+            <!-- 상품 상세 카드 -->
             <div class="card sku-detail-card">
                 <div class="sku-detail-panel-header">
                     <span class="sku-detail-panel-title">
                         <i class="fa-solid fa-magnifying-glass"></i>
-                        <span id="skuDetailTitle">SKU 상세</span>
+                        <span id="skuDetailTitle">상품 상세</span>
                     </span>
                 </div>
                 <div id="skuDetailContent">
@@ -380,5 +377,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/pages/expected_sales_integration.js?v=16"></script>
+<script src="/static/js/pages/expected_sales_integration.js?v=20"></script>
 {% endblock %}

@@ -3,7 +3,7 @@ Expected1P (예상 매출 관리) Router
 - 사입 정기 예상 (Expected1PRegularProduct) API
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
@@ -248,18 +248,6 @@ async def bulk_update_expected_1p_regular(
 
         records = [item.dict() for item in request_body.items]
         result = expected_1p_regular_repo.bulk_update_amounts(records, user_id=user.user_id)
-
-        # Slack 알림 (비동기)
-        try:
-            from utils.slack_notifier import send_expected_upload_notification_async
-            send_expected_upload_notification_async(
-                sales_type="사입(1P)", data_type="정기",
-                total_rows=result['updated'], inserted=0, updated=result['updated'],
-                username=user.username if user else None,
-                action="인라인 수정"
-            )
-        except Exception:
-            pass
 
         return {
             "message": f"{result['updated']}건 수정 완료",
@@ -722,7 +710,7 @@ async def filter_delete_expected_1p_regular(
 @router.post("/upload")
 async def upload_expected_1p_regular(
     file: UploadFile = File(...),
-    input_month: Optional[str] = None,
+    input_month: Optional[str] = Form(None),
     request: Request = None,
     user: CurrentUser = Depends(require_permission("Expected1PRegular", "UPLOAD"))
 ):
@@ -970,7 +958,13 @@ async def upload_expected_1p_regular(
                 username=user.username if user else None
             )
         except Exception:
-            pass  # 알림 실패해도 업로드 결과에 영향 없음
+            pass
+
+        # 이전 입력월 대비 변동 감지
+        try:
+            _detect_upload_diff_1p_regular(default_input_month, records, user)
+        except Exception:
+            pass
 
         return {
             "message": "업로드 완료",
@@ -984,3 +978,79 @@ async def upload_expected_1p_regular(
         raise
     except Exception as e:
         raise HTTPException(500, f"업로드 실패: {str(e)}")
+
+
+def _detect_upload_diff_1p_regular(current_input_month: str, records: list, user):
+    """업로드된 데이터와 이전 입력월 데이터를 비교하여 변동 감지 알림"""
+    from core.database import get_db_cursor
+    from utils.slack_notifier import send_upload_diff_notification_async
+    from datetime import datetime
+
+    try:
+        dt = datetime.strptime(current_input_month, '%Y-%m')
+        if dt.month == 1:
+            prev_dt = dt.replace(year=dt.year - 1, month=12)
+        else:
+            prev_dt = dt.replace(month=dt.month - 1)
+        previous_input_month = prev_dt.strftime('%Y-%m')
+    except Exception:
+        return
+
+    upload_map = {}
+    for rec in records:
+        date_val = rec.get('Date')
+        if hasattr(date_val, 'strftime'):
+            ym = date_val.strftime('%Y-%m')
+        else:
+            ym = str(date_val)[:7]
+        key = (ym, rec.get('ChannelName', ''), rec.get('UniqueCode', ''))
+        upload_map[key] = {
+            'amount': float(rec.get('ExpectedAmount', 0) or 0),
+            'quantity': int(rec.get('ExpectedQuantity', 0) or 0),
+            'product_name': rec.get('ProductName', ''),
+        }
+
+    if not upload_map:
+        return
+
+    diffs = []
+    with get_db_cursor() as cursor:
+        cursor.execute("""
+            SELECT FORMAT([Date], 'yyyy-MM') AS YearMonth, ChannelName, UniqueCode,
+                   ISNULL(ExpectedAmount, 0), ISNULL(ExpectedQuantity, 0), ProductName
+            FROM [dbo].[Expected1PRegularProduct]
+            WHERE InputMonth = ?
+        """, previous_input_month)
+
+        prev_map = {}
+        for row in cursor.fetchall():
+            key = (row[0], row[1], row[2])
+            prev_map[key] = {
+                'amount': float(row[3]),
+                'quantity': int(row[4]),
+                'product_name': row[5] or '',
+            }
+
+    for key, curr in upload_map.items():
+        prev = prev_map.get(key)
+        if prev and (prev['amount'] != curr['amount'] or prev['quantity'] != curr['quantity']):
+            diffs.append({
+                'unique_code': key[2],
+                'product_name': curr['product_name'] or prev.get('product_name', ''),
+                'channel': key[1],
+                'year_month': key[0],
+                'prev_amount': prev['amount'],
+                'curr_amount': curr['amount'],
+                'prev_qty': prev['quantity'],
+                'curr_qty': curr['quantity'],
+            })
+
+    if diffs:
+        send_upload_diff_notification_async(
+            sales_type="사입(1P)",
+            data_type="정기",
+            current_input_month=current_input_month,
+            previous_input_month=previous_input_month,
+            diffs=diffs,
+            username=user.username if user else None,
+        )

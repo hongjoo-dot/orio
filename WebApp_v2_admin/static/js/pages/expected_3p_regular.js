@@ -70,45 +70,18 @@ const baseDetailColumns = [
         key: 'ExpectedAmount',
         header: '예상금액(VAT포함)',
         sortKey: 'ExpectedAmount',
-        render: (row) => {
-            const dirty = baseDirtyRows.get(row.Expected3PRegularID);
-            const val = dirty && dirty.ExpectedAmount !== undefined ? dirty.ExpectedAmount : (row.ExpectedAmount || 0);
-            const original = baseOriginalData[row.Expected3PRegularID];
-            const isDirty = original && val !== original.ExpectedAmount;
-            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
-                data-id="${row.Expected3PRegularID}" data-field="ExpectedAmount" data-tab="base"
-                value="${val.toLocaleString()}"
-                onfocus="onInlineFocus(this)" onblur="onAmountBlur(this)">`;
-        }
+        render: (row) => `<span class="col-amount" style="text-align:right;display:block;font-size:13px;">${(row.ExpectedAmount || 0).toLocaleString()}</span>`
     },
     {
         key: 'ExpectedQuantity',
         header: '예상수량',
         sortKey: 'ExpectedQuantity',
-        render: (row) => {
-            const dirty = baseDirtyRows.get(row.Expected3PRegularID);
-            const val = dirty && dirty.ExpectedQuantity !== undefined ? dirty.ExpectedQuantity : (row.ExpectedQuantity || 0);
-            const original = baseOriginalData[row.Expected3PRegularID];
-            const isDirty = original && val !== original.ExpectedQuantity;
-            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
-                data-id="${row.Expected3PRegularID}" data-field="ExpectedQuantity" data-tab="base"
-                value="${val.toLocaleString()}"
-                onfocus="onInlineFocus(this)" onblur="onQuantityBlur(this)">`;
-        }
+        render: (row) => `<span class="col-qty" style="text-align:right;display:block;font-size:13px;">${(row.ExpectedQuantity || 0).toLocaleString()}</span>`
     },
     {
         key: 'Notes',
         header: '비고',
-        render: (row) => {
-            const dirty = baseDirtyRows.get(row.Expected3PRegularID);
-            const val = dirty && dirty.Notes !== undefined ? dirty.Notes : (row.Notes || '');
-            const original = baseOriginalData[row.Expected3PRegularID];
-            const isDirty = original && val !== (original.Notes || '');
-            return `<input type="text" class="inline-input${isDirty ? ' dirty' : ''}"
-                data-id="${row.Expected3PRegularID}" data-field="Notes" data-tab="base"
-                value="${escapeHtml(val)}"
-                oninput="onNotesInput(this)">`;
-        }
+        render: (row) => `<span style="font-size:13px;">${escapeHtml(row.Notes || '-')}</span>`
     }
 ];
 
@@ -170,71 +143,29 @@ const irregDetailColumns = [
         key: 'IrregularPrice',
         header: '비정기가',
         sortKey: 'IrregularPrice',
-        render: (row) => {
-            const dirty = irregDirtyRows.get(row.Expected3PIrregularProductID);
-            const val = dirty && dirty.IrregularPrice !== undefined ? dirty.IrregularPrice : (row.IrregularPrice || 0);
-            const orig = irregOriginalData[row.Expected3PIrregularProductID];
-            const isDirty = orig && val !== orig.IrregularPrice;
-            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
-                data-id="${row.Expected3PIrregularProductID}" data-field="IrregularPrice" data-tab="irregular"
-                value="${val.toLocaleString()}"
-                onfocus="onInlineFocus(this)" onblur="onAmountBlur(this)">`;
-        }
+        render: (row) => `<span class="col-amount" style="text-align:right;display:block;font-size:13px;">${(row.IrregularPrice || 0).toLocaleString()}</span>`
     },
     {
         key: 'ExpectedSalesAmount',
         header: '예상매출',
         sortKey: 'ExpectedSalesAmount',
-        render: (row) => {
-            const dirty = irregDirtyRows.get(row.Expected3PIrregularProductID);
-            const val = dirty && dirty.ExpectedSalesAmount !== undefined ? dirty.ExpectedSalesAmount : (row.ExpectedSalesAmount || 0);
-            const orig = irregOriginalData[row.Expected3PIrregularProductID];
-            const isDirty = orig && val !== orig.ExpectedSalesAmount;
-            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
-                data-id="${row.Expected3PIrregularProductID}" data-field="ExpectedSalesAmount" data-tab="irregular"
-                value="${val.toLocaleString()}"
-                onfocus="onInlineFocus(this)" onblur="onAmountBlur(this)">`;
-        }
+        render: (row) => `<span class="col-amount" style="text-align:right;display:block;font-size:13px;">${(row.ExpectedSalesAmount || 0).toLocaleString()}</span>`
     },
     {
         key: 'ExpectedQuantity',
         header: '예상수량',
         sortKey: 'ExpectedQuantity',
-        render: (row) => {
-            const dirty = irregDirtyRows.get(row.Expected3PIrregularProductID);
-            const val = dirty && dirty.ExpectedQuantity !== undefined ? dirty.ExpectedQuantity : (row.ExpectedQuantity || 0);
-            const orig = irregOriginalData[row.Expected3PIrregularProductID];
-            const isDirty = orig && val !== orig.ExpectedQuantity;
-            return `<input type="text" class="inline-input amount${isDirty ? ' dirty' : ''}"
-                data-id="${row.Expected3PIrregularProductID}" data-field="ExpectedQuantity" data-tab="irregular"
-                value="${val.toLocaleString()}"
-                onfocus="onInlineFocus(this)" onblur="onQuantityBlur(this)">`;
-        }
+        render: (row) => `<span class="col-qty" style="text-align:right;display:block;font-size:13px;">${(row.ExpectedQuantity || 0).toLocaleString()}</span>`
     },
     {
         key: 'Notes',
         header: '비고',
-        render: (row) => {
-            const dirty = irregDirtyRows.get(row.Expected3PIrregularProductID);
-            const val = dirty && dirty.Notes !== undefined ? dirty.Notes : (row.Notes || '');
-            const orig = irregOriginalData[row.Expected3PIrregularProductID];
-            const isDirty = orig && val !== (orig.Notes || '');
-            return `<input type="text" class="inline-input${isDirty ? ' dirty' : ''}"
-                data-id="${row.Expected3PIrregularProductID}" data-field="Notes" data-tab="irregular"
-                value="${escapeHtml(val)}"
-                oninput="onNotesInput(this)">`;
-        }
+        render: (row) => `<span style="font-size:13px;">${escapeHtml(row.Notes || '-')}</span>`
     }
 ];
 
 // ==================== 초기화 ====================
 document.addEventListener('DOMContentLoaded', async function () {
-    window.addEventListener('beforeunload', (e) => {
-        if (baseDirtyRows.size > 0 || irregDirtyRows.size > 0) {
-            e.preventDefault();
-        }
-    });
-
     uploadModal = new ModalManager('uploadModal');
     uploadResultModal = new ModalManager('uploadResultModal');
 
@@ -504,17 +435,6 @@ async function loadChannelDetail(channel) {
         document.getElementById('baseItemCount').textContent = `(${items.length}개)`;
         renderChannelSummary(channel);
 
-        baseOriginalData = {};
-        items.forEach(item => {
-            baseOriginalData[item.Expected3PRegularID] = {
-                ExpectedAmount: item.ExpectedAmount || 0,
-                ExpectedQuantity: item.ExpectedQuantity || 0,
-                Notes: item.Notes || ''
-            };
-        });
-
-        baseDirtyRows.clear();
-        updateBaseSaveBar();
         baseDetailTableManager.clearSelection();
         updateBaseDetailActionButtons([]);
         baseDetailTableManager.render(items, baseDetailColumns);
@@ -557,8 +477,6 @@ function renderChannelSummary(channel) {
 function resetBaseDetail() {
     currentChannelId = null;
     currentChannelData = null;
-    baseOriginalData = {};
-    baseDirtyRows.clear();
     baseDetailItems = [];
 
     document.getElementById('baseDetailPlaceholder').style.display = 'flex';
@@ -566,7 +484,6 @@ function resetBaseDetail() {
     document.getElementById('baseChannelSummary').innerHTML = '';
     baseDetailTableManager.clearSelection();
     updateBaseDetailActionButtons([]);
-    updateBaseSaveBar();
 }
 
 // ==================== 정기: 액션 버튼 ====================
@@ -648,59 +565,13 @@ async function bulkDeleteBaseItems() {
     });
 }
 
-// ==================== 정기: 저장 ====================
+// ==================== 정기: 저장 (인라인 편집 제거됨 - 엑셀 업로드 전용) ====================
 async function saveBaseChanges() {
-    if (baseDirtyRows.size === 0) return;
-
-    const items = [];
-    baseDirtyRows.forEach((data, id) => {
-        items.push({
-            Expected3PRegularID: id,
-            ExpectedAmount: data.ExpectedAmount,
-            ExpectedQuantity: data.ExpectedQuantity,
-            Notes: data.Notes
-        });
-    });
-
-    try {
-        const result = await api.put('/api/expected/3p/regular/bulk-update', { items });
-        showAlert(`${result.updated}건이 저장되었습니다.`, 'success');
-
-        items.forEach(item => {
-            baseOriginalData[item.Expected3PRegularID] = {
-                ExpectedAmount: item.ExpectedAmount,
-                ExpectedQuantity: item.ExpectedQuantity,
-                Notes: item.Notes
-            };
-            const d = baseDetailItems.find(x => x.Expected3PRegularID === item.Expected3PRegularID);
-            if (d) {
-                d.ExpectedAmount = item.ExpectedAmount;
-                d.ExpectedQuantity = item.ExpectedQuantity;
-                d.Notes = item.Notes;
-            }
-        });
-
-        baseDirtyRows.clear();
-        updateBaseSaveBar();
-        document.querySelectorAll('#base-detail-table .inline-input.dirty').forEach(inp => inp.classList.remove('dirty'));
-        loadChannelMaster();
-    } catch (e) {
-        console.error('저장 실패:', e);
-        showAlert('저장 실패: ' + e.message, 'error');
-    }
+    // 인라인 편집 기능 제거됨
 }
 
 function updateBaseSaveBar() {
-    const saveBar = document.getElementById('baseSaveBar');
-    const countEl = document.getElementById('baseDirtyCount');
-    if (!saveBar) return;
-
-    if (baseDirtyRows.size > 0) {
-        saveBar.style.display = 'flex';
-        countEl.textContent = `${baseDirtyRows.size}건 변경됨`;
-    } else {
-        saveBar.style.display = 'none';
-    }
+    // 인라인 편집 기능 제거됨
 }
 
 // ================================================================
@@ -797,18 +668,6 @@ async function loadIrregDetail(irreg) {
         document.getElementById('irregDetailItemCount').textContent = `(${items.length}개)`;
         renderIrregSummary(irreg);
 
-        irregOriginalData = {};
-        items.forEach(item => {
-            irregOriginalData[item.Expected3PIrregularProductID] = {
-                IrregularPrice: item.IrregularPrice || 0,
-                ExpectedSalesAmount: item.ExpectedSalesAmount || 0,
-                ExpectedQuantity: item.ExpectedQuantity || 0,
-                Notes: item.Notes || ''
-            };
-        });
-
-        irregDirtyRows.clear();
-        updateIrregSaveBar();
         irregDetailTableManager.clearSelection();
         updateIrregDetailActionButtons([]);
         irregDetailTableManager.render(items, irregDetailColumns);
@@ -871,8 +730,6 @@ function renderIrregSummary(irreg) {
 function resetIrregDetail() {
     currentIrregId = null;
     currentIrregData = null;
-    irregOriginalData = {};
-    irregDirtyRows.clear();
     currentIrregDetailItems = [];
 
     document.getElementById('irregDetailPlaceholder').style.display = 'flex';
@@ -952,140 +809,25 @@ async function bulkDeleteIrregItems() {
     });
 }
 
-// ==================== 비정기: 저장 ====================
+// ==================== 비정기: 저장 (인라인 편집 제거됨 - 엑셀 업로드 전용) ====================
 async function saveIrregChanges() {
-    if (irregDirtyRows.size === 0) return;
-
-    const items = [];
-    irregDirtyRows.forEach((data, id) => {
-        items.push({
-            Expected3PIrregularProductID: id,
-            IrregularPrice: data.IrregularPrice,
-            ExpectedSalesAmount: data.ExpectedSalesAmount,
-            ExpectedQuantity: data.ExpectedQuantity,
-            Notes: data.Notes
-        });
-    });
-
-    try {
-        const result = await api.put('/api/expected/3p/irregular/products/bulk-update', { items });
-        showAlert(`${result.updated}건이 저장되었습니다.`, 'success');
-
-        items.forEach(item => {
-            irregOriginalData[item.Expected3PIrregularProductID] = {
-                IrregularPrice: item.IrregularPrice,
-                ExpectedSalesAmount: item.ExpectedSalesAmount,
-                ExpectedQuantity: item.ExpectedQuantity,
-                Notes: item.Notes
-            };
-            const d = currentIrregDetailItems.find(x => x.Expected3PIrregularProductID === item.Expected3PIrregularProductID);
-            if (d) {
-                d.IrregularPrice = item.IrregularPrice;
-                d.ExpectedSalesAmount = item.ExpectedSalesAmount;
-                d.ExpectedQuantity = item.ExpectedQuantity;
-                d.Notes = item.Notes;
-            }
-        });
-
-        irregDirtyRows.clear();
-        updateIrregSaveBar();
-        document.querySelectorAll('#irreg-detail-table .inline-input.dirty').forEach(inp => inp.classList.remove('dirty'));
-        loadIrregMaster();
-    } catch (e) {
-        console.error('저장 실패:', e);
-        showAlert('저장 실패: ' + e.message, 'error');
-    }
+    // 인라인 편집 기능 제거됨
 }
 
 function updateIrregSaveBar() {
-    const saveBar = document.getElementById('irregSaveBar');
-    const countEl = document.getElementById('irregDirtyCount');
-    if (!saveBar) return;
-
-    if (irregDirtyRows.size > 0) {
-        saveBar.style.display = 'flex';
-        countEl.textContent = `${irregDirtyRows.size}건 변경됨`;
-    } else {
-        saveBar.style.display = 'none';
-    }
+    // 인라인 편집 기능 제거됨
 }
 
 // ================================================================
 //  공통 기능
 // ================================================================
 
-// ==================== 인라인 편집 ====================
-function onInlineFocus(input) {
-    const raw = input.value.replace(/,/g, '');
-    input.value = raw;
-    input.select();
-}
-
-function onAmountBlur(input) {
-    let val = parseFloat(input.value.replace(/,/g, '')) || 0;
-    input.value = val.toLocaleString();
-    checkDirty(input);
-}
-
-function onQuantityBlur(input) {
-    let val = parseInt(input.value.replace(/,/g, '')) || 0;
-    input.value = val.toLocaleString();
-    checkDirty(input);
-}
-
-function onNotesInput(input) {
-    checkDirty(input);
-}
-
-function checkDirty(input) {
-    const tab = input.dataset.tab;
-    const id = parseInt(input.dataset.id);
-    const field = input.dataset.field;
-
-    const originalMap = tab === 'base' ? baseOriginalData : irregOriginalData;
-    const dirtyMap = tab === 'base' ? baseDirtyRows : irregDirtyRows;
-    const original = originalMap[id];
-    if (!original) return;
-
-    let currentVal;
-    if (field === 'ExpectedAmount' || field === 'IrregularPrice' || field === 'ExpectedSalesAmount') {
-        currentVal = parseFloat(input.value.replace(/,/g, '')) || 0;
-    } else if (field === 'ExpectedQuantity') {
-        currentVal = parseInt(input.value.replace(/,/g, '')) || 0;
-    } else {
-        currentVal = input.value;
-    }
-
-    const isDirty = currentVal !== original[field];
-    input.classList.toggle('dirty', isDirty);
-
-    const row = input.closest('tr');
-    const rowInputs = row.querySelectorAll('.inline-input');
-    let rowHasDirty = false;
-
-    rowInputs.forEach(inp => {
-        if (inp.classList.contains('dirty')) rowHasDirty = true;
-    });
-
-    if (rowHasDirty) {
-        const rowData = {};
-        rowInputs.forEach(inp => {
-            const f = inp.dataset.field;
-            if (f === 'ExpectedAmount' || f === 'IrregularPrice' || f === 'ExpectedSalesAmount') {
-                rowData[f] = parseFloat(inp.value.replace(/,/g, '')) || 0;
-            } else if (f === 'ExpectedQuantity') {
-                rowData[f] = parseInt(inp.value.replace(/,/g, '')) || 0;
-            } else {
-                rowData[f] = inp.value;
-            }
-        });
-        dirtyMap.set(id, rowData);
-    } else {
-        dirtyMap.delete(id);
-    }
-
-    if (tab === 'base') updateBaseSaveBar(); else updateIrregSaveBar();
-}
+// ==================== 인라인 편집 (제거됨 - 엑셀 업로드 전용) ====================
+function onInlineFocus(input) {}
+function onAmountBlur(input) {}
+function onQuantityBlur(input) {}
+function onNotesInput(input) {}
+function checkDirty(input) {}
 
 // ==================== 공통 데이터 로드 ====================
 async function loadBrands() {

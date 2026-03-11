@@ -1390,18 +1390,6 @@ async def update_expected_1p_irregular(
         if not success:
             raise HTTPException(500, "행사 수정 실패")
 
-        # Slack 알림 (비동기)
-        try:
-            from utils.slack_notifier import send_expected_upload_notification_async
-            send_expected_upload_notification_async(
-                sales_type="사입(1P)", data_type="비정기",
-                total_rows=1, inserted=0, updated=1,
-                username=user.username if user else None,
-                action="인라인 수정"
-            )
-        except Exception:
-            pass
-
         return {"IrregularID": expected_1p_irregular_id, **update_data}
     except HTTPException:
         raise
@@ -1517,19 +1505,6 @@ async def bulk_update_expected_1p_irregular_products_inline(
     try:
         items = [item.dict() for item in data.items]
         result = expected_1p_irregular_product_repo.bulk_update_products(items, user_id=user.user_id)
-
-        # Slack 알림 (비동기)
-        try:
-            from utils.slack_notifier import send_expected_upload_notification_async
-            updated_count = result.get('updated', len(items))
-            send_expected_upload_notification_async(
-                sales_type="사입(1P)", data_type="비정기",
-                total_rows=updated_count, inserted=0, updated=updated_count,
-                username=user.username if user else None,
-                action="인라인 수정"
-            )
-        except Exception:
-            pass
 
         return result
     except HTTPException:

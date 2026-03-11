@@ -1199,11 +1199,15 @@ async def get_sku_detail(
 class SkuInlineUpdateItem(BaseModel):
     recordId: int
     sourceType: str
+    channel: Optional[str] = None
+    yearMonth: Optional[str] = None
     amount: Optional[float] = None
     quantity: Optional[int] = None
 
 
 class SkuInlineUpdateRequest(BaseModel):
+    uniqueCode: Optional[str] = None
+    productName: Optional[str] = None
     items: List[SkuInlineUpdateItem]
 
 
@@ -1260,9 +1264,17 @@ async def sku_inline_update(
 
     total_updated = 0
     user_id = user.user_id
+    user_name = None
+    slack_changes = []  # Slack 알림용 변동 내역
 
     try:
         with get_db_cursor() as cursor:
+            # 사용자 이름 조회
+            cursor.execute("SELECT Name FROM [dbo].[User] WHERE UserID = ?", user_id)
+            name_row = cursor.fetchone()
+            if name_row:
+                user_name = name_row[0]
+
             for item in data.items:
                 config = _SOURCE_CONFIG.get(item.sourceType)
                 if not config:
@@ -1276,7 +1288,7 @@ async def sku_inline_update(
                 record_id = item.recordId
 
                 if amount_col:
-                    # 매출+수량 편집 (3P/1P 정기/비정기)
+                    # 매출+수량 편집 (3P/1P 정기/비정기) - VAT 포함 기준
                     cursor.execute(
                         f"SELECT {amount_col}, {qty_col} FROM [dbo].[{table}] WHERE {pk} = ?",
                         record_id
@@ -1287,10 +1299,12 @@ async def sku_inline_update(
 
                     new_amount = float(item.amount or 0)
                     new_qty = int(item.quantity or 0)
+                    old_amount = float(old_row[0] or 0)
+                    old_qty = int(old_row[1] or 0)
                     old_data = {amount_col: old_row[0], qty_col: old_row[1]}
                     new_data = {amount_col: new_amount, qty_col: new_qty}
 
-                    log_changes(cursor, table, pk, record_id, old_data, new_data, user_id)
+                    log_changes(cursor, table, record_id, old_data, new_data, user_id)
 
                     new_ex_vat = calculate_amount_ex_vat(new_amount)
                     cursor.execute(
@@ -1300,6 +1314,17 @@ async def sku_inline_update(
                             WHERE {pk} = ?""",
                         new_amount, new_ex_vat, new_qty, record_id
                     )
+
+                    if cursor.rowcount > 0:
+                        total_updated += 1
+                        if old_amount != new_amount or old_qty != new_qty:
+                            slack_changes.append({
+                                'channel': item.channel or '',
+                                'source_type': item.sourceType.replace('3P', '').replace('1P', '') if item.sourceType != '불출' else '불출',
+                                'year_month': item.yearMonth or '',
+                                'old_amount': old_amount, 'new_amount': new_amount,
+                                'old_qty': old_qty, 'new_qty': new_qty,
+                            })
                 else:
                     # 수량만 편집 (불출)
                     cursor.execute(
@@ -1311,10 +1336,11 @@ async def sku_inline_update(
                         continue
 
                     new_qty = int(item.quantity or 0)
+                    old_qty = int(old_row[0] or 0)
                     old_data = {qty_col: old_row[0]}
                     new_data = {qty_col: new_qty}
 
-                    log_changes(cursor, table, pk, record_id, old_data, new_data, user_id)
+                    log_changes(cursor, table, record_id, old_data, new_data, user_id)
 
                     cursor.execute(
                         f"""UPDATE [dbo].[{table}]
@@ -1323,12 +1349,33 @@ async def sku_inline_update(
                         new_qty, record_id
                     )
 
-                if cursor.rowcount > 0:
-                    total_updated += 1
+                    if cursor.rowcount > 0:
+                        total_updated += 1
+                        if old_qty != new_qty:
+                            slack_changes.append({
+                                'channel': item.channel or '불출',
+                                'source_type': '불출',
+                                'year_month': item.yearMonth or '',
+                                'old_amount': 0, 'new_amount': 0,
+                                'old_qty': old_qty, 'new_qty': new_qty,
+                            })
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"저장 실패: {str(e)}")
+
+    # Slack 알림 (비동기)
+    if slack_changes:
+        try:
+            from utils.slack_notifier import send_sku_inline_update_notification_async
+            send_sku_inline_update_notification_async(
+                unique_code=data.uniqueCode or '',
+                product_name=data.productName or '',
+                changes=slack_changes,
+                username=user_name or user.email,
+            )
+        except Exception:
+            pass
 
     return {"message": f"{total_updated}건이 수정되었습니다", "updated": total_updated}

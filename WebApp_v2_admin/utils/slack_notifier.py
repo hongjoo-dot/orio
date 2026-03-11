@@ -375,3 +375,176 @@ def send_expected_upload_notification_async(
         daemon=True
     )
     thread.start()
+
+
+# ==================== SKU 인라인 수정 알림 ====================
+
+def send_sku_inline_update_notification(
+    unique_code: str,
+    product_name: str,
+    changes: list,
+    username: Optional[str] = None,
+) -> bool:
+    """
+    SKU 인라인 수정 알림 (채널별 변동 상세)
+
+    Args:
+        unique_code: SKU 고유 코드
+        product_name: 상품명
+        changes: [{'channel': ..., 'source_type': ..., 'year_month': ...,
+                    'old_amount': ..., 'new_amount': ..., 'old_qty': ..., 'new_qty': ...}, ...]
+        username: 수정한 사용자
+
+    Returns:
+        bool: 전송 성공 여부
+    """
+    if not _is_notification_enabled('ExpectedSalesNotification'):
+        return False
+
+    message = f"📦 *[SKU 수정] 예상 판매량 변경*\n"
+    message += f"상품: {unique_code} ({product_name})\n\n"
+
+    for ch in changes:
+        channel = ch.get('channel', '')
+        source_type = ch.get('source_type', '')
+        year_month = ch.get('year_month', '')
+        old_amt = float(ch.get('old_amount', 0) or 0)
+        new_amt = float(ch.get('new_amount', 0) or 0)
+        old_qty = int(ch.get('old_qty', 0) or 0)
+        new_qty = int(ch.get('new_qty', 0) or 0)
+
+        label = f"{channel} {source_type}" if channel != '불출' else "불출"
+        parts = []
+
+        # 예상매출 변동
+        if old_amt != new_amt:
+            if old_amt > 0:
+                pct = ((new_amt - old_amt) / old_amt) * 100
+                sign = "+" if pct >= 0 else ""
+                parts.append(f"예상매출 {old_amt:,.0f} → {new_amt:,.0f} ({sign}{pct:.1f}%)")
+            else:
+                parts.append(f"예상매출 0 → {new_amt:,.0f}")
+
+        # 수량 변동
+        if old_qty != new_qty:
+            if old_qty > 0:
+                pct = ((new_qty - old_qty) / old_qty) * 100
+                sign = "+" if pct >= 0 else ""
+                parts.append(f"수량 {old_qty:,} → {new_qty:,} ({sign}{pct:.1f}%)")
+            else:
+                parts.append(f"수량 0 → {new_qty:,}")
+
+        if parts:
+            message += f"  {label} ({year_month}) | {' / '.join(parts)}\n"
+
+    message += f"\n수정 건수: {len(changes)}건\n"
+    who = username or "시스템"
+    message += f"담당: {who} | {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+    return send_slack_notification(message)
+
+
+def send_sku_inline_update_notification_async(
+    unique_code: str,
+    product_name: str,
+    changes: list,
+    username: Optional[str] = None,
+) -> None:
+    """SKU 인라인 수정 알림 (비동기)"""
+    import threading
+    thread = threading.Thread(
+        target=send_sku_inline_update_notification,
+        args=(unique_code, product_name, changes),
+        kwargs={'username': username},
+        daemon=True
+    )
+    thread.start()
+
+
+# ==================== 엑셀 업로드 변동 감지 알림 ====================
+
+def send_upload_diff_notification(
+    sales_type: str,
+    data_type: str,
+    current_input_month: str,
+    previous_input_month: str,
+    diffs: list,
+    username: Optional[str] = None,
+) -> bool:
+    """
+    엑셀 업로드 시 이전 입력월 대비 변동 감지 알림
+
+    Args:
+        sales_type: '위탁(3P)' 또는 '사입(1P)'
+        data_type: '정기' 또는 '비정기'
+        current_input_month: 현재 입력월 (e.g. '2026-04')
+        previous_input_month: 이전 입력월 (e.g. '2026-03')
+        diffs: [{'unique_code': ..., 'product_name': ..., 'channel': ..., 'year_month': ...,
+                 'prev_amount': ..., 'curr_amount': ..., 'prev_qty': ..., 'curr_qty': ...}, ...]
+        username: 업로드한 사용자
+    """
+    if not _is_notification_enabled('ExpectedSalesNotification'):
+        return False
+
+    if not diffs:
+        return False
+
+    label = f"{sales_type} {data_type}"
+    message = f"⚠️ *[{label}] 예상 판매량 변동 감지*\n"
+    message += f"입력월: {previous_input_month} → {current_input_month}\n\n"
+
+    for d in diffs[:15]:
+        code = d.get('unique_code', '')
+        channel = d.get('channel', '')
+        ym = d.get('year_month', '')
+        prev_amt = float(d.get('prev_amount', 0) or 0)
+        curr_amt = float(d.get('curr_amount', 0) or 0)
+        prev_qty = int(d.get('prev_qty', 0) or 0)
+        curr_qty = int(d.get('curr_qty', 0) or 0)
+
+        parts = []
+        if prev_amt != curr_amt:
+            if prev_amt > 0:
+                pct = ((curr_amt - prev_amt) / prev_amt) * 100
+                sign = "+" if pct >= 0 else ""
+                parts.append(f"예상매출 {sign}{pct:.0f}%")
+            else:
+                parts.append(f"예상매출 신규")
+        if prev_qty != curr_qty:
+            if prev_qty > 0:
+                pct = ((curr_qty - prev_qty) / prev_qty) * 100
+                sign = "+" if pct >= 0 else ""
+                parts.append(f"수량 {sign}{pct:.0f}%")
+            else:
+                parts.append(f"수량 신규")
+
+        if parts:
+            message += f"  {code} | {channel} {ym} | {', '.join(parts)}\n"
+
+    if len(diffs) > 15:
+        message += f"  ... 외 {len(diffs) - 15}건\n"
+
+    message += f"\n변동 총 {len(diffs)}건\n"
+    who = username or "시스템"
+    message += f"담당: {who} | {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+    return send_slack_notification(message)
+
+
+def send_upload_diff_notification_async(
+    sales_type: str,
+    data_type: str,
+    current_input_month: str,
+    previous_input_month: str,
+    diffs: list,
+    username: Optional[str] = None,
+) -> None:
+    """엑셀 업로드 변동 감지 알림 (비동기)"""
+    import threading
+    thread = threading.Thread(
+        target=send_upload_diff_notification,
+        args=(sales_type, data_type, current_input_month, previous_input_month, diffs),
+        kwargs={'username': username},
+        daemon=True
+    )
+    thread.start()
