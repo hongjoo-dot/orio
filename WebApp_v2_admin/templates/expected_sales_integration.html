@@ -59,22 +59,68 @@
     </button>
 </div>
 
-<!-- Pivot Table (BOM 분해) -->
-<div id="pivotSection" class="card" style="display:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div class="card-title" style="margin:0;">
-            <i class="fa-solid fa-table"></i> <span id="tableTitle">BOM 분해 결과</span>
-            <span id="dataCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+<!-- BOM 분해 섹션 (BOM 탭에서만 표시) -->
+<div id="bomSection" style="display:none;">
+    <div class="sku-master-detail">
+        <!-- 좌측: SKU 발주 수량 테이블 -->
+        <div class="sku-master">
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <div class="card-title" style="margin:0;">
+                        <i class="fa-solid fa-cubes"></i> SKU 발주 수량
+                        <span id="bomDataCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                    </div>
+                    <button class="btn btn-success btn-sm" onclick="downloadExcel()">
+                        <i class="fa-solid fa-file-excel"></i> 엑셀 다운로드
+                    </button>
+                </div>
+                <div class="table-wrapper">
+                    <table class="table" id="bomSkuTable">
+                        <thead><tr></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        <button class="btn btn-success btn-sm" onclick="downloadExcel()">
-            <i class="fa-solid fa-file-excel"></i> 엑셀 다운로드
-        </button>
-    </div>
-    <div class="table-wrapper">
-        <table class="table" id="pivotTable">
-            <thead><tr></tr></thead>
-            <tbody></tbody>
-        </table>
+
+        <!-- 우측: 요약 + 분해 상세 패널 -->
+        <div class="sku-detail-panel">
+            <!-- 요약 카드 -->
+            <div class="sku-summary-cards">
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">총 SKU수</span>
+                    <span id="bomSkuCount" class="sku-summary-value" style="color:var(--text-main);">-</span>
+                </div>
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">총 발주수량</span>
+                    <span id="bomTotalQty" class="sku-summary-value" style="color:var(--primary);">-</span>
+                </div>
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">세트분해</span>
+                    <span id="bomFromSetQty" class="sku-summary-value" style="color:#6366f1;">-</span>
+                </div>
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">단품통과</span>
+                    <span id="bomFromSingleQty" class="sku-summary-value" style="color:#22c55e;">-</span>
+                </div>
+            </div>
+
+            <!-- 분해 상세 카드 -->
+            <div class="card sku-detail-card">
+                <div class="sku-detail-panel-header">
+                    <span class="sku-detail-panel-title">
+                        <i class="fa-solid fa-diagram-project"></i>
+                        <span id="bomDetailTitle">분해 상세</span>
+                    </span>
+                </div>
+                <div id="bomDetailContent">
+                    <div class="sku-detail-empty">
+                        <i class="fa-solid fa-arrow-left" style="font-size:20px;margin-bottom:8px;opacity:0.3;"></i>
+                        <div>좌측 목록에서 SKU를 선택해주세요</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -244,13 +290,65 @@
         border-top: 1px solid var(--border);
     }
 
-    #pivotTable th {
-        white-space: nowrap;
+    /* BOM SKU 테이블 */
+    #bomSkuTable thead th { text-align: center; }
+    #bomSkuTable tbody tr {
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    #bomSkuTable tbody tr:hover { background: rgba(99,102,241,0.06); }
+    #bomSkuTable tbody tr.active {
+        background: rgba(99,102,241,0.12);
+        font-weight: 600;
+    }
+    /* BOM 디테일 패널 */
+    .bom-set-group {
+        margin-bottom: 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+    }
+    .bom-set-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: rgba(99,102,241,0.08);
+        font-weight: 600;
         font-size: 12px;
     }
-    #pivotTable td {
-        font-size: 13px;
+    .bom-set-header .bom-qty-badge {
+        font-size: 10px;
+        font-weight: 600;
+        color: #6366f1;
+        background: rgba(99,102,241,0.12);
+        padding: 2px 8px;
+        border-radius: 8px;
     }
+    .bom-detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 12px;
+        font-size: 11px;
+        border-top: 1px solid rgba(148,163,184,0.1);
+    }
+    .bom-detail-row .bom-detail-label {
+        color: var(--text-muted);
+    }
+    .bom-detail-row .bom-detail-qty {
+        font-weight: 600;
+        color: var(--text-main);
+    }
+    .bom-section-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        padding: 10px 0 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
     .col-amount {
         text-align: right;
         color: var(--text-primary);
@@ -377,5 +475,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/pages/expected_sales_integration.js?v=20"></script>
+<script src="/static/js/pages/expected_sales_integration.js?v=22"></script>
 {% endblock %}

@@ -2,18 +2,17 @@
  * 예상 판매량 통합 조회 JavaScript
  * - 탭: 예상 매출 관리 / BOM 분해
  * - 예상 매출 관리: 상품 합산 + 디테일 패널
- * - BOM 분해: 피벗 테이블
+ * - BOM 분해: SKU 중심 발주 수량 + 분해 상세
  */
 
 const API_BASE = '/api/expected-sales-integration';
-let currentYearMonths = [];
-let currentData = [];
 let currentTab = 'sku';
 let selectedSkuCode = null;
+let selectedBomCode = null;
 
 // Sort state
-let pivotSortKey = null, pivotSortDir = null;
 let skuSortKey = null, skuSortDir = null;
+let bomSortKey = null, bomSortDir = null;
 
 // Multi-select instances
 let msBrand, msChannel, msOwner;
@@ -31,9 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await onRangeChange();
     } catch (e) {
         console.error('초기화 실패:', e);
-        const tbody = document.querySelector('#pivotTable tbody');
-        if (tbody) tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:40px;color:var(--danger);">
-            초기화 실패: ${e.message}</td></tr>`;
+        console.error('초기화 상세:', e.message);
     }
 
     // 인라인 편집 이탈 방지
@@ -47,20 +44,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ==================== 탭 전환 ====================
 function switchTab(tab) {
     currentTab = tab;
-    pivotSortKey = null; pivotSortDir = null;
     skuSortKey = null; skuSortDir = null;
+    bomSortKey = null; bomSortDir = null;
     document.getElementById('tabSku').className =
         tab === 'sku' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
     document.getElementById('tabBom').className =
         tab === 'bom' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
 
     // 섹션 표시/숨김
-    document.getElementById('pivotSection').style.display = (tab === 'bom') ? '' : 'none';
+    document.getElementById('bomSection').style.display = (tab === 'bom') ? '' : 'none';
     document.getElementById('skuSection').style.display = (tab === 'sku') ? '' : 'none';
-
-    if (tab === 'bom') {
-        document.getElementById('tableTitle').textContent = 'BOM 분해 결과';
-    }
 
     loadData();
 }
@@ -158,13 +151,24 @@ async function loadData() {
         return;
     }
 
-    const tbody = document.querySelector('#pivotTable tbody');
-    tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:40px;">
+    if (currentTab === 'bom') {
+        await loadBomSummary();
+        return;
+    }
+}
+
+// ==================== BOM 분해 v2 ====================
+
+async function loadBomSummary() {
+    const tbody = document.querySelector('#bomSkuTable tbody');
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;">
         <div class="spinner spinner-lg"></div>
         <div style="margin-top:12px;color:var(--text-muted);">데이터를 불러오는 중...</div>
     </td></tr>`;
+    _resetBomDetailPanel();
 
     try {
+        const ym = document.getElementById('filterYearMonth').value;
         const params = {
             year_month_from: ym,
             year_month_to: ym,
@@ -175,93 +179,228 @@ async function loadData() {
         { const ow = msOwner.getSelectedString(); if (ow) params.owner = ow; }
         const qs = api.buildQueryString(params);
 
-        const result = await api.get(`${API_BASE}/bom-data${qs}`);
-
-        currentYearMonths = result.year_months || [];
-        currentData = result.data || [];
-
-        renderBomTable(currentYearMonths, currentData);
-        document.getElementById('dataCount').textContent = `(${currentData.length}개 상품)`;
+        const result = await api.get(`${API_BASE}/bom-summary${qs}`);
+        renderBomSummaryTable(result.data, result.summary);
     } catch (e) {
-        console.error('데이터 로드 실패:', e);
-        tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:40px;color:var(--danger);">
+        console.error('BOM 데이터 로드 실패:', e);
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--danger);">
             데이터 로드 실패: ${escapeHtml(e.message)}</td></tr>`;
     }
 }
 
-// ==================== BOM 분해 테이블 렌더링 ====================
-function renderBomTable(yearMonths, data) {
-    const table = document.getElementById('pivotTable');
-    const thead = table.querySelector('thead tr');
-    const tbody = table.querySelector('tbody');
+function renderBomSummaryTable(data, summary) {
+    // 요약 카드
+    document.getElementById('bomSkuCount').textContent = summary.skuCount ? summary.skuCount.toLocaleString() : '-';
+    document.getElementById('bomTotalQty').textContent = summary.totalQty ? summary.totalQty.toLocaleString() : '-';
+    document.getElementById('bomFromSetQty').textContent = summary.fromSetQty ? summary.fromSetQty.toLocaleString() : '-';
+    document.getElementById('bomFromSingleQty').textContent = summary.fromSingleQty ? summary.fromSingleQty.toLocaleString() : '-';
+    document.getElementById('bomDataCount').textContent = `(${data.length}개 SKU)`;
 
-    thead.innerHTML = '';
-    table._layoutFixed = false;
-    table.style.tableLayout = '';
+    window._bomItems = data;
+    _renderBomSkuHeader();
 
-    const staticCols = [
-        { header: '브랜드', sortKey: 'brand' },
-        { header: '채널', sortKey: 'channel' },
-        { header: '상품명', sortKey: 'name' }
-    ];
-
-    staticCols.forEach(col => {
-        const th = document.createElement('th');
-        th.textContent = col.header;
-        _makeSortable(th, col.sortKey, pivotSortKey, pivotSortDir, _handlePivotSort);
-        _addResizeHandle(th, table);
-        thead.appendChild(th);
-    });
-
-    yearMonths.forEach(ym => {
-        const th = document.createElement('th');
-        th.textContent = `${ym}(수량)`;
-        th.style.textAlign = 'right';
-        _makeSortable(th, `qty_${ym}`, pivotSortKey, pivotSortDir, _handlePivotSort);
-        _addResizeHandle(th, table);
-        thead.appendChild(th);
-    });
-
-    const thTotal = document.createElement('th');
-    thTotal.textContent = '합계(수량)';
-    thTotal.style.textAlign = 'right';
-    thTotal.style.background = 'rgba(34,197,94,0.1)';
-    _makeSortable(thTotal, 'totalQuantity', pivotSortKey, pivotSortDir, _handlePivotSort);
-    _addResizeHandle(thTotal, table);
-    thead.appendChild(thTotal);
-
+    const tbody = document.querySelector('#bomSkuTable tbody');
     tbody.innerHTML = '';
-    const totalCols = 3 + yearMonths.length + 1;
 
     if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align:center;padding:40px;color:var(--text-muted);">
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">
             데이터가 없습니다</td></tr>`;
         return;
     }
 
-    const sorted = _sortData(data, pivotSortKey, pivotSortDir);
-    sorted.forEach(item => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${escapeHtml(item.brand)}</td>
-            <td>${escapeHtml(item.channel)}</td>
-            <td>${escapeHtml(item.name)}</td>
-        `;
+    const sorted = _sortData(data, bomSortKey, bomSortDir);
+    _renderBomSkuRows(sorted, tbody);
+}
 
-        yearMonths.forEach(ym => {
-            const qty = item.months[ym] || 0;
-            const td = document.createElement('td');
-            td.className = 'col-qty';
-            td.textContent = qty ? qty.toLocaleString() : '-';
-            tr.appendChild(td);
+function _renderBomSkuHeader() {
+    const table = document.getElementById('bomSkuTable');
+    const thead = table.querySelector('thead tr');
+    thead.innerHTML = '';
+    table._layoutFixed = false;
+    table.style.tableLayout = '';
+
+    const cols = [
+        { header: 'SKU코드', sortKey: 'code' },
+        { header: '상품명', sortKey: 'name' },
+        { header: '총 발주수량', sortKey: 'totalQty', align: 'right' },
+        { header: '세트유래', sortKey: 'fromSet', align: 'right' },
+        { header: '단품', sortKey: 'fromSingle', align: 'right' },
+        { header: '상세', sortKey: null }
+    ];
+
+    cols.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col.header;
+        if (col.align) th.style.textAlign = col.align;
+        if (col.sortKey) {
+            _makeSortable(th, col.sortKey, bomSortKey, bomSortDir, _handleBomSort);
+        }
+        _addResizeHandle(th, table);
+        thead.appendChild(th);
+    });
+}
+
+function _renderBomSkuRows(data, tbody) {
+    tbody.innerHTML = data.map(item => {
+        const origIdx = window._bomItems.indexOf(item);
+        return `
+        <tr style="cursor:pointer" onclick="onBomRowClick(${origIdx}, this)">
+            <td>${escapeHtml(item.code)}</td>
+            <td>${escapeHtml(item.name)}</td>
+            <td class="col-qty" style="font-weight:600;">${item.totalQty ? item.totalQty.toLocaleString() : '-'}</td>
+            <td class="col-qty">${item.fromSet ? item.fromSet.toLocaleString() : '-'}</td>
+            <td style="text-align:right;color:#22c55e;">${item.fromSingle ? item.fromSingle.toLocaleString() : '-'}</td>
+            <td style="text-align:center;"><button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); onBomRowClick(${origIdx}, this.closest('tr'));" style="padding:2px 10px;font-size:11px;">상세</button></td>
+        </tr>`;
+    }).join('');
+}
+
+function onBomRowClick(idx, trEl) {
+    const item = window._bomItems[idx];
+    if (!item) return;
+    selectBomSku(item.code, item.name, trEl);
+}
+
+async function selectBomSku(code, name, rowEl) {
+    selectedBomCode = code;
+
+    // 활성 행 표시
+    document.querySelectorAll('#bomSkuTable tbody tr').forEach(tr => tr.classList.remove('active'));
+    if (rowEl) rowEl.classList.add('active');
+
+    document.getElementById('bomDetailTitle').textContent = `${code} - ${name}`;
+    const contentEl = document.getElementById('bomDetailContent');
+    contentEl.innerHTML = `<div style="text-align:center;padding:30px;">
+        <div class="spinner"></div>
+        <div style="margin-top:8px;color:var(--text-muted);font-size:11px;">불러오는 중...</div>
+    </div>`;
+
+    try {
+        const ym = document.getElementById('filterYearMonth').value;
+        const detailParams = {
+            unique_code: code,
+            year_month_from: ym,
+            year_month_to: ym,
+            input_month: document.getElementById('filterInputMonth').value,
+            brand: msBrand.getSelectedString(),
+            channel: msChannel.getSelectedString()
+        };
+        { const ow = msOwner.getSelectedString(); if (ow) detailParams.owner = ow; }
+        const qs = api.buildQueryString(detailParams);
+
+        const detailData = await api.get(`${API_BASE}/bom-detail${qs}`);
+        renderBomDetail(detailData);
+    } catch (e) {
+        console.error('BOM 디테일 로드 실패:', e);
+        contentEl.innerHTML = `<div style="text-align:center;padding:40px;color:var(--danger);">
+            디테일 로드 실패: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function renderBomDetail(detailData) {
+    const container = document.getElementById('bomDetailContent');
+    container.innerHTML = '';
+
+    const { fromSet, fromSingle } = detailData;
+
+    if (fromSet.length === 0 && fromSingle.length === 0) {
+        container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">
+            상세 데이터가 없습니다</div>`;
+        return;
+    }
+
+    // 세트 분해 내역
+    if (fromSet.length > 0) {
+        const label = document.createElement('div');
+        label.className = 'bom-section-label';
+        label.innerHTML = '<i class="fa-solid fa-diagram-project" style="margin-right:4px;"></i> 세트 분해 내역';
+        container.appendChild(label);
+
+        fromSet.forEach(setGroup => {
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'bom-set-group';
+
+            // 세트 헤더
+            const header = document.createElement('div');
+            header.className = 'bom-set-header';
+            header.innerHTML = `<span>${escapeHtml(setGroup.parentName)}</span>`;
+            groupDiv.appendChild(header);
+
+            // 상세 행
+            setGroup.details.forEach(d => {
+                const row = document.createElement('div');
+                row.className = 'bom-detail-row';
+                row.innerHTML = `
+                    <span class="bom-detail-label">${escapeHtml(d.channel)} / ${escapeHtml(d.sourceType)} / ${escapeHtml(d.yearMonth)}</span>
+                    <span class="bom-detail-qty">${(d.qty || 0).toLocaleString()}</span>
+                `;
+                groupDiv.appendChild(row);
+            });
+
+            container.appendChild(groupDiv);
+        });
+    }
+
+    // 단품 내역
+    if (fromSingle.length > 0) {
+        const label = document.createElement('div');
+        label.className = 'bom-section-label';
+        label.innerHTML = '<i class="fa-solid fa-cube" style="margin-right:4px;"></i> 단품 내역';
+        container.appendChild(label);
+
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'bom-set-group';
+
+        const singleTotal = fromSingle.reduce((s, d) => s + (d.qty || 0), 0);
+        const header = document.createElement('div');
+        header.className = 'bom-set-header';
+        header.style.background = 'rgba(34,197,94,0.08)';
+        header.innerHTML = `
+            <span>단품 (BOM 미등록)</span>
+            <span style="font-size:11px;color:var(--text-muted);">합계 <b style="color:#22c55e;">${singleTotal.toLocaleString()}</b></span>
+        `;
+        groupDiv.appendChild(header);
+
+        fromSingle.forEach(d => {
+            const row = document.createElement('div');
+            row.className = 'bom-detail-row';
+            row.innerHTML = `
+                <span class="bom-detail-label">${escapeHtml(d.channel)} / ${escapeHtml(d.sourceType)} / ${escapeHtml(d.yearMonth)}</span>
+                <span class="bom-detail-qty">${(d.qty || 0).toLocaleString()}</span>
+            `;
+            groupDiv.appendChild(row);
         });
 
-        const tdTotal = document.createElement('td');
-        tdTotal.className = 'col-total';
-        tdTotal.textContent = item.totalQuantity ? item.totalQuantity.toLocaleString() : '-';
-        tr.appendChild(tdTotal);
+        container.appendChild(groupDiv);
+    }
+}
 
-        tbody.appendChild(tr);
+function _resetBomDetailPanel() {
+    selectedBomCode = null;
+    document.querySelectorAll('#bomSkuTable tbody tr').forEach(tr => tr.classList.remove('active'));
+    document.getElementById('bomDetailTitle').textContent = '분해 상세';
+    document.getElementById('bomDetailContent').innerHTML = `
+        <div class="sku-detail-empty">
+            <i class="fa-solid fa-arrow-left" style="font-size:20px;margin-bottom:8px;opacity:0.3;"></i>
+            <div>좌측 목록에서 SKU를 선택해주세요</div>
+        </div>`;
+}
+
+function _handleBomSort(sortKey) {
+    if (bomSortKey === sortKey) {
+        bomSortDir = bomSortDir === 'DESC' ? 'ASC' : 'DESC';
+    } else {
+        bomSortKey = sortKey;
+        bomSortDir = 'DESC';
+    }
+    const tbody = document.querySelector('#bomSkuTable tbody');
+    if (!window._bomItems || window._bomItems.length === 0) return;
+    _renderBomSkuRows(_sortData(window._bomItems, bomSortKey, bomSortDir), tbody);
+    document.querySelectorAll('#bomSkuTable thead th[data-sortable]').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.getAttribute('data-sortable') === bomSortKey) {
+            th.classList.add(bomSortDir === 'ASC' ? 'sort-asc' : 'sort-desc');
+        }
     });
 }
 
@@ -756,16 +895,6 @@ function _addResizeHandle(th, table) {
     th.appendChild(handle);
 }
 
-function _handlePivotSort(sortKey) {
-    if (pivotSortKey === sortKey) {
-        pivotSortDir = pivotSortDir === 'DESC' ? 'ASC' : 'DESC';
-    } else {
-        pivotSortKey = sortKey;
-        pivotSortDir = 'DESC';
-    }
-    renderBomTable(currentYearMonths, currentData);
-}
-
 function _handleSkuSort(sortKey) {
     if (skuSortKey === sortKey) {
         skuSortDir = skuSortDir === 'DESC' ? 'ASC' : 'DESC';
@@ -798,7 +927,7 @@ function _sortData(data, key, dir) {
             va = (a[key] || ''); vb = (b[key] || '');
             return mult * va.localeCompare(vb, 'ko');
         }
-        if (key === 'totalAmount' || key === 'totalQuantity') {
+        if (key === 'totalAmount' || key === 'totalQuantity' || key === 'totalQty' || key === 'fromSet' || key === 'fromSingle') {
             va = a[key] || 0; vb = b[key] || 0;
             return mult * (va - vb);
         }

@@ -863,6 +863,517 @@ async def download_bom_excel(
     )
 
 
+# ========== BOM 분해 v2 (SKU 중심 요약 + 상세) ==========
+
+def _build_bom_summary_query(
+    year_month_from: str, year_month_to: str,
+    input_month: Optional[str] = None,
+    brand: Optional[str] = None,
+    channel: Optional[str] = None,
+    owner_channels: Optional[list] = None
+):
+    """BOM 분해 SKU 중심 요약 쿼리 — 단품통과/세트분해 구분 포함"""
+    params = []
+    sub_queries = []
+
+    def _reg_where(alias):
+        w = [f"FORMAT({alias}.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+        p = [year_month_from, year_month_to]
+        if input_month:
+            w.append(f"{alias}.InputMonth = ?"); p.append(input_month)
+        _add_in_filter(w, p, brand, f"{alias}.BrandName")
+        _add_in_filter(w, p, channel, f"{alias}.ChannelName")
+        _add_owner_filter(w, p, owner_channels, f"{alias}.ChannelName")
+        return ' AND '.join(w), p
+
+    def _irreg_where(pa):
+        w = [f"FORMAT({pa}.StartDate,'yyyy-MM') BETWEEN ? AND ?"]
+        p = [year_month_from, year_month_to]
+        if input_month:
+            w.append(f"{pa}.InputMonth = ?"); p.append(input_month)
+        _add_in_filter(w, p, brand, f"{pa}.BrandName")
+        _add_in_filter(w, p, channel, f"{pa}.ChannelName")
+        _add_owner_filter(w, p, owner_channels, f"{pa}.ChannelName")
+        return ' AND '.join(w), p
+
+    # --- 3P 정기 단품 ---
+    ws, wp = _reg_where('e')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT e.UniqueCode, e.ProductName,
+               e.ExpectedQuantity AS Qty, N'single' AS DecompType
+        FROM Expected3PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """)
+    # --- 3P 정기 세트 ---
+    ws, wp = _reg_where('e')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT cp.UniqueCode, cp.Name AS ProductName,
+               e.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty, N'set' AS DecompType
+        FROM Expected3PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        WHERE {ws}
+    """)
+
+    # --- 3P 비정기 단품 ---
+    ws, wp = _irreg_where('p')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT pp.UniqueCode, pp.ProductName,
+               pp.ExpectedQuantity AS Qty, N'single' AS DecompType
+        FROM Expected3PIrregularProduct pp
+        INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """)
+    # --- 3P 비정기 세트 ---
+    ws, wp = _irreg_where('p')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT cp.UniqueCode, cp.Name AS ProductName,
+               pp.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty, N'set' AS DecompType
+        FROM Expected3PIrregularProduct pp
+        INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        WHERE {ws}
+    """)
+
+    # --- 1P 정기 단품 ---
+    ws, wp = _reg_where('e')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT e.UniqueCode, e.ProductName,
+               e.ExpectedQuantity AS Qty, N'single' AS DecompType
+        FROM Expected1PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """)
+    # --- 1P 정기 세트 ---
+    ws, wp = _reg_where('e')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT cp.UniqueCode, cp.Name AS ProductName,
+               e.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty, N'set' AS DecompType
+        FROM Expected1PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        WHERE {ws}
+    """)
+
+    # --- 1P 비정기 단품 ---
+    ws, wp = _irreg_where('p')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT pp.UniqueCode, pp.ProductName,
+               pp.ExpectedQuantity AS Qty, N'single' AS DecompType
+        FROM Expected1PIrregularProduct pp
+        INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """)
+    # --- 1P 비정기 세트 ---
+    ws, wp = _irreg_where('p')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT cp.UniqueCode, cp.Name AS ProductName,
+               pp.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty, N'set' AS DecompType
+        FROM Expected1PIrregularProduct pp
+        INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        WHERE {ws}
+    """)
+
+    # --- 불출 ---
+    channel_list = _parse_multi(channel) if channel else []
+    include_withdrawal = (not channel_list or '불출' in channel_list) and not owner_channels
+    if include_withdrawal:
+        ww = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+        wp = [year_month_from, year_month_to]
+        if input_month:
+            ww.append("w.InputMonth = ?"); wp.append(input_month)
+        _add_in_filter(ww, wp, brand, "b.Name")
+        ww_str = ' AND '.join(ww)
+
+        # 불출 단품
+        params.extend(wp)
+        sub_queries.append(f"""
+            SELECT w.UniqueCode, w.ProductName,
+                   w.PlannedQty AS Qty, N'single' AS DecompType
+            FROM WithdrawalPlan w
+            LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
+            LEFT JOIN Brand b ON pr.BrandID = b.BrandID
+            WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+              AND {ww_str}
+        """)
+        # 불출 세트
+        params.extend(wp)
+        sub_queries.append(f"""
+            SELECT cp.UniqueCode, cp.Name AS ProductName,
+                   w.PlannedQty * CAST(bom.QuantityRequired AS int) AS Qty, N'set' AS DecompType
+            FROM WithdrawalPlan w
+            LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
+            LEFT JOIN Brand b ON pr.BrandID = b.BrandID
+            INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+            INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+            WHERE {ww_str}
+        """)
+
+    full_query = f"""
+        SELECT UniqueCode, ProductName,
+               SUM(ISNULL(Qty, 0)) AS TotalQty,
+               SUM(CASE WHEN DecompType = N'set' THEN ISNULL(Qty, 0) ELSE 0 END) AS FromSetQty,
+               SUM(CASE WHEN DecompType = N'single' THEN ISNULL(Qty, 0) ELSE 0 END) AS FromSingleQty
+        FROM (
+            {' UNION ALL '.join(sub_queries)}
+        ) AS BOMAll
+        GROUP BY UniqueCode, ProductName
+        ORDER BY UniqueCode
+    """
+
+    return full_query, params
+
+
+def _build_bom_detail_query(
+    unique_code: str,
+    year_month_from: str, year_month_to: str,
+    input_month: Optional[str] = None,
+    brand: Optional[str] = None,
+    channel: Optional[str] = None,
+    owner_channels: Optional[list] = None
+):
+    """특정 SKU의 BOM 분해 상세 쿼리 — 세트 부모 정보 포함"""
+    params = []
+    sub_queries = []
+
+    def _reg_where(alias):
+        w = [f"FORMAT({alias}.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+        p = [year_month_from, year_month_to]
+        if input_month:
+            w.append(f"{alias}.InputMonth = ?"); p.append(input_month)
+        _add_in_filter(w, p, brand, f"{alias}.BrandName")
+        _add_in_filter(w, p, channel, f"{alias}.ChannelName")
+        _add_owner_filter(w, p, owner_channels, f"{alias}.ChannelName")
+        return ' AND '.join(w), p
+
+    def _irreg_where(pa):
+        w = [f"FORMAT({pa}.StartDate,'yyyy-MM') BETWEEN ? AND ?"]
+        p = [year_month_from, year_month_to]
+        if input_month:
+            w.append(f"{pa}.InputMonth = ?"); p.append(input_month)
+        _add_in_filter(w, p, brand, f"{pa}.BrandName")
+        _add_in_filter(w, p, channel, f"{pa}.ChannelName")
+        _add_owner_filter(w, p, owner_channels, f"{pa}.ChannelName")
+        return ' AND '.join(w), p
+
+    def _add_sub(sql, code_params, filter_params):
+        """서브쿼리 + 파라미터 추가 (unique_code 먼저, 필터 뒤)"""
+        params.extend(code_params)
+        params.extend(filter_params)
+        sub_queries.append(sql)
+
+    # --- 3P 정기 단품 ---
+    ws, wp = _reg_where('e')
+    _add_sub(f"""
+        SELECT FORMAT(e.[Date],'yyyy-MM') AS YearMonth,
+               e.ChannelName, N'3P정기' AS SourceType,
+               e.ExpectedQuantity AS Qty,
+               N'single' AS DecompType,
+               NULL AS ParentCode, NULL AS ParentName, NULL AS QtyRequired
+        FROM Expected3PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        WHERE pr.UniqueCode = ? AND NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """, [unique_code], wp)
+
+    # --- 3P 정기 세트 ---
+    ws, wp = _reg_where('e')
+    _add_sub(f"""
+        SELECT FORMAT(e.[Date],'yyyy-MM') AS YearMonth,
+               e.ChannelName, N'3P정기' AS SourceType,
+               e.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty,
+               N'set' AS DecompType,
+               pr.UniqueCode AS ParentCode, e.ProductName AS ParentName,
+               CAST(bom.QuantityRequired AS int) AS QtyRequired
+        FROM Expected3PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        WHERE cp.UniqueCode = ? AND {ws}
+    """, [unique_code], wp)
+
+    # --- 3P 비정기 단품 ---
+    ws, wp = _irreg_where('p')
+    _add_sub(f"""
+        SELECT FORMAT(p.StartDate,'yyyy-MM') AS YearMonth,
+               p.ChannelName, N'3P비정기' AS SourceType,
+               pp.ExpectedQuantity AS Qty,
+               N'single' AS DecompType,
+               NULL AS ParentCode, NULL AS ParentName, NULL AS QtyRequired
+        FROM Expected3PIrregularProduct pp
+        INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        WHERE pr.UniqueCode = ? AND NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """, [unique_code], wp)
+
+    # --- 3P 비정기 세트 ---
+    ws, wp = _irreg_where('p')
+    _add_sub(f"""
+        SELECT FORMAT(p.StartDate,'yyyy-MM') AS YearMonth,
+               p.ChannelName, N'3P비정기' AS SourceType,
+               pp.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty,
+               N'set' AS DecompType,
+               pr.UniqueCode AS ParentCode, pp.ProductName AS ParentName,
+               CAST(bom.QuantityRequired AS int) AS QtyRequired
+        FROM Expected3PIrregularProduct pp
+        INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        WHERE cp.UniqueCode = ? AND {ws}
+    """, [unique_code], wp)
+
+    # --- 1P 정기 단품 ---
+    ws, wp = _reg_where('e')
+    _add_sub(f"""
+        SELECT FORMAT(e.[Date],'yyyy-MM') AS YearMonth,
+               e.ChannelName, N'1P정기' AS SourceType,
+               e.ExpectedQuantity AS Qty,
+               N'single' AS DecompType,
+               NULL AS ParentCode, NULL AS ParentName, NULL AS QtyRequired
+        FROM Expected1PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        WHERE pr.UniqueCode = ? AND NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """, [unique_code], wp)
+
+    # --- 1P 정기 세트 ---
+    ws, wp = _reg_where('e')
+    _add_sub(f"""
+        SELECT FORMAT(e.[Date],'yyyy-MM') AS YearMonth,
+               e.ChannelName, N'1P정기' AS SourceType,
+               e.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty,
+               N'set' AS DecompType,
+               pr.UniqueCode AS ParentCode, e.ProductName AS ParentName,
+               CAST(bom.QuantityRequired AS int) AS QtyRequired
+        FROM Expected1PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        WHERE cp.UniqueCode = ? AND {ws}
+    """, [unique_code], wp)
+
+    # --- 1P 비정기 단품 ---
+    ws, wp = _irreg_where('p')
+    _add_sub(f"""
+        SELECT FORMAT(p.StartDate,'yyyy-MM') AS YearMonth,
+               p.ChannelName, N'1P비정기' AS SourceType,
+               pp.ExpectedQuantity AS Qty,
+               N'single' AS DecompType,
+               NULL AS ParentCode, NULL AS ParentName, NULL AS QtyRequired
+        FROM Expected1PIrregularProduct pp
+        INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        WHERE pr.UniqueCode = ? AND NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """, [unique_code], wp)
+
+    # --- 1P 비정기 세트 ---
+    ws, wp = _irreg_where('p')
+    _add_sub(f"""
+        SELECT FORMAT(p.StartDate,'yyyy-MM') AS YearMonth,
+               p.ChannelName, N'1P비정기' AS SourceType,
+               pp.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty,
+               N'set' AS DecompType,
+               pr.UniqueCode AS ParentCode, pp.ProductName AS ParentName,
+               CAST(bom.QuantityRequired AS int) AS QtyRequired
+        FROM Expected1PIrregularProduct pp
+        INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        WHERE cp.UniqueCode = ? AND {ws}
+    """, [unique_code], wp)
+
+    # --- 불출 ---
+    channel_list = _parse_multi(channel) if channel else []
+    include_withdrawal = (not channel_list or '불출' in channel_list) and not owner_channels
+    if include_withdrawal:
+        ww = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+        wp_w = [year_month_from, year_month_to]
+        if input_month:
+            ww.append("w.InputMonth = ?"); wp_w.append(input_month)
+        _add_in_filter(ww, wp_w, brand, "b.Name")
+        ww_str = ' AND '.join(ww)
+
+        # 불출 단품
+        _add_sub(f"""
+            SELECT FORMAT(w.[Date],'yyyy-MM') AS YearMonth,
+                   N'불출' AS ChannelName, N'불출' AS SourceType,
+                   w.PlannedQty AS Qty,
+                   N'single' AS DecompType,
+                   NULL AS ParentCode, NULL AS ParentName, NULL AS QtyRequired
+            FROM WithdrawalPlan w
+            LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
+            LEFT JOIN Brand b ON pr.BrandID = b.BrandID
+            WHERE pr.UniqueCode = ? AND NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+              AND {ww_str}
+        """, [unique_code], wp_w)
+        # 불출 세트
+        _add_sub(f"""
+            SELECT FORMAT(w.[Date],'yyyy-MM') AS YearMonth,
+                   N'불출' AS ChannelName, N'불출' AS SourceType,
+                   w.PlannedQty * CAST(bom.QuantityRequired AS int) AS Qty,
+                   N'set' AS DecompType,
+                   pr.UniqueCode AS ParentCode, w.ProductName AS ParentName,
+                   CAST(bom.QuantityRequired AS int) AS QtyRequired
+            FROM WithdrawalPlan w
+            LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
+            LEFT JOIN Brand b ON pr.BrandID = b.BrandID
+            INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+            INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+            WHERE cp.UniqueCode = ? AND {ww_str}
+        """, [unique_code], wp_w)
+
+    full_query = f"""
+        SELECT YearMonth, ChannelName, SourceType, Qty,
+               DecompType, ParentCode, ParentName, QtyRequired
+        FROM (
+            {' UNION ALL '.join(sub_queries)}
+        ) AS BOMDetail
+        ORDER BY DecompType DESC, ParentCode, ChannelName, SourceType, YearMonth
+    """
+
+    return full_query, params
+
+
+@router.get("/bom-summary")
+async def get_bom_summary(
+    year_month_from: str = Query(...),
+    year_month_to: str = Query(...),
+    input_month: Optional[str] = Query(None),
+    brand: Optional[str] = Query(None),
+    channel: Optional[str] = Query(None),
+    owner: Optional[str] = Query(None),
+    user: CurrentUser = Depends(get_current_user)
+):
+    """BOM 분해 SKU 중심 요약 데이터"""
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return {"data": [], "summary": {"skuCount": 0, "totalQty": 0, "fromSetQty": 0, "fromSingleQty": 0}}
+    query, params = _build_bom_summary_query(year_month_from, year_month_to, input_month, brand, channel, oc)
+
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute(query, *params)
+        rows = cursor.fetchall()
+
+    data = []
+    total_qty = 0
+    from_set_qty = 0
+    from_single_qty = 0
+
+    for row in rows:
+        code, name, tq, fsq, fsnq = row
+        tq = int(tq or 0)
+        fsq = int(fsq or 0)
+        fsnq = int(fsnq or 0)
+        data.append({
+            "code": code or '',
+            "name": name or '',
+            "totalQty": tq,
+            "fromSet": fsq,
+            "fromSingle": fsnq
+        })
+        total_qty += tq
+        from_set_qty += fsq
+        from_single_qty += fsnq
+
+    return {
+        "data": data,
+        "summary": {
+            "skuCount": len(data),
+            "totalQty": total_qty,
+            "fromSetQty": from_set_qty,
+            "fromSingleQty": from_single_qty
+        }
+    }
+
+
+@router.get("/bom-detail")
+async def get_bom_detail(
+    unique_code: str = Query(...),
+    year_month_from: str = Query(...),
+    year_month_to: str = Query(...),
+    input_month: Optional[str] = Query(None),
+    brand: Optional[str] = Query(None),
+    channel: Optional[str] = Query(None),
+    owner: Optional[str] = Query(None),
+    user: CurrentUser = Depends(get_current_user)
+):
+    """특정 SKU의 BOM 분해 상세 (세트 부모 정보 포함)"""
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return {"fromSet": [], "fromSingle": []}
+    query, params = _build_bom_detail_query(
+        unique_code, year_month_from, year_month_to,
+        input_month, brand, channel, oc
+    )
+
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute(query, *params)
+        rows = cursor.fetchall()
+
+    # 세트 분해 건: parentCode별 그룹핑
+    set_map = {}
+    single_list = []
+
+    for row in rows:
+        ym, ch, src, qty, decomp, p_code, p_name, q_req = row
+        qty = int(qty or 0)
+        q_req = int(q_req) if q_req else None
+
+        if decomp == 'set':
+            key = p_code or ''
+            if key not in set_map:
+                set_map[key] = {
+                    "parentCode": p_code or '',
+                    "parentName": p_name or '',
+                    "qtyRequired": q_req,
+                    "details": []
+                }
+            set_map[key]["details"].append({
+                "channel": ch or '',
+                "sourceType": src or '',
+                "yearMonth": ym or '',
+                "qty": qty
+            })
+        else:
+            single_list.append({
+                "channel": ch or '',
+                "sourceType": src or '',
+                "yearMonth": ym or '',
+                "qty": qty
+            })
+
+    return {
+        "fromSet": list(set_map.values()),
+        "fromSingle": single_list
+    }
+
+
 # ==================== SKU 관리 ====================
 
 def _build_sku_summary_query(
