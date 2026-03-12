@@ -100,13 +100,13 @@ class ChannelRepository(BaseRepository):
 
             where_sql = " AND ".join(where_clauses)
             query = f"""
-                SELECT ChannelID, Name
+                SELECT ChannelID, Name, Owner
                 FROM [dbo].[Channel]
                 WHERE {where_sql}
                 ORDER BY Name
             """
             cursor.execute(query, *params)
-            return [{"ChannelID": row[0], "Name": row[1]} for row in cursor.fetchall()]
+            return [{"ChannelID": row[0], "Name": row[1], "Owner": row[2]} for row in cursor.fetchall()]
 
     def get_metadata(self) -> Dict[str, list]:
         """Channel 메타데이터 조회 (필터용)"""

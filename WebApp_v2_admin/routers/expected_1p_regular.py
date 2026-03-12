@@ -66,6 +66,7 @@ FORMAT_CONFIGS = {
     'offline': {
         'name': '오프라인',
         'channel_keyword': None,
+        'channel_owner': '오프라인영업',
         'extra_columns': None,
     },
 }
@@ -407,8 +408,11 @@ async def download_expected_1p_regular(
 
         # 포맷별 채널 필터링
         keyword = format_config.get('channel_keyword') if format_config else None
+        owner = format_config.get('channel_owner') if format_config else None
         if keyword:
             filtered_channels = [ch for ch in channels if keyword in ch['Name']]
+        elif owner:
+            filtered_channels = [ch for ch in channels if ch.get('Owner') == owner]
         else:
             filtered_channels = channels
         channel_names = [ch['Name'] for ch in filtered_channels]

@@ -557,9 +557,11 @@ def _build_bom_query(
     sub_queries.append(f"""
         SELECT FORMAT(e.[Date],'yyyy-MM') AS YearMonth,
                e.BrandName, e.ChannelName, e.UniqueCode, e.ProductName,
+               pb.ERPCode,
                e.ExpectedQuantity AS ComponentQuantity
         FROM Expected3PRegularProduct e
         INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        LEFT JOIN ProductBox pb ON pr.ProductID = pb.ProductID
         WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
           AND {ws}
     """)
@@ -569,11 +571,13 @@ def _build_bom_query(
     sub_queries.append(f"""
         SELECT FORMAT(e.[Date],'yyyy-MM') AS YearMonth,
                e.BrandName, e.ChannelName, cp.UniqueCode, cp.Name AS ProductName,
+               pb.ERPCode,
                e.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS ComponentQuantity
         FROM Expected3PRegularProduct e
         INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
         INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
         INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        LEFT JOIN ProductBox pb ON cp.ProductID = pb.ProductID
         WHERE {ws}
     """)
 
@@ -583,10 +587,12 @@ def _build_bom_query(
     sub_queries.append(f"""
         SELECT FORMAT(p.StartDate,'yyyy-MM') AS YearMonth,
                p.BrandName, p.ChannelName, pp.UniqueCode, pp.ProductName,
+               pb.ERPCode,
                pp.ExpectedQuantity AS ComponentQuantity
         FROM Expected3PIrregularProduct pp
         INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
         INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        LEFT JOIN ProductBox pb ON pr.ProductID = pb.ProductID
         WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
           AND {ws}
     """)
@@ -596,12 +602,14 @@ def _build_bom_query(
     sub_queries.append(f"""
         SELECT FORMAT(p.StartDate,'yyyy-MM') AS YearMonth,
                p.BrandName, p.ChannelName, cp.UniqueCode, cp.Name AS ProductName,
+               pb.ERPCode,
                pp.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS ComponentQuantity
         FROM Expected3PIrregularProduct pp
         INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
         INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
         INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
         INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        LEFT JOIN ProductBox pb ON cp.ProductID = pb.ProductID
         WHERE {ws}
     """)
 
@@ -611,9 +619,11 @@ def _build_bom_query(
     sub_queries.append(f"""
         SELECT FORMAT(e.[Date],'yyyy-MM') AS YearMonth,
                e.BrandName, e.ChannelName, e.UniqueCode, e.ProductName,
+               pb.ERPCode,
                e.ExpectedQuantity AS ComponentQuantity
         FROM Expected1PRegularProduct e
         INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        LEFT JOIN ProductBox pb ON pr.ProductID = pb.ProductID
         WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
           AND {ws}
     """)
@@ -623,11 +633,13 @@ def _build_bom_query(
     sub_queries.append(f"""
         SELECT FORMAT(e.[Date],'yyyy-MM') AS YearMonth,
                e.BrandName, e.ChannelName, cp.UniqueCode, cp.Name AS ProductName,
+               pb.ERPCode,
                e.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS ComponentQuantity
         FROM Expected1PRegularProduct e
         INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
         INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
         INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        LEFT JOIN ProductBox pb ON cp.ProductID = pb.ProductID
         WHERE {ws}
     """)
 
@@ -637,10 +649,12 @@ def _build_bom_query(
     sub_queries.append(f"""
         SELECT FORMAT(p.StartDate,'yyyy-MM') AS YearMonth,
                p.BrandName, p.ChannelName, pp.UniqueCode, pp.ProductName,
+               pb.ERPCode,
                pp.ExpectedQuantity AS ComponentQuantity
         FROM Expected1PIrregularProduct pp
         INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
         INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        LEFT JOIN ProductBox pb ON pr.ProductID = pb.ProductID
         WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
           AND {ws}
     """)
@@ -650,12 +664,14 @@ def _build_bom_query(
     sub_queries.append(f"""
         SELECT FORMAT(p.StartDate,'yyyy-MM') AS YearMonth,
                p.BrandName, p.ChannelName, cp.UniqueCode, cp.Name AS ProductName,
+               pb.ERPCode,
                pp.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS ComponentQuantity
         FROM Expected1PIrregularProduct pp
         INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
         INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
         INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
         INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+        LEFT JOIN ProductBox pb ON cp.ProductID = pb.ProductID
         WHERE {ws}
     """)
 
@@ -678,10 +694,12 @@ def _build_bom_query(
                    ISNULL(b.Name, N'미분류') AS BrandName,
                    N'불출' AS ChannelName,
                    w.UniqueCode, w.ProductName,
+                   pb.ERPCode,
                    w.PlannedQty AS ComponentQuantity
             FROM WithdrawalPlan w
             LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
             LEFT JOIN Brand b ON pr.BrandID = b.BrandID
+            LEFT JOIN ProductBox pb ON pr.ProductID = pb.ProductID
             WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
               AND {ww_str}
         """)
@@ -692,17 +710,20 @@ def _build_bom_query(
                    ISNULL(b.Name, N'미분류') AS BrandName,
                    N'불출' AS ChannelName,
                    cp.UniqueCode, cp.Name AS ProductName,
+                   pb.ERPCode,
                    w.PlannedQty * CAST(bom.QuantityRequired AS int) AS ComponentQuantity
             FROM WithdrawalPlan w
             LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
             LEFT JOIN Brand b ON pr.BrandID = b.BrandID
             INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
             INNER JOIN Product cp ON bom.ChildProductID = cp.ProductID
+            LEFT JOIN ProductBox pb ON cp.ProductID = pb.ProductID
             WHERE {ww_str}
         """)
 
     full_query = f"""
         SELECT YearMonth, BrandName, ChannelName, UniqueCode, ProductName,
+               MAX(ERPCode) AS ERPCode,
                SUM(ISNULL(ComponentQuantity, 0)) AS TotalQuantity
         FROM (
             {' UNION ALL '.join(sub_queries)}
@@ -720,11 +741,12 @@ def _pivot_bom_data(rows):
     product_map = OrderedDict()
 
     for row in rows:
-        ym, brand, channel, code, name, qty = row
+        ym, brand, channel, code, name, erp_code, qty = row
         brand = brand or '미분류'
         channel = channel or '미분류'
         code = code or ''
         name = name or ''
+        erp_code = erp_code or ''
         qty = int(qty or 0)
 
         year_months_set[ym] = True
@@ -735,6 +757,7 @@ def _pivot_bom_data(rows):
                 'brand': brand,
                 'channel': channel,
                 'name': name,
+                'erpCode': erp_code,
                 'months': {},
                 'totalQuantity': 0,
             }
@@ -816,7 +839,7 @@ async def download_bom_excel(
         'num_format': '#,##0', 'border': 1, 'bold': True, 'bg_color': '#E2EFDA'
     })
 
-    headers = ['브랜드', '채널', '상품명']
+    headers = ['브랜드', '채널', 'ERP코드', '상품명']
     for ym in year_months:
         headers.append(f'{ym}(수량)')
     headers.append('합계(수량)')
@@ -828,9 +851,10 @@ async def download_bom_excel(
     for row_idx, item in enumerate(data, start=1):
         worksheet.write(row_idx, 0, item['brand'], text_fmt)
         worksheet.write(row_idx, 1, item['channel'], text_fmt)
-        worksheet.write(row_idx, 2, item['name'], text_fmt)
+        worksheet.write(row_idx, 2, item.get('erpCode', ''), text_fmt)
+        worksheet.write(row_idx, 3, item['name'], text_fmt)
 
-        col = 3
+        col = 4
         for ym in year_months:
             qty = item['months'].get(ym, 0)
             worksheet.write(row_idx, col, qty, num_fmt)
@@ -840,9 +864,10 @@ async def download_bom_excel(
 
     worksheet.set_column(0, 0, 12)
     worksheet.set_column(1, 1, 14)
-    worksheet.set_column(2, 2, 25)
-    if len(headers) > 3:
-        worksheet.set_column(3, len(headers) - 1, 14)
+    worksheet.set_column(2, 2, 14)
+    worksheet.set_column(3, 3, 25)
+    if len(headers) > 4:
+        worksheet.set_column(4, len(headers) - 1, 14)
 
     workbook.close()
     output.seek(0)
