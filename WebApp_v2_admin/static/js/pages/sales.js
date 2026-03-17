@@ -95,7 +95,7 @@ async function loadBrands() {
         const result = await api.get('/api/brands/all');
         const brands = result.data || [];
 
-        const options = brands.map(title => `<option value="${title}">${title}</option>`).join('');
+        const options = brands.map(b => `<option value="${b.Name}">${b.Name}</option>`).join('');
         document.getElementById('searchBrand').innerHTML = '<option value="">전체</option>' + options;
     } catch (e) {
         console.error('브랜드 로드 실패:', e);

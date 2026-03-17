@@ -43,7 +43,8 @@ class OrdersRealtimeUploader:
         # CustomerName = SabangnetOrders.USER_NAME (주문자명)
         # OrderQuantity = SabangnetOrders.SALE_CNT (수량)
         # OrderPrice = SabangnetOrders.PAY_COST / SALE_CNT (단가 계산)
-        # OrderAmount = SabangnetOrders.PAY_COST (총액)
+        # OrderAmountExVAT = SabangnetOrders.PAY_COST / 1.1 (부가세 제외)
+        # OrderAmountInVAT = SabangnetOrders.PAY_COST (부가세 포함)
         # OrderStatus = SabangnetOrders.ORDER_STATUS (주문 상태)
         # CollectedDate = SabangnetOrders.CollectedDate (수집일시)
         # BrandID = Brand.BrandID (SabangnetOrders.BRAND_NM과 Brand.Name 매핑, 실패 시 0)
@@ -60,7 +61,8 @@ class OrdersRealtimeUploader:
                     o.USER_NAME AS CustomerName,
                     o.SALE_CNT AS OrderQuantity,
                     CASE WHEN o.SALE_CNT > 0 THEN o.PAY_COST / o.SALE_CNT ELSE 0 END AS OrderPrice,
-                    o.PAY_COST AS OrderAmount,
+                    ROUND(o.PAY_COST / 1.1, 0) AS OrderAmountExVAT,
+                    o.PAY_COST AS OrderAmountInVAT,
                     o.ORDER_STATUS AS OrderStatus,
                     o.ChannelID,
                     o.CollectedDate,
@@ -81,7 +83,8 @@ class OrdersRealtimeUploader:
                     CustomerName = source.CustomerName,
                     OrderQuantity = source.OrderQuantity,
                     OrderPrice = source.OrderPrice,
-                    OrderAmount = source.OrderAmount,
+                    OrderAmountExVAT = source.OrderAmountExVAT,
+                    OrderAmountInVAT = source.OrderAmountInVAT,
                     OrderStatus = source.OrderStatus,
                     ChannelID = source.ChannelID,
                     BrandID = source.BrandID,
@@ -91,13 +94,13 @@ class OrdersRealtimeUploader:
                 INSERT (
                     SourceChannel, SourceOrderID, SabangnetIDX, ContractType,
                     OrderDate, shippedDate, ChannelID, ProductID, CustomerName,
-                    OrderQuantity, OrderPrice, OrderAmount, OrderStatus,
+                    OrderQuantity, OrderPrice, OrderAmountExVAT, OrderAmountInVAT, OrderStatus,
                     CollectedDate, UpdatedDate, BrandID
                 )
                 VALUES (
                     N'Sabangnet', source.SourceOrderID, source.SabangnetIDX, N'3P',
                     source.OrderDate, source.shippedDate, source.ChannelID, source.ProductID, source.CustomerName,
-                    source.OrderQuantity, source.OrderPrice, source.OrderAmount, source.OrderStatus,
+                    source.OrderQuantity, source.OrderPrice, source.OrderAmountExVAT, source.OrderAmountInVAT, source.OrderStatus,
                     source.CollectedDate, GETDATE(), source.BrandID
                 );
         """

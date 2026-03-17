@@ -1365,7 +1365,8 @@ CREATE TABLE oriodatabase.dbo.OrdersRealtime (
 	CustomerName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	OrderQuantity int NOT NULL,
 	OrderPrice decimal(18,2) NOT NULL,
-	OrderAmount decimal(18,2) NULL,
+	OrderAmountExVAT decimal(18,2) NULL,
+	OrderAmountInVAT decimal(18,2) NULL,
 	OrderStatus nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CollectedDate datetime2 DEFAULT getdate() NULL,
 	UpdatedDate datetime2 DEFAULT getdate() NULL,
@@ -1378,7 +1379,7 @@ CREATE TABLE oriodatabase.dbo.OrdersRealtime (
 	CONSTRAINT FK_OrdersRT_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
 );
  CREATE NONCLUSTERED INDEX IX_OrdersRT_BrandID_Covering ON oriodatabase.dbo.OrdersRealtime (  BrandID ASC  , OrderDate ASC  )  
-	 INCLUDE ( OrderAmount , OrderPrice , OrderQuantity ) 
+	 INCLUDE ( OrderAmountExVAT , OrderAmountInVAT , OrderPrice , OrderQuantity ) 
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
  CREATE NONCLUSTERED INDEX IX_OrdersRT_ChannelID ON oriodatabase.dbo.OrdersRealtime (  ChannelID ASC  , OrderDate ASC  )  

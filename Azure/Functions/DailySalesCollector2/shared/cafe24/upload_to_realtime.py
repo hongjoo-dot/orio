@@ -51,7 +51,8 @@ class OrdersRealtimeUploader:
         # CustomerName = Cafe24Orders.billing_name (주문자명)
         # OrderQuantity = Cafe24OrdersDetail.quantity (수량)
         # OrderPrice = Cafe24OrdersDetail.product_price (단가)
-        # OrderAmount = Cafe24OrdersDetail.payment_amount (총액)
+        # OrderAmountExVAT = Cafe24OrdersDetail.payment_amount / 1.1 (부가세 제외)
+        # OrderAmountInVAT = Cafe24OrdersDetail.payment_amount (부가세 포함)
         # OrderStatus = Cafe24OrdersDetail.order_status (주문 상태)
         # CollectedDate = Cafe24OrdersDetail.CollectedDate (수집일시)
         # BrandID = 3 (고정)
@@ -67,7 +68,8 @@ class OrdersRealtimeUploader:
                     o.billing_name AS CustomerName,
                     d.quantity AS OrderQuantity,
                     d.product_price AS OrderPrice,
-                    d.payment_amount AS OrderAmount,
+                    ROUND(d.payment_amount / 1.1, 0) AS OrderAmountExVAT,
+                    d.payment_amount AS OrderAmountInVAT,
                     d.order_status AS OrderStatus,
                     d.CollectedDate
                 FROM Cafe24OrdersDetail d
@@ -85,7 +87,8 @@ class OrdersRealtimeUploader:
                     CustomerName = source.CustomerName,
                     OrderQuantity = source.OrderQuantity,
                     OrderPrice = source.OrderPrice,
-                    OrderAmount = source.OrderAmount,
+                    OrderAmountExVAT = source.OrderAmountExVAT,
+                    OrderAmountInVAT = source.OrderAmountInVAT,
                     OrderStatus = source.OrderStatus,
                     UpdatedDate = GETDATE()
 
@@ -93,13 +96,13 @@ class OrdersRealtimeUploader:
                 INSERT (
                     SourceChannel, SourceOrderID, ContractType,
                     OrderDate, shippedDate, ChannelID, ProductID, CustomerName,
-                    OrderQuantity, OrderPrice, OrderAmount, OrderStatus,
+                    OrderQuantity, OrderPrice, OrderAmountExVAT, OrderAmountInVAT, OrderStatus,
                     CollectedDate, UpdatedDate, BrandID
                 )
                 VALUES (
                     N'자사몰', source.SourceOrderID, N'3P',
                     source.OrderDate, source.shippedDate, 45, source.ProductID, source.CustomerName,
-                    source.OrderQuantity, source.OrderPrice, source.OrderAmount, source.OrderStatus,
+                    source.OrderQuantity, source.OrderPrice, source.OrderAmountExVAT, source.OrderAmountInVAT, source.OrderStatus,
                     source.CollectedDate, GETDATE(), 3
                 );
         """
