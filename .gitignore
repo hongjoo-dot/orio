@@ -17,5 +17,12 @@ __pycache__/
 .claude/
 .agent/
 
+# 받은 데이터
+받은 데이터/
+
+# 엑셀 임시 파일
+~$*.xlsx
+~$*.xls
+
 # 시스템 파일
 nul
