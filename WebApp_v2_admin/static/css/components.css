@@ -22,7 +22,7 @@
 }
 
 .card:hover {
-    border-color: rgba(148, 163, 184, 0.3);
+    border-color: rgba(255, 255, 255, 0.18);
     box-shadow: 0 8px 20px 0 rgba(0, 0, 0, 0.4);
 }
 
@@ -80,7 +80,7 @@
 .btn-primary:hover:not(:disabled) {
     background: var(--accent-hover);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
 .btn-success {
@@ -104,13 +104,13 @@
 }
 
 .btn-secondary {
-    background: rgba(148, 163, 184, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text-main);
     border: 1px solid var(--border);
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: rgba(148, 163, 184, 0.2);
+    background: rgba(255, 255, 255, 0.15);
 }
 
 .btn-sm {
@@ -165,7 +165,7 @@
 .form-textarea:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
 }
 
 .form-input::placeholder {
@@ -221,7 +221,7 @@
 }
 
 .table thead {
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .table th,
@@ -258,7 +258,7 @@
 }
 
 .table tbody tr:hover {
-    background: rgba(99, 102, 241, 0.05);
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .table tbody tr:last-child td {
@@ -289,7 +289,7 @@
 }
 
 .table th[data-sortable]:hover {
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .table th[data-sortable].sort-asc::after {
@@ -332,7 +332,7 @@
 
 .pagination-btn {
     padding: 8px 12px;
-    background: rgba(148, 163, 184, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     color: var(--text-main);
@@ -341,7 +341,7 @@
 }
 
 .pagination-btn:hover:not(:disabled) {
-    background: rgba(99, 102, 241, 0.2);
+    background: rgba(255, 255, 255, 0.15);
     border-color: var(--accent);
 }
 
@@ -436,7 +436,7 @@
 }
 
 .modal-close:hover {
-    background: rgba(148, 163, 184, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text-main);
 }
 
@@ -478,7 +478,7 @@
 }
 
 .badge-info {
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(255, 255, 255, 0.1);
     color: var(--accent);
 }
 
@@ -511,8 +511,8 @@
 }
 
 .alert-info {
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     color: var(--accent);
 }
 
@@ -520,7 +520,7 @@
 .spinner {
     width: 20px;
     height: 20px;
-    border: 3px solid rgba(99, 102, 241, 0.2);
+    border: 3px solid rgba(255, 255, 255, 0.15);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
@@ -629,7 +629,7 @@
 
 /* Group Summary */
 .group-summary {
-    background: rgba(99, 102, 241, 0.06);
+    background: rgba(255, 255, 255, 0.04);
     border-radius: 10px;
     padding: 16px;
     margin-bottom: 16px;
@@ -700,7 +700,7 @@
     justify-content: flex-end;
     gap: 12px;
     padding: 12px 16px;
-    background: rgba(99, 102, 241, 0.06);
+    background: rgba(255, 255, 255, 0.04);
     border-radius: 8px;
     margin-top: 12px;
 }
@@ -754,7 +754,7 @@
 .ms-badge {
     display: inline-flex;
     align-items: center;
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(255, 255, 255, 0.1);
     color: var(--primary);
     font-size: 12px;
     font-weight: 500;
@@ -806,7 +806,7 @@
 
 .ms-search:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
 }
 
 /* Toolbar (select all + count) */
@@ -860,7 +860,7 @@
 }
 
 .ms-item:hover {
-    background: rgba(99, 102, 241, 0.08);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .ms-item input[type="checkbox"] {

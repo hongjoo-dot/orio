@@ -74,12 +74,12 @@
 }
 
 .nav-item:hover {
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text-main);
 }
 
 .nav-item.active {
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(255, 255, 255, 0.12);
     color: var(--accent);
 }
 
@@ -152,12 +152,12 @@
 }
 
 .nav-dropdown-item:hover {
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text-main);
 }
 
 .nav-dropdown-item.active {
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(255, 255, 255, 0.12);
     color: var(--accent);
 }
 
@@ -183,7 +183,7 @@
 
 .user-role {
     font-size: 11px;
-    background: rgba(99, 102, 241, 0.2);
+    background: rgba(255, 255, 255, 0.15);
     padding: 2px 8px;
     border-radius: 4px;
     color: var(--accent);
@@ -340,7 +340,7 @@
         transform: none;
         box-shadow: none;
         border: none;
-        background: rgba(99, 102, 241, 0.05);
+        background: rgba(255, 255, 255, 0.03);
         display: none;
         padding: 0 0 0 20px;
     }

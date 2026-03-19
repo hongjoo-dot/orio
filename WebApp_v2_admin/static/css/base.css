@@ -5,14 +5,14 @@
 
 :root {
     /* Colors */
-    --bg-body: #0a0e1a;
-    --bg-card: #1a1f2e;
-    --bg-input: #0f1419;
+    --bg-body: #121212;
+    --bg-card: #1e1e1e;
+    --bg-input: #2a2a2a;
     --text-main: #e2e8f0;
     --text-muted: #94a3b8;
     --accent: #6366f1;
     --accent-hover: #5558e3;
-    --border: rgba(148, 163, 184, 0.2);
+    --border: rgba(255, 255, 255, 0.12);
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;

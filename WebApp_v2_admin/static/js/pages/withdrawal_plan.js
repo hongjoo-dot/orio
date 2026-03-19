@@ -224,7 +224,7 @@ function setupUploadZone() {
     ['dragenter', 'dragover'].forEach(eventName => {
         uploadZone.addEventListener(eventName, () => {
             uploadZone.style.borderColor = 'var(--accent)';
-            uploadZone.style.background = 'rgba(99, 102, 241, 0.05)';
+            uploadZone.style.background = 'rgba(255, 255, 255, 0.04)';
         });
     });
 
