@@ -5,7 +5,7 @@ Pages Router
 """
 
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from core.dependencies import require_login_for_page
@@ -25,15 +25,10 @@ async def login_page(request: Request):
     })
 
 
-@router.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, redirect = Depends(require_login_for_page)):
-    """대시보드 페이지"""
-    if redirect:
-        return redirect
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "active_page": "dashboard"
-    })
+@router.get("/")
+async def root():
+    """루트 → 통합 조회로 리다이렉트"""
+    return RedirectResponse(url="/expected-sales-integration", status_code=302)
 
 
 @router.get("/products", response_class=HTMLResponse)

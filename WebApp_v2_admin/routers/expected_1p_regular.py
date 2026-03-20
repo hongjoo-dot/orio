@@ -310,10 +310,9 @@ async def download_expected_1p_regular(
             data = result['data']
 
         # 컬럼 정의 (동적 구성)
-        base_export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', product_col_name, '예상금액(VAT포함)', '예상수량']
+        base_export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', product_col_name, '예상금액(VAT포함)', '예상수량']
         base_column_map = {
             'Expected1PRegularID': 'ID(수정X)',
-            'InputMonth': '입력월(YYYY-MM)',
             'Date': '날짜(YYYY-MM-01)',
             'BrandName': '브랜드명',
             'ChannelName': '채널명',
@@ -336,7 +335,7 @@ async def download_expected_1p_regular(
 
         # 인덱스 동적 계산
         id_column_idx = export_columns.index('ID(수정X)')
-        readonly_column_names = ['입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', product_col_name]
+        readonly_column_names = ['날짜(YYYY-MM-01)', '브랜드명', '채널명', product_col_name]
         readonly_columns = [export_columns.index(name) for name in readonly_column_names]
 
         if not data:
@@ -389,7 +388,7 @@ async def download_expected_1p_regular(
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
             ['수정 가능', '예상금액(VAT포함), 예상수량, 메모' + (f", {extra_col['export_name']}" if extra_col else '')],
-            ['수정 불가 (검정)', f'입력월, 날짜, 브랜드명, 채널명, {product_col_name}'],
+            ['수정 불가 (검정)', f'날짜, 브랜드명, 채널명, {product_col_name}'],
             ['ID(수정X) (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
             ['■ 주의사항', ''],
@@ -738,8 +737,6 @@ async def upload_expected_1p_regular(
         column_map = {
             'ID(수정X)': 'Expected1PRegularID',
             '날짜(YYYY-MM-01)': 'Date',
-            '입력월(YYYY-MM)': 'InputMonth',
-            '입력월(수정X)': 'InputMonth',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
             '품목코드': 'ERPCode',
@@ -871,8 +868,10 @@ async def upload_expected_1p_regular(
                 error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
-        # InputMonth 결정: 엑셀 컬럼 > 폼 파라미터 > 현재 월
-        default_input_month = input_month or datetime.now().strftime('%Y-%m')
+        # InputMonth 결정: 모달에서 필수 선택
+        if not input_month:
+            raise HTTPException(400, "입력월을 선택해주세요.")
+        default_input_month = input_month
 
         # 레코드 준비
         records = []
@@ -890,11 +889,6 @@ async def upload_expected_1p_regular(
             if 'Expected1PRegularID' in row and pd.notna(row['Expected1PRegularID']):
                 target_id = int(row['Expected1PRegularID'])
 
-            # InputMonth: 엑셀 컬럼이 있으면 사용, 없으면 기본값
-            row_input_month = default_input_month
-            if 'InputMonth' in row and pd.notna(row.get('InputMonth')) and str(row['InputMonth']).strip():
-                row_input_month = str(row['InputMonth']).strip()
-
             records.append({
                 'Expected1PRegularID': target_id,
                 'Date': row['Date'].strftime('%Y-%m-%d') if pd.notna(row['Date']) else None,
@@ -908,7 +902,7 @@ async def upload_expected_1p_regular(
                 'ExpectedAmount': float(row['ExpectedAmount']) if pd.notna(row.get('ExpectedAmount')) else 0,
                 'ExpectedQuantity': int(row['ExpectedQuantity']) if pd.notna(row.get('ExpectedQuantity')) else 0,
                 'Notes': str(row['Notes']) if pd.notna(row.get('Notes')) else None,
-                'InputMonth': row_input_month,
+                'InputMonth': default_input_month,
                 'OliveyoungType': str(row['OliveyoungType']) if 'OliveyoungType' in row and pd.notna(row.get('OliveyoungType')) else None,
             })
 

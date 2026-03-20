@@ -410,7 +410,6 @@ async def download_expected_1p_irregulars(
             def build_row(prod=None):
                 row = {
                     '행사ID': irreg['Expected1PIrregularID'],
-                    '입력월(YYYY-MM)': irreg.get('InputMonth'),
                 }
                 if has_extra_col:
                     row[extra_col['export_name']] = irreg.get(extra_col['internal_name'])
@@ -453,21 +452,22 @@ async def download_expected_1p_irregulars(
                 rows.append(build_row())
 
         # 컬럼 정의 (동적 구성)
-        export_columns = ['행사ID', '입력월(YYYY-MM)']
+        export_columns = ['행사ID']
         if has_extra_col:
             export_columns.append(extra_col['export_name'])
         export_columns += [
             '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
             '메모(행사)',
-            '상품ID', product_col_name, '판매가', '행사가', '공급가', '쿠폰할인율',
+            '상품ID', product_col_name, '예상매출(상품)', '예상수량(상품)',
+            '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
-            '예상매출(상품)', '예상수량(상품)', '메모(상품)'
+            '메모(상품)'
         ]
 
         # 인덱스 동적 계산
         id_column_indices = [export_columns.index('행사ID'), export_columns.index('상품ID')]
-        readonly_column_names = ['입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '브랜드명', '채널명', product_col_name]
+        readonly_column_names = ['행사명', '행사유형', '시작일', '브랜드명', '채널명', product_col_name]
         readonly_columns = [export_columns.index(name) for name in readonly_column_names]
 
         if not rows:
@@ -753,6 +753,10 @@ async def upload_expected_1p_irregulars(
     try:
         upload_start_time = datetime.now()
 
+        # 입력월 필수
+        if not input_month:
+            raise HTTPException(400, "입력월을 선택해주세요.")
+
         # 1. 파일 확장자 검증
         if not file.filename.endswith(('.xlsx', '.xls')):
             raise HTTPException(400, "엑셀 파일(.xlsx, .xls)만 업로드 가능합니다")
@@ -767,8 +771,6 @@ async def upload_expected_1p_irregulars(
         # 2. 컬럼 매핑 (한글 → 영문)
         column_map = {
             '행사ID': 'Expected1PIrregularID',
-            '입력월(YYYY-MM)': 'InputMonth',
-            '입력월': 'InputMonth',
             '올리브영유형': 'OliveyoungType',
             '행사명': 'IrregularName',
             '행사유형': 'IrregularType',
@@ -1172,7 +1174,7 @@ async def upload_expected_1p_irregulars(
                 'ExpectedSalesAmount': sum_sales if sum_sales > 0 else None,
                 'ExpectedQuantity': sum_qty if sum_qty > 0 else None,
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
-                'InputMonth': str(first_row['InputMonth']).strip() if 'InputMonth' in first_row and pd.notna(first_row.get('InputMonth')) and str(first_row.get('InputMonth')).strip() not in ('', 'nan') else (input_month or datetime.now().strftime('%Y-%m')),
+                'InputMonth': input_month,
                 'OliveyoungType': str(first_row['OliveyoungType']).strip() if pd.notna(first_row.get('OliveyoungType')) and str(first_row.get('OliveyoungType')).strip() != 'nan' else None,
             })
 

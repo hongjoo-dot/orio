@@ -1045,10 +1045,8 @@ function showUploadModal() {
     document.getElementById('uploadModalTitle').textContent =
         currentTab === 'base' ? '정기 예상 매출 데이터 업로드' : '비정기 데이터 업로드';
 
-    // 입력월 기본값: 현재 월
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    document.getElementById('uploadInputMonth').value = currentMonth;
+    // 입력월: 기본값 없이 직접 선택 필수
+    document.getElementById('uploadInputMonth').value = '';
 
     uploadModal.show();
 }
@@ -1086,11 +1084,15 @@ async function uploadFile() {
         const formData = new FormData();
         formData.append('file', file);
 
-        // 입력월(Round) 추가
+        // 입력월(Round) 필수
         const uploadInputMonth = document.getElementById('uploadInputMonth').value;
-        if (uploadInputMonth) {
-            formData.append('input_month', uploadInputMonth);
+        if (!uploadInputMonth) {
+            showAlert('입력월을 선택해주세요.', 'warning');
+            document.getElementById('uploadProgress').style.display = 'none';
+            document.getElementById('uploadButton').disabled = false;
+            return;
         }
+        formData.append('input_month', uploadInputMonth);
 
         const endpoint = currentTab === 'base'
             ? '/api/expected/3p/regular/upload'

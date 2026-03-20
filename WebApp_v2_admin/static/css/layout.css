@@ -10,7 +10,7 @@
     left: 0;
     right: 0;
     height: 56px;
-    background: rgba(21, 25, 35, 0.95);
+    background: rgba(18, 18, 18, 0.95);
     backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
     padding: 0 24px;
@@ -38,7 +38,7 @@
 .logo {
     font-size: 20px;
     font-weight: 700;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -121,7 +121,7 @@
     top: calc(100% - 4px);
     left: 0;
     min-width: 180px;
-    background: rgba(26, 31, 46, 0.98);
+    background: rgba(30, 30, 30, 0.98);
     backdrop-filter: blur(20px);
     border: 1px solid var(--border);
     border-radius: 10px;

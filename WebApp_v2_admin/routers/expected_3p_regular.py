@@ -268,9 +268,9 @@ async def download_expected_3p_regular(
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID(수정X)', '입력월(YYYY-MM)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '메모']
+        export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '메모']
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용)
-        readonly_columns = [1, 2, 3, 4, 5]  # 입력월, 날짜, 브랜드명, 채널명, 품목코드
+        readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
 
         if not data:
@@ -283,7 +283,6 @@ async def download_expected_3p_regular(
             # 컬럼 순서 및 이름 변경
             column_map = {
                 'Expected3PRegularID': 'ID(수정X)',
-                'InputMonth': '입력월(YYYY-MM)',
                 'Date': '날짜(YYYY-MM-01)',
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
@@ -454,7 +453,7 @@ async def download_expected_3p_regular(
                         value = df.iloc[row_idx][col_name]
                         worksheet.write(row_idx + 1, id_column_idx, value, id_data_format)
 
-                    # 수정 불가 컬럼 검정색 적용 (입력월 포함)
+                    # 수정 불가 컬럼 검정색 적용
                     for col_idx in readonly_columns:
                         if col_idx < len(export_columns):
                             col_name = export_columns[col_idx]
@@ -643,8 +642,6 @@ async def upload_expected_3p_regular(
         column_map = {
             'ID(수정X)': 'Expected3PRegularID',
             '날짜(YYYY-MM-01)': 'Date',
-            '입력월(YYYY-MM)': 'InputMonth',
-            '입력월(수정X)': 'InputMonth',
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
             '품목코드': 'ERPCode',
@@ -746,8 +743,10 @@ async def upload_expected_3p_regular(
                 error_messages.append(f"존재하지 않는 품목코드: {code} (행 {', '.join(map(str, rows[:5]))}{'...' if len(rows) > 5 else ''})")
             raise HTTPException(400, "\n".join(error_messages))
 
-        # InputMonth 결정: 폼 파라미터 > 엑셀 컬럼 > 현재 월
-        default_input_month = input_month or datetime.now().strftime('%Y-%m')
+        # InputMonth 결정: 모달에서 필수 선택
+        if not input_month:
+            raise HTTPException(400, "입력월을 선택해주세요.")
+        default_input_month = input_month
 
         # 레코드 준비
         records = []
@@ -765,11 +764,6 @@ async def upload_expected_3p_regular(
             if 'Expected3PRegularID' in row and pd.notna(row['Expected3PRegularID']):
                 target_id = int(row['Expected3PRegularID'])
 
-            # InputMonth: 엑셀 컬럼이 있으면 사용, 없으면 기본값
-            row_input_month = default_input_month
-            if 'InputMonth' in row and pd.notna(row.get('InputMonth')) and str(row['InputMonth']).strip():
-                row_input_month = str(row['InputMonth']).strip()
-
             records.append({
                 'Expected3PRegularID': target_id,
                 'Date': row['Date'].strftime('%Y-%m-%d') if pd.notna(row['Date']) else None,
@@ -783,7 +777,7 @@ async def upload_expected_3p_regular(
                 'ExpectedAmount': float(row['ExpectedAmount']) if pd.notna(row.get('ExpectedAmount')) else 0,
                 'ExpectedQuantity': int(row['ExpectedQuantity']) if pd.notna(row.get('ExpectedQuantity')) else 0,
                 'Notes': str(row['Notes']) if pd.notna(row.get('Notes')) else None,
-                'InputMonth': row_input_month,
+                'InputMonth': default_input_month,
             })
 
         # UPSERT 실행

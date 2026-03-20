@@ -342,7 +342,6 @@ async def download_expected_3p_irregulars(
                 for prod in promo_products:
                     rows.append({
                         '행사ID': irreg['Expected3PIrregularID'],
-                        '입력월(YYYY-MM)': irreg.get('InputMonth'),
                         '행사명': irreg['IrregularName'],
                         '행사유형': irreg['IrregularType'],
                         '시작일': irreg['StartDate'],
@@ -376,7 +375,6 @@ async def download_expected_3p_irregulars(
                 # 상품이 없는 행사도 출력 (상품 컬럼은 빈 값)
                 rows.append({
                     '행사ID': irreg['Expected3PIrregularID'],
-                    '입력월(YYYY-MM)': irreg.get('InputMonth'),
                     '행사명': irreg['IrregularName'],
                     '행사유형': irreg['IrregularType'],
                     '시작일': irreg['StartDate'],
@@ -409,22 +407,23 @@ async def download_expected_3p_irregulars(
 
         # 컬럼 정의 (순서 중요)
         export_columns = [
-            '행사ID', '입력월(YYYY-MM)', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
+            '행사ID', '행사명', '행사유형', '시작일', '시작시간', '종료일', '종료시간',
             '브랜드명', '채널명', '수수료율', '할인부담', '자사분담율', '채널분담율',
             '메모(행사)',
-            '상품ID', '품목코드', '판매가', '행사가', '공급가', '쿠폰할인율',
+            '상품ID', '품목코드', '예상매출(상품)', '예상수량(상품)',
+            '판매가', '행사가', '공급가', '쿠폰할인율',
             '원가', '물류비', '관리비', '창고비', 'EDI비', '기타비',
-            '예상매출(상품)', '예상수량(상품)', '메모(상품)'
+            '메모(상품)'
         ]
 
         # ID 컬럼 인덱스 (빨간색)
         promo_id_col_idx = 0   # 행사ID
-        product_id_col_idx = 15  # 상품ID
+        product_id_col_idx = 14  # 상품ID
         id_column_indices = [promo_id_col_idx, product_id_col_idx]
 
         # 수정 불가 (복합키) 컬럼 인덱스 (검정색)
-        # 입력월(1), 행사명(2), 행사유형(3), 시작일(4), 브랜드명(8), 채널명(9), 품목코드(16)
-        readonly_columns = [1, 2, 3, 4, 8, 9, 16]
+        # 행사명(1), 행사유형(2), 시작일(3), 브랜드명(7), 채널명(8), 품목코드(15)
+        readonly_columns = [1, 2, 3, 7, 8, 15]
 
         if not rows:
             df = pd.DataFrame(columns=export_columns)
@@ -459,7 +458,6 @@ async def download_expected_3p_irregulars(
             ['할인부담', 'COMPANY / CHANNEL / BOTH'],
             ['자사분담율', '숫자 (예: 50.0)'],
             ['채널분담율', '숫자 (예: 50.0)'],
-            ['입력월(YYYY-MM)', 'YYYY-MM 형식 (업로드 시 자동 설정)'],
             ['메모(행사)', '메모'],
             ['상품ID (빨간색)', '수정할 상품 식별용 (비워두면 신규 등록)'],
             ['품목코드 (검정)', 'ProductBox 테이블의 품목코드 (수정 불가)'],
@@ -669,7 +667,10 @@ async def upload_expected_3p_irregulars(
     """행사 + 행사 상품 통합 엑셀 업로드"""
     try:
         upload_start_time = datetime.now()
-        default_input_month = input_month or datetime.now().strftime('%Y-%m')
+
+        # 입력월 필수
+        if not input_month:
+            raise HTTPException(400, "입력월을 선택해주세요.")
 
         # 1. 파일 확장자 검증
         if not file.filename.endswith(('.xlsx', '.xls')):
@@ -697,7 +698,6 @@ async def upload_expected_3p_irregulars(
             '할인부담': 'DiscountOwner',
             '자사분담율': 'CompanyShare',
             '채널분담율': 'ChannelShare',
-            '입력월(YYYY-MM)': 'InputMonth',
             '메모(행사)': 'PromoNotes',
             '비고(행사)': 'PromoNotes',
             '상품ID': 'Expected3PIrregularProductID',
@@ -1059,7 +1059,7 @@ async def upload_expected_3p_irregulars(
                 'ExpectedSalesAmount': sum_sales if sum_sales > 0 else None,
                 'ExpectedQuantity': sum_qty if sum_qty > 0 else None,
                 'Notes': str(first_row['PromoNotes']) if pd.notna(first_row.get('PromoNotes')) and str(first_row.get('PromoNotes')).strip() != 'nan' else None,
-                'InputMonth': str(first_row['InputMonth']).strip() if 'InputMonth' in first_row and pd.notna(first_row.get('InputMonth')) and str(first_row.get('InputMonth')).strip() not in ('', 'nan') else default_input_month,
+                'InputMonth': input_month,
             })
 
         promo_result = expected_3p_irregular_repo.bulk_upsert(irregular_records)
