@@ -303,76 +303,86 @@ function renderBomDetail(detailData) {
 
     const { fromSet, fromSingle } = detailData;
 
-    if (fromSet.length === 0 && fromSingle.length === 0) {
+    // 모든 항목을 하나로 합침
+    const allItems = [];
+    fromSet.forEach(setGroup => {
+        setGroup.details.forEach(d => allItems.push(d));
+    });
+    fromSingle.forEach(d => allItems.push(d));
+
+    if (allItems.length === 0) {
         container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">
             상세 데이터가 없습니다</div>`;
         return;
     }
 
-    // 세트 분해 내역
-    if (fromSet.length > 0) {
-        const label = document.createElement('div');
-        label.className = 'bom-section-label';
-        label.innerHTML = '<i class="fa-solid fa-diagram-project" style="margin-right:4px;"></i> 세트 분해 내역';
-        container.appendChild(label);
+    // 채널별 → 정기/비정기 집계
+    const channelMap = {};
+    allItems.forEach(d => {
+        const ch = d.channel || '(채널없음)';
+        if (!channelMap[ch]) channelMap[ch] = { regular: 0, irregular: 0, total: 0 };
+        if (d.sourceType.includes('정기') && !d.sourceType.includes('비정기')) {
+            channelMap[ch].regular += (d.qty || 0);
+        } else if (d.sourceType.includes('비정기')) {
+            channelMap[ch].irregular += (d.qty || 0);
+        } else {
+            // 불출 등
+            channelMap[ch].regular += (d.qty || 0);
+        }
+        channelMap[ch].total += (d.qty || 0);
+    });
 
-        fromSet.forEach(setGroup => {
-            const groupDiv = document.createElement('div');
-            groupDiv.className = 'bom-set-group';
+    // 총합계
+    const grandTotal = Object.values(channelMap).reduce((s, v) => s + v.total, 0);
 
-            // 세트 헤더
-            const header = document.createElement('div');
-            header.className = 'bom-set-header';
-            header.innerHTML = `<span>${escapeHtml(setGroup.parentName)}</span>`;
-            groupDiv.appendChild(header);
+    // 수량 내림차순 정렬
+    const sorted = Object.entries(channelMap).sort((a, b) => b[1].total - a[1].total);
 
-            // 상세 행
-            setGroup.details.forEach(d => {
-                const row = document.createElement('div');
-                row.className = 'bom-detail-row';
-                row.innerHTML = `
-                    <span class="bom-detail-label">${escapeHtml(d.channel)} / ${escapeHtml(d.sourceType)} / ${escapeHtml(d.yearMonth)}</span>
-                    <span class="bom-detail-qty">${(d.qty || 0).toLocaleString()}</span>
-                `;
-                groupDiv.appendChild(row);
-            });
+    // 합계
+    const totalDiv = document.createElement('div');
+    totalDiv.style.cssText = 'display:flex;justify-content:space-between;padding:10px 12px;font-weight:600;font-size:13px;border-bottom:2px solid var(--border);margin-bottom:4px;';
+    totalDiv.innerHTML = `<span>합계</span><span>${grandTotal.toLocaleString()}</span>`;
+    container.appendChild(totalDiv);
 
-            container.appendChild(groupDiv);
-        });
-    }
-
-    // 단품 내역
-    if (fromSingle.length > 0) {
-        const label = document.createElement('div');
-        label.className = 'bom-section-label';
-        label.innerHTML = '<i class="fa-solid fa-cube" style="margin-right:4px;"></i> 단품 내역';
-        container.appendChild(label);
-
+    sorted.forEach(([ch, data]) => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'bom-set-group';
 
-        const singleTotal = fromSingle.reduce((s, d) => s + (d.qty || 0), 0);
+        // 채널 헤더
         const header = document.createElement('div');
         header.className = 'bom-set-header';
-        header.style.background = 'rgba(34,197,94,0.08)';
+        const ratio = grandTotal > 0 ? (data.total / grandTotal * 100).toFixed(1) : 0;
         header.innerHTML = `
-            <span>단품 (BOM 미등록)</span>
-            <span style="font-size:11px;color:var(--text-muted);">합계 <b style="color:#22c55e;">${singleTotal.toLocaleString()}</b></span>
+            <span>${escapeHtml(ch)}</span>
+            <span class="bom-qty-badge">${data.total.toLocaleString()} (${ratio}%)</span>
         `;
         groupDiv.appendChild(header);
 
-        fromSingle.forEach(d => {
+        // 정기
+        if (data.regular > 0) {
             const row = document.createElement('div');
             row.className = 'bom-detail-row';
             row.innerHTML = `
-                <span class="bom-detail-label">${escapeHtml(d.channel)} / ${escapeHtml(d.sourceType)} / ${escapeHtml(d.yearMonth)}</span>
-                <span class="bom-detail-qty">${(d.qty || 0).toLocaleString()}</span>
+                <span class="bom-detail-label">정기</span>
+                <span class="bom-detail-qty">${data.regular.toLocaleString()}</span>
             `;
             groupDiv.appendChild(row);
-        });
+        }
+
+        // 비정기
+        if (data.irregular > 0) {
+            const row = document.createElement('div');
+            row.className = 'bom-detail-row';
+            row.innerHTML = `
+                <span class="bom-detail-label">비정기</span>
+                <span class="bom-detail-qty">${data.irregular.toLocaleString()}</span>
+            `;
+            groupDiv.appendChild(row);
+        }
 
         container.appendChild(groupDiv);
-    }
+    });
+
 }
 
 function _resetBomDetailPanel() {
