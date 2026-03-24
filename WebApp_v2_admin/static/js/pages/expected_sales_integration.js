@@ -316,67 +316,66 @@ function renderBomDetail(detailData) {
         return;
     }
 
-    // 채널별 → 정기/비정기 집계
-    const channelMap = {};
+    // 채널별 → 소스타입별 집계
+    const channelMap = new Map();
     allItems.forEach(d => {
         const ch = d.channel || '(채널없음)';
-        if (!channelMap[ch]) channelMap[ch] = { regular: 0, irregular: 0, total: 0 };
-        if (d.sourceType.includes('정기') && !d.sourceType.includes('비정기')) {
-            channelMap[ch].regular += (d.qty || 0);
-        } else if (d.sourceType.includes('비정기')) {
-            channelMap[ch].irregular += (d.qty || 0);
-        } else {
-            // 불출 등
-            channelMap[ch].regular += (d.qty || 0);
-        }
-        channelMap[ch].total += (d.qty || 0);
+        if (!channelMap.has(ch)) channelMap.set(ch, { channel: ch, sources: new Map(), total: 0 });
+        const chGroup = channelMap.get(ch);
+
+        // 소스타입 정규화: 정기/비정기/불출
+        let sourceLabel;
+        if (d.sourceType.includes('비정기')) sourceLabel = '비정기';
+        else if (d.sourceType === '불출') sourceLabel = '불출';
+        else sourceLabel = '정기';
+
+        if (!chGroup.sources.has(sourceLabel)) chGroup.sources.set(sourceLabel, 0);
+        chGroup.sources.set(sourceLabel, chGroup.sources.get(sourceLabel) + (d.qty || 0));
+        chGroup.total += (d.qty || 0);
     });
 
     // 총합계
-    const grandTotal = Object.values(channelMap).reduce((s, v) => s + v.total, 0);
+    const grandTotal = Array.from(channelMap.values()).reduce((s, v) => s + v.total, 0);
 
     // 수량 내림차순 정렬
-    const sorted = Object.entries(channelMap).sort((a, b) => b[1].total - a[1].total);
+    const sorted = Array.from(channelMap.values()).sort((a, b) => b.total - a.total);
 
-    // 합계
+    // 합계 헤더
     const totalDiv = document.createElement('div');
-    totalDiv.style.cssText = 'display:flex;justify-content:space-between;padding:10px 12px;font-weight:600;font-size:13px;border-bottom:2px solid var(--border);margin-bottom:4px;';
-    totalDiv.innerHTML = `<span>합계</span><span>${grandTotal.toLocaleString()}</span>`;
+    totalDiv.className = 'sku-channel-header';
+    totalDiv.style.cssText = 'border-bottom:2px solid var(--border);margin-bottom:4px;';
+    totalDiv.innerHTML = `
+        <span><i class="fa-solid fa-calculator" style="margin-right:6px;opacity:0.5;"></i>합계</span>
+        <span class="sku-channel-subtotal">수량 <b>${grandTotal.toLocaleString()}</b></span>
+    `;
     container.appendChild(totalDiv);
 
-    sorted.forEach(([ch, data]) => {
+    sorted.forEach(chGroup => {
         const groupDiv = document.createElement('div');
-        groupDiv.className = 'bom-set-group';
+        groupDiv.className = 'sku-channel-group';
 
         // 채널 헤더
-        const header = document.createElement('div');
-        header.className = 'bom-set-header';
-        const ratio = grandTotal > 0 ? (data.total / grandTotal * 100).toFixed(1) : 0;
-        header.innerHTML = `
-            <span>${escapeHtml(ch)}</span>
-            <span class="bom-qty-badge">${data.total.toLocaleString()} (${ratio}%)</span>
+        const chHeader = document.createElement('div');
+        chHeader.className = 'sku-channel-header';
+        const ratio = grandTotal > 0 ? (chGroup.total / grandTotal * 100).toFixed(1) : 0;
+        chHeader.innerHTML = `
+            <span><i class="fa-solid fa-store" style="margin-right:6px;opacity:0.5;"></i>${escapeHtml(chGroup.channel)}</span>
+            <span class="sku-channel-subtotal">수량 <b>${chGroup.total.toLocaleString()}</b> (${ratio}%)</span>
         `;
-        groupDiv.appendChild(header);
+        groupDiv.appendChild(chHeader);
 
-        // 정기
-        if (data.regular > 0) {
+        // 소스타입 인라인 표시
+        const parts = [];
+        ['정기', '비정기'].forEach(src => {
+            if (!chGroup.sources.has(src)) return;
+            const qty = chGroup.sources.get(src);
+            const badgeClass = src === '비정기' ? 'irregular' : 'regular';
+            parts.push(`<span class="sku-source-badge ${badgeClass}">${src}</span> <span style="font-weight:500;">${qty.toLocaleString()}</span>`);
+        });
+        if (parts.length > 0) {
             const row = document.createElement('div');
-            row.className = 'bom-detail-row';
-            row.innerHTML = `
-                <span class="bom-detail-label">정기</span>
-                <span class="bom-detail-qty">${data.regular.toLocaleString()}</span>
-            `;
-            groupDiv.appendChild(row);
-        }
-
-        // 비정기
-        if (data.irregular > 0) {
-            const row = document.createElement('div');
-            row.className = 'bom-detail-row';
-            row.innerHTML = `
-                <span class="bom-detail-label">비정기</span>
-                <span class="bom-detail-qty">${data.irregular.toLocaleString()}</span>
-            `;
+            row.className = 'detail-inline-row';
+            row.innerHTML = parts.join('<span class="detail-inline-sep">·</span>');
             groupDiv.appendChild(row);
         }
 
@@ -616,59 +615,42 @@ function renderSkuDetail(detailData) {
         `;
         groupDiv.appendChild(chHeader);
 
-        // 구분별 섹션
+        // 구분별 인라인 표시
         chGroup.sources.forEach(srcGroup => {
-            const section = document.createElement('div');
-            section.className = 'sku-source-section';
-
-            // 구분 헤더
-            const srcHeader = document.createElement('div');
-            srcHeader.className = 'sku-source-header';
             const badgeClass = srcGroup.sourceType.includes('비정기') ? 'irregular'
                 : srcGroup.sourceType === '불출' ? 'withdrawal' : 'regular';
-            let headerHtml = `<span class="sku-source-badge ${badgeClass}">${escapeHtml(srcGroup.sourceType)}</span>`;
+
+            const srcAmt = srcGroup.indices.reduce((s, idx) => s + (detailData[idx].amount || 0), 0);
+            const srcQty = srcGroup.indices.reduce((s, idx) => s + (detailData[idx].quantity || 0), 0);
+
+            let labelHtml = `<span class="sku-source-badge ${badgeClass}">${escapeHtml(srcGroup.sourceType)}</span>`;
             if (srcGroup.irregularName) {
-                headerHtml += `<span class="sku-irregular-label">${escapeHtml(srcGroup.irregularName)}</span>`;
+                labelHtml += `<span class="sku-irregular-label">${escapeHtml(srcGroup.irregularName)}</span>`;
             }
-            srcHeader.innerHTML = headerHtml;
-            section.appendChild(srcHeader);
 
-            // 데이터 테이블
-            const table = document.createElement('table');
-            table.className = 'sku-detail-table';
+            const row = document.createElement('div');
+            row.className = 'detail-inline-row';
 
-            const thead = document.createElement('thead');
-            thead.innerHTML = `<tr><th style="width:100px;">연월</th><th>매출(VAT포함)</th><th>수량</th></tr>`;
-            table.appendChild(thead);
-
-            const tbody = document.createElement('tbody');
-            const isWithdrawal = srcGroup.sourceType === '불출';
-
+            // 숨겨진 input들 (dirty 추적용)
+            let hiddenInputs = '';
             srcGroup.indices.forEach(idx => {
                 const item = detailData[idx];
-                const tr = document.createElement('tr');
-                tr.id = `skuDetail-${idx}`;
-                const fmtAmt = (item.amount || 0).toLocaleString();
-                const fmtQty = (item.quantity || 0).toLocaleString();
-                tr.innerHTML = `
-                    <td>${escapeHtml(item.yearMonth)}</td>
-                    <td style="text-align:right;">
-                        <input type="text" value="${fmtAmt}" data-idx="${idx}" data-field="amount"
-                               readonly
-                               style="background:#f3f4f6;color:#6b7280;cursor:default;"
-                               ${isWithdrawal ? 'disabled' : ''}>
-                    </td>
-                    <td style="text-align:right;">
-                        <input type="text" value="${fmtQty}" data-idx="${idx}" data-field="quantity"
-                               onfocus="_skuInputFocus(this)" onblur="_skuInputBlur(this, ${idx})">
-                    </td>
+                hiddenInputs += `
+                    <input type="hidden" id="skuDetail-amt-${idx}" value="${item.amount || 0}" data-idx="${idx}" data-field="amount">
+                    <input type="hidden" id="skuDetail-qty-${idx}" value="${item.quantity || 0}" data-idx="${idx}" data-field="quantity">
                 `;
-                tbody.appendChild(tr);
             });
 
-            table.appendChild(tbody);
-            section.appendChild(table);
-            groupDiv.appendChild(section);
+            row.innerHTML = `
+                ${labelHtml}
+                <span class="detail-inline-values">
+                    매출 <b>${srcAmt ? srcAmt.toLocaleString() : '-'}</b>
+                    <span class="detail-inline-sep">·</span>
+                    수량 <b>${srcQty ? srcQty.toLocaleString() : '-'}</b>
+                </span>
+                ${hiddenInputs}
+            `;
+            groupDiv.appendChild(row);
         });
 
         container.appendChild(groupDiv);
