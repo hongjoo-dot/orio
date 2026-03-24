@@ -52,22 +52,26 @@ def load_excel(file_path: str) -> list[dict]:
     ws = wb.active
 
     headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
-    expected = ['Date', 'BrandName', 'ChannelName', 'ChannelDetail', 'PlanType', 'Amount']
-    if headers != expected:
-        print(f"[ERROR] 헤더 불일치. 예상: {expected}, 실제: {headers}")
+    required = {'Date', 'BrandName', 'ChannelName', 'ChannelDetail', 'PlanType', 'Amount'}
+    header_set = set(headers)
+    missing = required - header_set
+    if missing:
+        print(f"[ERROR] 필수 컬럼 누락: {missing}. 현재 헤더: {headers}")
         sys.exit(1)
+
+    col_idx = {name: i for i, name in enumerate(headers)}
 
     rows = []
     for row in ws.iter_rows(min_row=2, values_only=True):
         if all(v is None for v in row):
             continue
         rows.append({
-            'Date': row[0],
-            'BrandName': row[1],
-            'ChannelName': row[2],
-            'ChannelDetail': row[3],
-            'PlanType': row[4],
-            'Amount': row[5],
+            'Date': row[col_idx['Date']],
+            'BrandName': row[col_idx['BrandName']],
+            'ChannelName': row[col_idx['ChannelName']],
+            'ChannelDetail': row[col_idx['ChannelDetail']],
+            'PlanType': row[col_idx['PlanType']],
+            'Amount': row[col_idx['Amount']],
         })
     return rows
 

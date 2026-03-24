@@ -247,9 +247,9 @@ function _renderBomSkuRows(data, tbody) {
         <tr style="cursor:pointer" onclick="onBomRowClick(${origIdx}, this)">
             <td>${escapeHtml(item.code)}</td>
             <td>${escapeHtml(item.name)}</td>
-            <td class="col-qty" style="font-weight:600;">${item.totalQty ? item.totalQty.toLocaleString() : '-'}</td>
-            <td class="col-qty">${item.fromSet ? item.fromSet.toLocaleString() : '-'}</td>
-            <td style="text-align:right;color:#22c55e;">${item.fromSingle ? item.fromSingle.toLocaleString() : '-'}</td>
+            <td class="col-qty" style="font-weight:600;color:var(--accent);">${item.totalQty ? item.totalQty.toLocaleString() : '-'}</td>
+            <td class="col-qty" style="color:var(--warning);">${item.fromSet ? item.fromSet.toLocaleString() : '-'}</td>
+            <td style="text-align:right;color:var(--success);">${item.fromSingle ? item.fromSingle.toLocaleString() : '-'}</td>
             <td style="text-align:center;"><button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); onBomRowClick(${origIdx}, this.closest('tr'));" style="padding:2px 10px;font-size:11px;">상세</button></td>
         </tr>`;
     }).join('');
@@ -451,7 +451,7 @@ async function loadSkuData(keepDetail = false) {
 function renderSkuTable(data, summary) {
     // 요약 카드 업데이트
     document.getElementById('skuTotalAmount').textContent =
-        summary.totalAmount ? summary.totalAmount.toLocaleString() : '-';
+        summary.totalAmount ? Math.round(summary.totalAmount).toLocaleString() : '-';
     document.getElementById('skuTotalQty').textContent =
         summary.totalQuantity ? summary.totalQuantity.toLocaleString() : '-';
     document.getElementById('skuProductCount').textContent =
@@ -513,7 +513,7 @@ function _renderSkuRows(data, tbody) {
         <tr style="cursor:pointer" onclick="onSkuRowClick(${origIdx}, this)">
             <td>${escapeHtml(item.code)}</td>
             <td>${escapeHtml(item.name)}</td>
-            <td class="col-amount">${item.totalAmount ? item.totalAmount.toLocaleString() : '-'}</td>
+            <td class="col-amount">${item.totalAmount ? Math.round(item.totalAmount).toLocaleString() : '-'}</td>
             <td class="col-qty">${item.totalQuantity ? item.totalQuantity.toLocaleString() : '-'}</td>
             <td style="text-align:center;"><button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); onSkuRowClick(${origIdx}, this.closest('tr'));" style="padding:2px 10px;font-size:11px;">상세</button></td>
         </tr>`;
