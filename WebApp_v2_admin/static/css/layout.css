@@ -80,7 +80,7 @@
 
 .nav-item.active {
     background: rgba(255, 255, 255, 0.12);
-    color: var(--accent);
+    color: #ffffff;
 }
 
 .nav-item i {
@@ -158,7 +158,7 @@
 
 .nav-dropdown-item.active {
     background: rgba(255, 255, 255, 0.12);
-    color: var(--accent);
+    color: #ffffff;
 }
 
 .nav-dropdown-item i {

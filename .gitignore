@@ -24,5 +24,8 @@ __pycache__/
 ~$*.xlsx
 ~$*.xls
 
+# PDF 파일
+~$*.pdf
+
 # 시스템 파일
 nul

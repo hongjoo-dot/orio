@@ -169,6 +169,13 @@ class SabangnetUploader:
                 logger.warning("업로드할 주문 데이터가 없습니다.")
                 return
 
+            # Cafe24 자사몰 연동 데이터 제외 (더블 카운팅 방지)
+            EXCLUDED_MALL_IDS = {'Cafe24(신) 유튜브쇼핑'}
+            excluded_orders = [o for o in orders if o.get('MALL_ID') in EXCLUDED_MALL_IDS]
+            if excluded_orders:
+                logger.info(f"제외된 주문 (더블 카운팅 방지): {len(excluded_orders)}건 (MALL_ID: {EXCLUDED_MALL_IDS})")
+            orders = [o for o in orders if o.get('MALL_ID') not in EXCLUDED_MALL_IDS]
+
             logger.info(f"총 {len(orders)}건의 주문 데이터 처리 시작")
             
             # 트랜잭션 시작
