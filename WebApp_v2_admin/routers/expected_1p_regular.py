@@ -174,10 +174,13 @@ async def get_expected_1p_regular_list(
 
 
 @router.get("/year-months")
-async def get_expected_1p_regular_year_months(user: CurrentUser = Depends(require_permission("Expected1PRegular", "READ"))):
-    """사입 정기 예상 년월 목록 조회"""
+async def get_expected_1p_regular_year_months(
+    input_month: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Expected1PRegular", "READ"))
+):
+    """사입 정기 예상 년월 목록 조회 (입력월 종속 필터)"""
     try:
-        year_months = expected_1p_regular_repo.get_year_months()
+        year_months = expected_1p_regular_repo.get_year_months(input_month)
         return {"year_months": year_months}
     except Exception as e:
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
@@ -310,14 +313,14 @@ async def download_expected_1p_regular(
             data = result['data']
 
         # 컬럼 정의 (동적 구성)
-        base_export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', product_col_name, '예상금액(VAT포함)', '예상수량']
+        base_export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', product_col_name, '예상매출(VAT포함)', '예상수량']
         base_column_map = {
             'Expected1PRegularID': 'ID(수정X)',
             'Date': '날짜(YYYY-MM-01)',
             'BrandName': '브랜드명',
             'ChannelName': '채널명',
             'ERPCode': product_col_name,
-            'ExpectedAmount': '예상금액(VAT포함)',
+            'ExpectedAmount': '예상매출(VAT포함)',
             'ExpectedQuantity': '예상수량',
         }
 
@@ -378,7 +381,7 @@ async def download_expected_1p_regular(
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
             [product_col_name, f'Product 테이블에 등록된 {product_col_name} (드롭다운 선택)' if product_code_config else 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
-            ['예상금액(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
+            ['예상매출(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
             ['예상수량', '숫자 (예: 100)'],
             ['메모', '메모/참고사항'],
         ]
@@ -387,7 +390,7 @@ async def download_expected_1p_regular(
         guide_data += [
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '예상금액(VAT포함), 예상수량, 메모' + (f", {extra_col['export_name']}" if extra_col else '')],
+            ['수정 가능', '예상매출(VAT포함), 예상수량, 메모' + (f", {extra_col['export_name']}" if extra_col else '')],
             ['수정 불가 (검정)', f'날짜, 브랜드명, 채널명, {product_col_name}'],
             ['ID(수정X) (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
@@ -740,8 +743,8 @@ async def upload_expected_1p_regular(
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
             '품목코드': 'ERPCode',
-            '예상금액(+VAT)': 'ExpectedAmount',
-            '예상금액(VAT포함)': 'ExpectedAmount',
+            '예상매출(+VAT)': 'ExpectedAmount',
+            '예상매출(VAT포함)': 'ExpectedAmount',
             '예상수량': 'ExpectedQuantity',
             '비고': 'Notes',
             '메모': 'Notes',
@@ -829,7 +832,7 @@ async def upload_expected_1p_regular(
             with get_db_cursor() as cursor:
                 cursor.execute("SELECT ChannelID, Name, ContractType FROM Channel WHERE Name = ?", (name,))
                 row = cursor.fetchone()
-                if row and row[2] in ('1P', '2P'):
+                if row and row[2].upper() in ('1P', '2P'):
                     channel_map[name] = {'ChannelID': row[0], 'ChannelName': row[1]}
                 elif row:
                     row_nums = df[df['ChannelName'] == name].index.tolist()
@@ -975,7 +978,18 @@ async def upload_expected_1p_regular(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"업로드 실패: {str(e)}")
+        error_str = str(e)
+        if '23000' in error_str and 'UNIQUE' in error_str.upper():
+            import re
+            key_match = re.search(r"The duplicate key value is \((.+?)\)", error_str)
+            if key_match:
+                key_values = key_match.group(1)
+                raise HTTPException(400,
+                    f"중복 데이터가 존재합니다: {key_values}\n"
+                    f"이미 등록된 데이터가 있습니다. ID 컬럼에 해당 ID를 입력하여 수정 모드로 업로드하세요."
+                )
+            raise HTTPException(400, "중복 데이터가 존재하여 업로드에 실패했습니다. ID 컬럼에 해당 ID를 입력하여 수정 모드로 업로드하세요.")
+        raise HTTPException(500, f"업로드 실패: {error_str}")
 
 
 def _detect_upload_diff_1p_regular(current_input_month: str, records: list, user):

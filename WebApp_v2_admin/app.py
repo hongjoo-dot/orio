@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Routers
 from routers import product, brand, channel, sales, bom, pages, expected_3p_regular, expected_3p_irregular, expected_1p_regular, expected_1p_irregular, expected_sales_integration, utility, withdrawal_plan
-from routers import auth, admin, system_config
+from routers import auth, admin, system_config, coupang
 
 app = FastAPI(
     title="Orio ERP System v2",
@@ -60,6 +60,7 @@ app.include_router(expected_sales_integration.router)  # 예상 판매량 통합
 app.include_router(withdrawal_plan.router)  # 불출 계획
 app.include_router(utility.router)  # 유틸리티
 app.include_router(system_config.router)
+app.include_router(coupang.router)  # 쿠팡
 
 
 

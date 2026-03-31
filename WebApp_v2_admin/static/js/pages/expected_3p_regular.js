@@ -40,7 +40,7 @@ const baseMasterColumns = [
     },
     {
         key: 'TotalAmount',
-        header: '예상금액(VAT포함)',
+        header: '예상매출(VAT포함)',
         sortKey: 'TotalAmount',
         render: (row) => `<div style="text-align:right;font-size:13px;">${row.TotalAmount.toLocaleString()}</div>`
     },
@@ -68,7 +68,7 @@ const baseDetailColumns = [
     },
     {
         key: 'ExpectedAmount',
-        header: '예상금액(VAT포함)',
+        header: '예상매출(VAT포함)',
         sortKey: 'ExpectedAmount',
         render: (row) => `<span class="col-amount" style="text-align:right;display:block;font-size:13px;">${(row.ExpectedAmount || 0).toLocaleString()}</span>`
     },
@@ -241,16 +241,17 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 공통 데이터
     loadBrands();
     loadChannels();
-    await loadYearMonths();
-    await loadInputMonths();
+    await Promise.all([loadYearMonths(), loadInputMonths()]);
 
-    // 년월 변경 시 입력월 목록 갱신
+    // 연월 변경 시 입력월 목록 갱신
     document.getElementById('searchYearMonth').addEventListener('change', async () => {
         await loadInputMonths();
     });
 
-    // 정기 마스터 로드
-    loadChannelMaster();
+    // 입력월 변경 시 연월 목록 갱신
+    document.getElementById('searchInputMonth').addEventListener('change', async () => {
+        await loadYearMonths();
+    });
 });
 
 // ==================== 패널 리사이즈 ====================
@@ -463,7 +464,7 @@ function renderChannelSummary(channel) {
                 <span class="summary-value">${channel.ProductCount}개</span>
             </div>
             <div class="summary-item">
-                <span class="summary-label">예상금액 합계(VAT포함)</span>
+                <span class="summary-label">예상매출 합계(VAT포함)</span>
                 <span class="summary-value">${channel.TotalAmount.toLocaleString()}원</span>
             </div>
             <div class="summary-item">
@@ -851,11 +852,24 @@ async function loadChannels() {
 
 async function loadYearMonths() {
     try {
-        const result = await api.get('/api/expected/3p/regular/year-months');
+        const params = {};
+        const im = document.getElementById('searchInputMonth').value;
+        if (im) params.input_month = im;
+        const qs = api.buildQueryString(params);
+        const result = await api.get(`/api/expected/3p/regular/year-months${qs}`);
         const yearMonths = result.year_months || [];
 
-        if (yearMonths.length > 0) {
-            document.getElementById('searchYearMonth').value = yearMonths[0];
+        const sel = document.getElementById('searchYearMonth');
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">선택</option>';
+        yearMonths.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m; opt.textContent = m;
+            sel.appendChild(opt);
+        });
+        // 기존 선택값 유지
+        if (cur && yearMonths.includes(cur)) {
+            sel.value = cur;
         }
     } catch (e) {
         console.error('년월 목록 로드 실패:', e);
@@ -876,6 +890,7 @@ async function loadInputMonths() {
         const inputMonths = result.input_months || [];
 
         const select = document.getElementById('searchInputMonth');
+        const cur = select.value;
         select.innerHTML = '<option value="">전체</option>';
 
         inputMonths.forEach(im => {
@@ -885,9 +900,9 @@ async function loadInputMonths() {
             select.appendChild(option);
         });
 
-        // 가장 최근 입력월을 기본 선택
-        if (inputMonths.length > 0) {
-            select.value = inputMonths[0];
+        // 기존 선택값 유지
+        if (cur && inputMonths.includes(cur)) {
+            select.value = cur;
         }
     } catch (e) {
         console.error('입력월 목록 로드 실패:', e);

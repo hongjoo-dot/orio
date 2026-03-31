@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}쿠팡 데이터 업로드 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-arrow-up-from-bracket"></i> 쿠팡 데이터 업로드
+    </h1>
+    <p class="page-subtitle">쿠팡 판매 실적 및 재고 데이터를 업로드합니다.</p>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+
+    <!-- ======================== -->
+    <!-- 판매 데이터 업로드 (Excel) -->
+    <!-- ======================== -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="fa-solid fa-chart-line"></i> 판매 데이터
+            </div>
+            <span style="font-size:12px;color:var(--text-muted);">Excel (.xlsx)</span>
+        </div>
+
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;line-height:1.6;">
+            쿠팡 셀러 센터에서 다운로드한 판매 실적 파일을 업로드합니다.<br>
+            <strong>RAW DATA</strong> 시트가 포함된 파일이어야 합니다.
+        </p>
+
+        <div class="upload-zone" id="salesUploadZone" onclick="document.getElementById('salesFileInput').click()">
+            <i class="fa-solid fa-file-excel" style="font-size:36px;color:var(--accent);margin-bottom:12px;"></i>
+            <p style="margin-bottom:6px;">파일을 드래그하거나 클릭하여 업로드</p>
+            <p style="font-size:12px;color:var(--text-muted);">.xlsx, .xls 파일만 가능</p>
+            <input type="file" id="salesFileInput" accept=".xlsx,.xls" style="display:none;" onchange="onSalesFileSelect(this)">
+        </div>
+
+        <div id="salesFileInfo" style="display:none;margin-top:12px;align-items:center;gap:8px;">
+            <i class="fa-solid fa-file-excel" style="color:var(--accent);"></i>
+            <span id="salesFileName" style="color:var(--accent);font-weight:500;flex:1;"></span>
+            <button class="btn btn-secondary btn-sm" onclick="resetSales()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <button class="btn btn-primary" id="salesUploadBtn" onclick="uploadSales()" style="margin-top:16px;width:100%;display:none;">
+            <i class="fa-solid fa-upload"></i> 업로드
+        </button>
+
+        <div id="salesResult" style="display:none;margin-top:16px;"></div>
+    </div>
+
+    <!-- ======================== -->
+    <!-- 재고 데이터 업로드 (CSV)  -->
+    <!-- ======================== -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="fa-solid fa-boxes-stacked"></i> 재고 데이터
+            </div>
+            <span style="font-size:12px;color:var(--text-muted);">CSV (.csv)</span>
+        </div>
+
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;line-height:1.6;">
+            쿠팡 셀러 센터에서 다운로드한 재고 현황 파일을 업로드합니다.<br>
+            날짜, SKU ID, 센터, 현재재고수량 등이 포함된 파일이어야 합니다.
+        </p>
+
+        <div class="upload-zone" id="invUploadZone" onclick="document.getElementById('invFileInput').click()">
+            <i class="fa-solid fa-file-csv" style="font-size:36px;color:var(--accent);margin-bottom:12px;"></i>
+            <p style="margin-bottom:6px;">파일을 드래그하거나 클릭하여 업로드</p>
+            <p style="font-size:12px;color:var(--text-muted);">.csv 파일만 가능</p>
+            <input type="file" id="invFileInput" accept=".csv" style="display:none;" onchange="onInvFileSelect(this)">
+        </div>
+
+        <div id="invFileInfo" style="display:none;margin-top:12px;align-items:center;gap:8px;">
+            <i class="fa-solid fa-file-csv" style="color:var(--accent);"></i>
+            <span id="invFileName" style="color:var(--accent);font-weight:500;flex:1;"></span>
+            <button class="btn btn-secondary btn-sm" onclick="resetInv()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <button class="btn btn-primary" id="invUploadBtn" onclick="uploadInventory()" style="margin-top:16px;width:100%;display:none;">
+            <i class="fa-solid fa-upload"></i> 업로드
+        </button>
+
+        <div id="invResult" style="display:none;margin-top:16px;"></div>
+    </div>
+
+</div>
+
+<style>
+.upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.upload-result {
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.8;
+}
+.upload-result.success { background: color-mix(in srgb, #22c55e 10%, transparent); border: 1px solid #22c55e44; }
+.upload-result.error   { background: color-mix(in srgb, #ef4444 10%, transparent); border: 1px solid #ef444444; }
+.result-row { display: flex; justify-content: space-between; }
+.result-label { color: var(--text-muted); }
+.result-value { font-weight: 600; }
+.result-value.warn { color: #f59e0b; }
+</style>
+
+<script>
+const token = localStorage.getItem('access_token');
+
+// ── 판매 ──
+function onSalesFileSelect(input) {
+    if (!input.files.length) return;
+    document.getElementById('salesFileName').textContent = input.files[0].name;
+    document.getElementById('salesFileInfo').style.display = 'flex';
+    document.getElementById('salesUploadBtn').style.display = 'block';
+    document.getElementById('salesResult').style.display = 'none';
+}
+function resetSales() {
+    document.getElementById('salesFileInput').value = '';
+    document.getElementById('salesFileInfo').style.display = 'none';
+    document.getElementById('salesUploadBtn').style.display = 'none';
+    document.getElementById('salesResult').style.display = 'none';
+}
+async function uploadSales() {
+    const input = document.getElementById('salesFileInput');
+    if (!input.files.length) return;
+    const btn = document.getElementById('salesUploadBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 업로드 중...';
+    const form = new FormData();
+    form.append('file', input.files[0]);
+    try {
+        const res = await fetch('/api/coupang/upload/sales', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: form
+        });
+        const data = await res.json();
+        showResult('salesResult', res.ok, data);
+    } catch(e) {
+        showResult('salesResult', false, { detail: e.message });
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-upload"></i> 업로드';
+    }
+}
+
+// ── 재고 ──
+function onInvFileSelect(input) {
+    if (!input.files.length) return;
+    document.getElementById('invFileName').textContent = input.files[0].name;
+    document.getElementById('invFileInfo').style.display = 'flex';
+    document.getElementById('invUploadBtn').style.display = 'block';
+    document.getElementById('invResult').style.display = 'none';
+}
+function resetInv() {
+    document.getElementById('invFileInput').value = '';
+    document.getElementById('invFileInfo').style.display = 'none';
+    document.getElementById('invUploadBtn').style.display = 'none';
+    document.getElementById('invResult').style.display = 'none';
+}
+async function uploadInventory() {
+    const input = document.getElementById('invFileInput');
+    if (!input.files.length) return;
+    const btn = document.getElementById('invUploadBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 업로드 중...';
+    const form = new FormData();
+    form.append('file', input.files[0]);
+    try {
+        const res = await fetch('/api/coupang/upload/inventory', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: form
+        });
+        const data = await res.json();
+        showResult('invResult', res.ok, data);
+    } catch(e) {
+        showResult('invResult', false, { detail: e.message });
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-upload"></i> 업로드';
+    }
+}
+
+// ── 결과 표시 ──
+function showResult(elId, ok, data) {
+    const el = document.getElementById(elId);
+    el.style.display = 'block';
+    if (!ok) {
+        el.innerHTML = `<div class="upload-result error"><i class="fa-solid fa-circle-xmark"></i> 오류: ${data.detail || '업로드 실패'}</div>`;
+        return;
+    }
+    const unmappedHtml = data.unmapped_sku > 0
+        ? `<div class="result-row"><span class="result-label">미매핑 SKU</span><span class="result-value warn">${data.unmapped_sku.toLocaleString()}개 (DB에서 CoupangSKU 입력 필요)</span></div>`
+        : '';
+    el.innerHTML = `
+        <div class="upload-result success">
+            <div class="result-row"><span class="result-label">파일명</span><span class="result-value">${data.filename}</span></div>
+            <div class="result-row"><span class="result-label">총 행수</span><span class="result-value">${data.total.toLocaleString()}</span></div>
+            <div class="result-row"><span class="result-label">신규 입력</span><span class="result-value">${data.inserted.toLocaleString()}</span></div>
+            <div class="result-row"><span class="result-label">업데이트</span><span class="result-value">${data.updated.toLocaleString()}</span></div>
+            ${data.failed > 0 ? `<div class="result-row"><span class="result-label">실패</span><span class="result-value warn">${data.failed.toLocaleString()}</span></div>` : ''}
+            ${unmappedHtml}
+        </div>`;
+}
+
+// ── 드래그 앤 드롭 ──
+['salesUploadZone', 'invUploadZone'].forEach(zoneId => {
+    const zone = document.getElementById(zoneId);
+    const isSales = zoneId.startsWith('sales');
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const inputId = isSales ? 'salesFileInput' : 'invFileInput';
+        const input = document.getElementById(inputId);
+        const dt = new DataTransfer();
+        dt.items.add(e.dataTransfer.files[0]);
+        input.files = dt.files;
+        isSales ? onSalesFileSelect(input) : onInvFileSelect(input);
+    });
+});
+</script>
+{% endblock %}

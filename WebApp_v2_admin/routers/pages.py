@@ -119,6 +119,17 @@ async def withdrawal_plans_page(request: Request, redirect = Depends(require_log
     })
 
 
+@router.get("/coupang/upload", response_class=HTMLResponse)
+async def coupang_upload_page(request: Request, redirect = Depends(require_login_for_page)):
+    """쿠팡 데이터 업로드 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("coupang_upload.html", {
+        "request": request,
+        "active_page": "coupang-upload"
+    })
+
+
 @router.get("/utilities", response_class=HTMLResponse)
 async def utilities_page(request: Request, redirect = Depends(require_login_for_page)):
     """유틸리티 페이지"""

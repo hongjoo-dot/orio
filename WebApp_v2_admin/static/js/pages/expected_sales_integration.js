@@ -25,9 +25,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         msChannel = new MultiSelect('filterChannel', { placeholder: '전체' });
         msOwner = new MultiSelect('filterOwner', { placeholder: '전체', onChange: () => onRangeChange() });
 
-        setDefaultRange();
         await loadOwners();
-        await onRangeChange();
+        await Promise.all([loadYearMonths(), loadInputMonths()]);
+        document.getElementById('filterInputMonth').addEventListener('change', onInputMonthChange);
     } catch (e) {
         console.error('초기화 실패:', e);
         console.error('초기화 상세:', e.message);
@@ -58,28 +58,59 @@ function switchTab(tab) {
     loadData();
 }
 
-// ==================== 기본 연월 설정 ====================
-function setDefaultRange() {
-    const now = new Date();
-    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    document.getElementById('filterYearMonth').value = ym;
+// ==================== 연월 목록 로드 ====================
+async function loadYearMonths() {
+    try {
+        const p = {};
+        const im = document.getElementById('filterInputMonth').value;
+        if (im) p.input_month = im;
+        if (msOwner) {
+            const ow = msOwner.getSelectedString();
+            if (ow) p.owner = ow;
+        }
+        const qs = api.buildQueryString(p);
+        const months = await api.get(`${API_BASE}/year-months${qs}`);
+        const sel = document.getElementById('filterYearMonth');
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">선택</option>';
+        months.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m; opt.textContent = m;
+            sel.appendChild(opt);
+        });
+        // 기존 선택값 유지
+        if (cur && months.includes(cur)) {
+            sel.value = cur;
+        }
+    } catch (e) {
+        console.error('연월 로드 실패:', e);
+    }
+}
+
+// ==================== 입력월 변경 시 ====================
+async function onInputMonthChange() {
+    await loadYearMonths();
+    const ym = document.getElementById('filterYearMonth').value;
+    if (!ym) return;
+    await Promise.all([loadBrands(), loadChannels()]);
+    await loadData();
 }
 
 // ==================== 연월 변경 시 ====================
-async function onRangeChange() {
+async function onYearMonthChange() {
     const ym = document.getElementById('filterYearMonth').value;
     if (!ym) return;
-
     await Promise.all([loadInputMonths(), loadBrands(), loadChannels()]);
     await loadData();
 }
 
 function getRangeParams() {
     const ym = document.getElementById('filterYearMonth').value;
-    const p = {
-        year_month_from: ym,
-        year_month_to: ym
-    };
+    const p = {};
+    if (ym) {
+        p.year_month_from = ym;
+        p.year_month_to = ym;
+    }
     if (msOwner) {
         const ow = msOwner.getSelectedString();
         if (ow) p.owner = ow;
@@ -821,13 +852,13 @@ function _resetDetailPanel() {
 }
 
 // ==================== 필터 초기화 ====================
-function resetFilters() {
+async function resetFilters() {
     document.getElementById('filterInputMonth').value = '';
     msBrand.reset();
     msChannel.reset();
     msOwner.reset();
-    setDefaultRange();
-    onRangeChange();
+    await loadYearMonths();
+    await onYearMonthChange();
 }
 
 // ==================== 엑셀 다운로드 ====================

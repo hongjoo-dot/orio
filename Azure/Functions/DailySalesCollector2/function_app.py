@@ -112,6 +112,46 @@ def daily_sales_collector(timer: func.TimerRequest) -> None:
 
 
 # ============================================================================
+# 매일 오후 6시 5분(한국시간): Frog Cafe24 주문 데이터 수집
+# ============================================================================
+@app.timer_trigger(
+    schedule="0 5 9 * * *",  # 매일 오전 9시 5분 (UTC) = 한국시간 오후 6시 5분
+    arg_name="timer",
+    run_on_startup=False,
+    use_monitor=True
+)
+def daily_frog_cafe24_collector(timer: func.TimerRequest) -> None:
+    """
+    매일 오후 6시 5분(한국시간)에 Frog Cafe24 주문 데이터 수집 실행
+
+    파이프라인:
+    1. Frog Cafe24: N일 롤링 수집 → Blob → DB → OrdersRealtime
+    """
+    logging.info('=' * 80)
+    logging.info('Frog Cafe24 주문 데이터 수집 시작')
+    logging.info(f'실행 시간: {datetime.utcnow().isoformat()}Z (UTC)')
+    logging.info('=' * 80)
+
+    try:
+        from frog_cafe24.pipeline import run_frog_cafe24_pipeline
+        result = run_frog_cafe24_pipeline()
+
+        logging.info(f'Frog Cafe24 완료: {result}')
+
+    except Exception as e:
+        error_msg = f'Frog Cafe24 수집 실패: {str(e)}'
+        logging.error(error_msg, exc_info=True)
+
+        try:
+            from frog_cafe24.slack_notifier import send_slack_notification
+            send_slack_notification(f"[ERROR] *Frog Cafe24 수집 실패*\n\n```{str(e)}```")
+        except:
+            pass
+
+    logging.info('=' * 80)
+
+
+# ============================================================================
 # 매일 오후 6시(한국시간): Cafe24 고객 데이터 수집
 # ============================================================================
 @app.timer_trigger(
@@ -151,6 +191,50 @@ def daily_customer_collector(timer: func.TimerRequest) -> None:
         # Slack 오류 알림
         try:
             from cafe24.slack_notifier import send_slack_notification
+            send_slack_notification(f"[ERROR] {error_msg}")
+        except:
+            pass
+
+        raise
+
+
+# ============================================================================
+# 매일 오후 6시 15분(한국시간): Frog Cafe24 고객 데이터 수집
+# ============================================================================
+@app.timer_trigger(
+    schedule="0 15 9 * * *",  # 매일 오전 9시 15분 (UTC) = 한국시간 오후 6시 15분
+    arg_name="timer",
+    run_on_startup=False,
+    use_monitor=True
+)
+def daily_frog_customer_collector(timer: func.TimerRequest) -> None:
+    """
+    매일 오후 6시 15분(한국시간)에 Frog Cafe24 고객 데이터 전체 수집
+
+    파이프라인:
+    1. Frog Cafe24 customersprivacy 수집
+    2. FrogCafe24Customers 테이블 MERGE
+    3. Slack 알림
+    """
+    logging.info('=' * 80)
+    logging.info('Frog Cafe24 고객 데이터 수집 시작')
+    logging.info(f'실행 시간: {datetime.utcnow().isoformat()}Z (UTC)')
+    logging.info('=' * 80)
+
+    try:
+        from frog_cafe24.main_customers import main as run_frog_customer_pipeline
+        run_frog_customer_pipeline()
+
+        logging.info('=' * 80)
+        logging.info('Frog Cafe24 고객 데이터 수집 완료!')
+        logging.info('=' * 80)
+
+    except Exception as e:
+        error_msg = f'Frog Cafe24 고객 수집 실패: {str(e)}'
+        logging.error(error_msg, exc_info=True)
+
+        try:
+            from frog_cafe24.slack_notifier import send_slack_notification
             send_slack_notification(f"[ERROR] {error_msg}")
         except:
             pass

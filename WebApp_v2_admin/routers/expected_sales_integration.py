@@ -250,14 +250,13 @@ async def get_integration_data(
     return {"year_months": year_months, "data": data}
 
 
-@router.get("/input-months")
-async def get_input_months(
-    year_month_from: str = Query(..., description="시작 연월"),
-    year_month_to: str = Query(..., description="종료 연월"),
+@router.get("/year-months")
+async def get_year_months(
+    input_month: Optional[str] = Query(None, description="입력월 필터"),
     owner: Optional[str] = Query(None, description="채널 Owner 필터"),
     user: CurrentUser = Depends(get_current_user)
 ):
-    """연월 범위 기준 입력월 목록"""
+    """데이터가 존재하는 연월 목록 (입력월 기준 종속 필터)"""
     oc = _get_owner_channels(owner) if owner else None
     if owner and not oc:
         return []
@@ -266,33 +265,95 @@ async def get_input_months(
     subs = []
 
     # 3P 정기
-    w = ["FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?", "t.InputMonth IS NOT NULL"]
-    params.extend([year_month_from, year_month_to])
+    w = ["1=1"]
+    if input_month:
+        w.append("t.InputMonth = ?"); params.append(input_month)
+    _add_owner_filter(w, params, oc, "t.ChannelName")
+    subs.append(f"SELECT FORMAT(t.[Date],'yyyy-MM') AS ym FROM Expected3PRegularProduct t WHERE {' AND '.join(w)}")
+
+    # 3P 비정기
+    w = ["1=1"]
+    if input_month:
+        w.append("p.InputMonth = ?"); params.append(input_month)
+    _add_owner_filter(w, params, oc, "p.ChannelName")
+    subs.append(f"SELECT FORMAT(p.StartDate,'yyyy-MM') AS ym FROM Expected3PIrregular p WHERE {' AND '.join(w)}")
+
+    # 1P 정기
+    w = ["1=1"]
+    if input_month:
+        w.append("t.InputMonth = ?"); params.append(input_month)
+    _add_owner_filter(w, params, oc, "t.ChannelName")
+    subs.append(f"SELECT FORMAT(t.[Date],'yyyy-MM') AS ym FROM Expected1PRegularProduct t WHERE {' AND '.join(w)}")
+
+    # 1P 비정기
+    w = ["1=1"]
+    if input_month:
+        w.append("p.InputMonth = ?"); params.append(input_month)
+    _add_owner_filter(w, params, oc, "p.ChannelName")
+    subs.append(f"SELECT FORMAT(p.StartDate,'yyyy-MM') AS ym FROM Expected1PIrregular p WHERE {' AND '.join(w)}")
+
+    # 불출 (owner 필터 시 제외)
+    if not oc:
+        w = ["1=1"]
+        if input_month:
+            w.append("w.InputMonth = ?"); params.append(input_month)
+        subs.append(f"SELECT FORMAT(w.[Date],'yyyy-MM') AS ym FROM WithdrawalPlan w WHERE {' AND '.join(w)}")
+
+    query = f"SELECT DISTINCT ym FROM ({' UNION '.join(subs)}) AS A WHERE ym IS NOT NULL ORDER BY ym DESC"
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute(query, *params)
+        return [row[0] for row in cursor.fetchall()]
+
+
+@router.get("/input-months")
+async def get_input_months(
+    year_month_from: Optional[str] = Query(None, description="시작 연월"),
+    year_month_to: Optional[str] = Query(None, description="종료 연월"),
+    owner: Optional[str] = Query(None, description="채널 Owner 필터"),
+    user: CurrentUser = Depends(get_current_user)
+):
+    """입력월 목록 (연월 범위 선택 시 해당 범위만, 없으면 전체)"""
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return []
+
+    has_range = year_month_from and year_month_to
+    params = []
+    subs = []
+
+    # 3P 정기
+    w = ["t.InputMonth IS NOT NULL"]
+    if has_range:
+        w.append("FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?"); params.extend([year_month_from, year_month_to])
     _add_owner_filter(w, params, oc, "t.ChannelName")
     subs.append(f"SELECT t.InputMonth AS im FROM Expected3PRegularProduct t WHERE {' AND '.join(w)}")
 
     # 3P 비정기
-    w = ["FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?", "p.InputMonth IS NOT NULL"]
-    params.extend([year_month_from, year_month_to])
+    w = ["p.InputMonth IS NOT NULL"]
+    if has_range:
+        w.append("FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?"); params.extend([year_month_from, year_month_to])
     _add_owner_filter(w, params, oc, "p.ChannelName")
     subs.append(f"SELECT p.InputMonth AS im FROM Expected3PIrregular p WHERE {' AND '.join(w)}")
 
     # 1P 정기
-    w = ["FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?", "t.InputMonth IS NOT NULL"]
-    params.extend([year_month_from, year_month_to])
+    w = ["t.InputMonth IS NOT NULL"]
+    if has_range:
+        w.append("FORMAT(t.[Date],'yyyy-MM') BETWEEN ? AND ?"); params.extend([year_month_from, year_month_to])
     _add_owner_filter(w, params, oc, "t.ChannelName")
     subs.append(f"SELECT t.InputMonth AS im FROM Expected1PRegularProduct t WHERE {' AND '.join(w)}")
 
     # 1P 비정기
-    w = ["FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?", "p.InputMonth IS NOT NULL"]
-    params.extend([year_month_from, year_month_to])
+    w = ["p.InputMonth IS NOT NULL"]
+    if has_range:
+        w.append("FORMAT(p.StartDate,'yyyy-MM') BETWEEN ? AND ?"); params.extend([year_month_from, year_month_to])
     _add_owner_filter(w, params, oc, "p.ChannelName")
     subs.append(f"SELECT p.InputMonth AS im FROM Expected1PIrregular p WHERE {' AND '.join(w)}")
 
     # 불출 (owner 필터 시 제외)
     if not oc:
-        w = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?", "w.InputMonth IS NOT NULL"]
-        params.extend([year_month_from, year_month_to])
+        w = ["w.InputMonth IS NOT NULL"]
+        if has_range:
+            w.append("FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?"); params.extend([year_month_from, year_month_to])
         subs.append(f"SELECT w.InputMonth AS im FROM WithdrawalPlan w WHERE {' AND '.join(w)}")
 
     query = f"SELECT DISTINCT im FROM ({' UNION '.join(subs)}) AS A WHERE im IS NOT NULL ORDER BY im DESC"

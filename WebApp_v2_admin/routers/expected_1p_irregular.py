@@ -918,7 +918,7 @@ async def upload_expected_1p_irregulars(
             with get_db_cursor(commit=False) as cursor:
                 cursor.execute("SELECT ChannelID, Name, ContractType FROM Channel WHERE Name = ?", (name,))
                 row = cursor.fetchone()
-                if row and row[2] in ('1P', '2P'):
+                if row and row[2].upper() in ('1P', '2P'):
                     channel_map[name] = {'ChannelID': row[0], 'ChannelName': row[1]}
                 elif row:
                     row_nums = df[df['ChannelName'] == name].index.tolist()
@@ -1302,7 +1302,18 @@ async def upload_expected_1p_irregulars(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"업로드 실패: {str(e)}")
+        error_str = str(e)
+        if '23000' in error_str and 'UNIQUE' in error_str.upper():
+            import re
+            key_match = re.search(r"The duplicate key value is \((.+?)\)", error_str)
+            if key_match:
+                key_values = key_match.group(1)
+                raise HTTPException(400,
+                    f"중복 데이터가 존재합니다: {key_values}\n"
+                    f"이미 등록된 데이터가 있습니다. ID 컬럼에 해당 ID를 입력하여 수정 모드로 업로드하세요."
+                )
+            raise HTTPException(400, "중복 데이터가 존재하여 업로드에 실패했습니다. ID 컬럼에 해당 ID를 입력하여 수정 모드로 업로드하세요.")
+        raise HTTPException(500, f"업로드 실패: {error_str}")
 
 
 # ========== 행사 단일 CRUD ==========

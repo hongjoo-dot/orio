@@ -524,44 +524,49 @@ async def download_expected_3p_irregulars(
             # 드롭다운 적용 범위
             max_row = max(len(df) + 100, 1000)
 
-            # 브랜드명 드롭다운 (인덱스 8)
+            # 브랜드명 드롭다운
+            brand_col_idx = export_columns.index('브랜드명')
             if brand_names:
-                worksheet.data_validation(1, 8, max_row, 8, {
+                worksheet.data_validation(1, brand_col_idx, max_row, brand_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 채널명 드롭다운 (인덱스 9)
+            # 채널명 드롭다운
+            channel_col_idx = export_columns.index('채널명')
             if channel_names:
-                worksheet.data_validation(1, 9, max_row, 9, {
+                worksheet.data_validation(1, channel_col_idx, max_row, channel_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 행사유형 드롭다운 (인덱스 3)
+            # 행사유형 드롭다운
+            type_col_idx = export_columns.index('행사유형')
             if irregular_type_display_names:
-                worksheet.data_validation(1, 3, max_row, 3, {
+                worksheet.data_validation(1, type_col_idx, max_row, type_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(irregular_type_display_names)}',
                     'input_message': '행사유형을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 할인부담 드롭다운 (인덱스 11)
-            worksheet.data_validation(1, 11, max_row, 11, {
+            # 할인부담 드롭다운
+            discount_col_idx = export_columns.index('할인부담')
+            worksheet.data_validation(1, discount_col_idx, max_row, discount_col_idx, {
                 'validate': 'list',
                 'source': f'=목록!$D$1:$D${len(discount_owner_list)}',
                 'input_message': '할인부담을 선택하세요',
                 'error_message': '목록에서 선택해주세요'
             })
 
-            # 품목코드 드롭다운 (인덱스 16)
+            # 품목코드 드롭다운
+            product_col_idx = export_columns.index('품목코드')
             if erp_codes:
-                worksheet.data_validation(1, 16, max_row, 16, {
+                worksheet.data_validation(1, product_col_idx, max_row, product_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$E$1:$E${len(erp_codes)}',
                     'input_message': '품목코드를 선택하세요',
@@ -803,7 +808,7 @@ async def upload_expected_3p_irregulars(
             with get_db_cursor(commit=False) as cursor:
                 cursor.execute("SELECT ChannelID, Name, ContractType FROM Channel WHERE Name = ?", (name,))
                 row = cursor.fetchone()
-                if row and row[2] == '3P':
+                if row and row[2].upper() == '3P':
                     channel_map[name] = {'ChannelID': row[0], 'ChannelName': row[1]}
                 elif row:
                     row_nums = df[df['ChannelName'] == name].index.tolist()
@@ -1186,7 +1191,18 @@ async def upload_expected_3p_irregulars(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"업로드 실패: {str(e)}")
+        error_str = str(e)
+        if '23000' in error_str and 'UNIQUE' in error_str.upper():
+            import re
+            key_match = re.search(r"The duplicate key value is \((.+?)\)", error_str)
+            if key_match:
+                key_values = key_match.group(1)
+                raise HTTPException(400,
+                    f"중복 데이터가 존재합니다: {key_values}\n"
+                    f"이미 등록된 데이터가 있습니다. ID 컬럼에 해당 ID를 입력하여 수정 모드로 업로드하세요."
+                )
+            raise HTTPException(400, "중복 데이터가 존재하여 업로드에 실패했습니다. ID 컬럼에 해당 ID를 입력하여 수정 모드로 업로드하세요.")
+        raise HTTPException(500, f"업로드 실패: {error_str}")
 
 
 # ========== 행사 단일 CRUD ==========

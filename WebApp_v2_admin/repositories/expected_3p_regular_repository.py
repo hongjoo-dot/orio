@@ -247,17 +247,23 @@ class Expected3PRegularRepository(BaseRepository):
             cursor.execute(query, *ids)
             return [self._row_to_dict(row) for row in cursor.fetchall()]
 
-    def get_year_months(self) -> List[str]:
-        """저장된 데이터의 년월 목록 조회 (위탁 3P 채널만)"""
+    def get_year_months(self, input_month: Optional[str] = None) -> List[str]:
+        """저장된 데이터의 년월 목록 조회 (위탁 3P 채널만, 입력월 종속 필터)"""
         with get_db_cursor(commit=False) as cursor:
-            query = """
+            where_clauses = ["c.ContractType = '3P'"]
+            params = []
+            if input_month:
+                where_clauses.append("t.InputMonth = ?")
+                params.append(input_month)
+            where_sql = " AND ".join(where_clauses)
+            query = f"""
                 SELECT DISTINCT FORMAT(t.[Date], 'yyyy-MM') as YearMonth
                 FROM [dbo].[Expected3PRegularProduct] t
                 INNER JOIN [dbo].[Channel] c ON t.ChannelID = c.ChannelID
-                WHERE c.ContractType = '3P'
+                WHERE {where_sql}
                 ORDER BY YearMonth DESC
             """
-            cursor.execute(query)
+            cursor.execute(query, *params)
             return [row[0] for row in cursor.fetchall()]
 
     def get_channels_summary(self, year_month: str, brand_id=None, input_month: Optional[str] = None) -> List[Dict[str, Any]]:

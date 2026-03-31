@@ -324,9 +324,9 @@ def send_expected_upload_notification(
         if before_amt > 0:
             amt_change = ((after_amt - before_amt) / before_amt) * 100
             sign = "+" if amt_change >= 0 else ""
-            parts.append(f"예상금액 {sign}{amt_change:.1f}%")
+            parts.append(f"예상매출 {sign}{amt_change:.1f}%")
         elif after_amt > 0:
-            parts.append(f"예상금액 신규({after_amt:,.0f})")
+            parts.append(f"예상매출 신규({after_amt:,.0f})")
 
         if before_qty > 0:
             qty_change = ((after_qty - before_qty) / before_qty) * 100

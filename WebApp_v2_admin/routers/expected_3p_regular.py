@@ -140,10 +140,13 @@ async def get_expected_3p_regular_list(
 
 
 @router.get("/year-months")
-async def get_expected_3p_regular_year_months(user: CurrentUser = Depends(require_permission("Expected3PRegular", "READ"))):
-    """위탁 정기 예상 년월 목록 조회"""
+async def get_expected_3p_regular_year_months(
+    input_month: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Expected3PRegular", "READ"))
+):
+    """위탁 정기 예상 년월 목록 조회 (입력월 종속 필터)"""
     try:
-        year_months = expected_3p_regular_repo.get_year_months()
+        year_months = expected_3p_regular_repo.get_year_months(input_month)
         return {"year_months": year_months}
     except Exception as e:
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")
@@ -268,7 +271,7 @@ async def download_expected_3p_regular(
             data = result['data']
 
         # 컬럼 정의 (ID 포함 - 통합 양식)
-        export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상금액(VAT포함)', '예상수량', '메모']
+        export_columns = ['ID(수정X)', '날짜(YYYY-MM-01)', '브랜드명', '채널명', '품목코드', '예상매출(VAT포함)', '예상수량', '메모']
         # 수정 불가 컬럼 인덱스 (검정 배경 + 흰 글자 적용)
         readonly_columns = [1, 2, 3, 4]  # 날짜, 브랜드명, 채널명, 품목코드
         id_column_idx = 0  # ID 컬럼은 빨간색으로 별도 처리
@@ -287,7 +290,7 @@ async def download_expected_3p_regular(
                 'BrandName': '브랜드명',
                 'ChannelName': '채널명',
                 'ERPCode': '품목코드',
-                'ExpectedAmount': '예상금액(VAT포함)',
+                'ExpectedAmount': '예상매출(VAT포함)',
                 'ExpectedQuantity': '예상수량',
                 'Notes': '메모'
             }
@@ -311,12 +314,12 @@ async def download_expected_3p_regular(
             ['브랜드명', 'Brand 테이블에 등록된 브랜드명'],
             ['채널명', 'Channel 테이블에 등록된 채널명'],
             ['품목코드', 'ProductBox 테이블에 등록된 품목코드 (ERPCode, 드롭다운 선택)'],
-            ['예상금액(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
+            ['예상매출(VAT포함)', 'VAT 포함 금액 (예: 1000000). VAT제외 금액은 서버에서 자동 계산됩니다.'],
             ['예상수량', '숫자 (예: 100)'],
             ['메모', '메모/참고사항'],
             ['', ''],
             ['■ 수정 가능/불가 컬럼', ''],
-            ['수정 가능', '예상금액(VAT포함), 예상수량, 메모'],
+            ['수정 가능', '예상매출(VAT포함), 예상수량, 메모'],
             ['수정 불가 (검정)', '날짜, 브랜드명, 채널명, 품목코드'],
             ['ID(수정X) (빨간색)', '수정할 데이터 식별용 (비워두면 신규 등록)'],
             ['', ''],
@@ -372,27 +375,30 @@ async def download_expected_3p_regular(
             # 드롭다운 적용 범위 (2행~1000행)
             max_row = max(len(df) + 100, 1000)  # 데이터 + 여유분
 
-            # 채널명 드롭다운 (E열, 인덱스 4)
+            # 채널명 드롭다운
+            channel_col_idx = export_columns.index('채널명')
             if channel_names:
-                worksheet.data_validation(1, 4, max_row, 4, {
+                worksheet.data_validation(1, channel_col_idx, max_row, channel_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$A$1:$A${len(channel_names)}',
                     'input_message': '채널을 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 브랜드명 드롭다운 (D열, 인덱스 3)
+            # 브랜드명 드롭다운
+            brand_col_idx = export_columns.index('브랜드명')
             if brand_names:
-                worksheet.data_validation(1, 3, max_row, 3, {
+                worksheet.data_validation(1, brand_col_idx, max_row, brand_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$B$1:$B${len(brand_names)}',
                     'input_message': '브랜드를 선택하세요',
                     'error_message': '목록에서 선택해주세요'
                 })
 
-            # 품목코드 드롭다운 (F열, 인덱스 5)
+            # 품목코드 드롭다운
+            product_col_idx = export_columns.index('품목코드')
             if erp_codes:
-                worksheet.data_validation(1, 5, max_row, 5, {
+                worksheet.data_validation(1, product_col_idx, max_row, product_col_idx, {
                     'validate': 'list',
                     'source': f'=목록!$C$1:$C${len(erp_codes)}',
                     'input_message': '품목코드를 선택하세요',
@@ -645,8 +651,8 @@ async def upload_expected_3p_regular(
             '브랜드명': 'BrandName',
             '채널명': 'ChannelName',
             '품목코드': 'ERPCode',
-            '예상금액(+VAT)': 'ExpectedAmount',
-            '예상금액(VAT포함)': 'ExpectedAmount',
+            '예상매출(+VAT)': 'ExpectedAmount',
+            '예상매출(VAT포함)': 'ExpectedAmount',
             '예상수량': 'ExpectedQuantity',
             '비고': 'Notes',
             '메모': 'Notes'
@@ -704,7 +710,7 @@ async def upload_expected_3p_regular(
             with get_db_cursor() as cursor:
                 cursor.execute("SELECT ChannelID, Name, ContractType FROM Channel WHERE Name = ?", (name,))
                 row = cursor.fetchone()
-                if row and row[2] == '3P':
+                if row and row[2].upper() == '3P':
                     channel_map[name] = {'ChannelID': row[0], 'ChannelName': row[1]}
                 elif row:
                     row_nums = df[df['ChannelName'] == name].index.tolist()
@@ -849,7 +855,18 @@ async def upload_expected_3p_regular(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"업로드 실패: {str(e)}")
+        error_str = str(e)
+        if '23000' in error_str and 'UNIQUE' in error_str.upper():
+            import re
+            key_match = re.search(r"The duplicate key value is \((.+?)\)", error_str)
+            if key_match:
+                key_values = key_match.group(1)
+                raise HTTPException(400,
+                    f"중복 데이터가 존재합니다: {key_values}\n"
+                    f"이미 등록된 데이터가 있습니다. ID 컬럼에 해당 ID를 입력하여 수정 모드로 업로드하세요."
+                )
+            raise HTTPException(400, "중복 데이터가 존재하여 업로드에 실패했습니다. ID 컬럼에 해당 ID를 입력하여 수정 모드로 업로드하세요.")
+        raise HTTPException(500, f"업로드 실패: {error_str}")
 
 
 def _detect_upload_diff_3p_regular(current_input_month: str, records: list, user):

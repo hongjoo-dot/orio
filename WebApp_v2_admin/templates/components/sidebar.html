@@ -51,6 +51,20 @@
                 </div>
             </div>
 
+            <!-- 쿠팡 드롭다운 -->
+            <div class="nav-dropdown {% if active_page in ['coupang-upload'] %}active{% endif %}">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['coupang-upload'] %}active{% endif %}">
+                    <i class="fa-solid fa-shop"></i>
+                    <span class="nav-text">쿠팡</span>
+                    <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
+                </div>
+                <div class="nav-dropdown-menu">
+                    <a href="/coupang/upload" class="nav-dropdown-item {% if active_page == 'coupang-upload' %}active{% endif %}">
+                        <i class="fa-solid fa-upload"></i> 데이터 업로드
+                    </a>
+                </div>
+            </div>
+
             <a href="/channels" class="nav-item {% if active_page == 'channels' %}active{% endif %}">
                 <i class="fa-solid fa-store"></i> <span class="nav-text">채널 관리</span>
             </a>
