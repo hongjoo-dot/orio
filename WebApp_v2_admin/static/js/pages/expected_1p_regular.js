@@ -229,8 +229,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     initPanelResize('irregMasterDetail', 'irregResizeHandle');
 
     // MultiSelect 초기화
-    msBrand = new MultiSelect('searchBrand', { placeholder: '전체' });
-    msChannel = new MultiSelect('searchChannel', { placeholder: '전체' });
+    msBrand = new MultiSelect('searchBrand', { placeholder: '전체', onChange: () => doApplyFilters() });
+    msChannel = new MultiSelect('searchChannel', { placeholder: '전체', onChange: () => doApplyFilters() });
     msIrregularType = new MultiSelect('searchIrregularType', { placeholder: '전체' });
 
     // 공통 데이터

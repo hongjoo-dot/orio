@@ -1002,8 +1002,8 @@ function downloadExcel() {
     { const ow = msOwner.getSelectedString(); if (ow) dlParams.owner = ow; }
     const qs = api.buildQueryString(dlParams);
 
-    const endpoint = '/bom-download';
-    const filePrefix = 'BOM분해';
+    const endpoint = currentTab === 'bom' ? '/bom-download' : '/download';
+    const filePrefix = currentTab === 'bom' ? 'BOM분해' : '예상매출_통합';
 
     fetch(`${API_BASE}${endpoint}${qs}`, {
         headers: { 'Authorization': `Bearer ${token}` }
