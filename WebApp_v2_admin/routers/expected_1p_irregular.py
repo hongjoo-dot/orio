@@ -61,7 +61,7 @@ FORMAT_CONFIGS = {
     },
     'coupang': {
         'name': '쿠팡',
-        'channel_keyword': '쿠팡',
+        'channel_keyword': ['쿠팡', '폼하이테크'],
         'extra_columns': None,
         'product_code': {
             'export_name': '쿠팡SKU',
@@ -533,7 +533,10 @@ async def download_expected_1p_irregulars(
         keyword = format_config.get('channel_keyword') if format_config else None
         owner = format_config.get('channel_owner') if format_config else None
         if keyword:
-            filtered_channels = [ch for ch in channels if keyword in ch['Name']]
+            if isinstance(keyword, list):
+                filtered_channels = [ch for ch in channels if any(k in ch['Name'] for k in keyword)]
+            else:
+                filtered_channels = [ch for ch in channels if keyword in ch['Name']]
         elif owner:
             filtered_channels = [ch for ch in channels if ch.get('Owner') == owner]
         else:
