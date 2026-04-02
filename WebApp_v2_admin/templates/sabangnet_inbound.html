@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}입고 관리 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-truck-ramp-box"></i> WMS 입고 관리
+    </h1>
+    <p class="page-subtitle">사방넷 풀필먼트 입고예정 및 작업내역 조회</p>
+</div>
+
+<!-- 탭 -->
+<div class="card" style="padding:0;">
+    <div style="display:flex;border-bottom:1px solid var(--border);">
+        <button class="tab-btn active" data-tab="plans" onclick="switchTab('plans')">
+            <i class="fa-solid fa-clipboard-list"></i> 입고예정
+        </button>
+        <button class="tab-btn" data-tab="works" onclick="switchTab('works')">
+            <i class="fa-solid fa-history"></i> 입고작업내역
+        </button>
+    </div>
+</div>
+
+<!-- 입고예정 탭 -->
+<div id="tab-plans">
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 필터</div>
+            <div style="display:flex;gap:12px;">
+                <button class="btn btn-secondary btn-sm" onclick="resetPlanFilters()">초기화</button>
+                <button class="btn btn-primary btn-sm" onclick="loadPlans()"><i class="fa-solid fa-search"></i> 검색</button>
+            </div>
+        </div>
+        <div class="search-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+            <div class="form-group">
+                <label class="form-label">입고예정일</label>
+                <input type="text" id="planFilterDate" class="form-input" placeholder="YYYYMMDD">
+            </div>
+            <div class="form-group">
+                <label class="form-label">상태</label>
+                <select id="planFilterStatus" class="form-select">
+                    <option value="">전체</option>
+                    <option value="1">입고예정</option>
+                    <option value="2">입고검수중</option>
+                    <option value="3">입고완료</option>
+                    <option value="4">입고취소</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">입고예정 목록 <span id="planCount" class="text-muted" style="font-size:14px;font-weight:400;"></span></h2>
+        <div class="table-container" style="overflow-x:auto;">
+            <table class="table" id="plans-table">
+                <thead>
+                    <tr>
+                        <th>입고예정ID</th>
+                        <th>코드</th>
+                        <th>예정일</th>
+                        <th>상태</th>
+                        <th style="text-align:right;">상품수</th>
+                        <th>완료일</th>
+                        <th>메모</th>
+                    </tr>
+                </thead>
+                <tbody id="plans-tbody">
+                    <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">검색 버튼을 클릭하세요.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="plans-pagination" style="margin-top:16px;"></div>
+    </div>
+
+    <!-- 입고예정 상세 -->
+    <div class="card" id="plan-detail-card" style="display:none;">
+        <h2 class="card-title"><i class="fa-solid fa-box-open"></i> 입고예정 상세 — <span id="planDetailTitle"></span></h2>
+        <div class="table-container" style="overflow-x:auto;">
+            <table class="table" id="plan-detail-table">
+                <thead>
+                    <tr>
+                        <th>브랜드</th>
+                        <th>상품코드</th>
+                        <th>상품명</th>
+                        <th style="text-align:right;">예정수량</th>
+                        <th style="text-align:right;">입고수량</th>
+                        <th>상태</th>
+                        <th>유통기한</th>
+                    </tr>
+                </thead>
+                <tbody id="plan-detail-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 입고작업내역 탭 -->
+<div id="tab-works" style="display:none;">
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div class="card-title" style="margin:0;"><i class="fa-solid fa-filter"></i> 필터</div>
+            <div style="display:flex;gap:12px;">
+                <button class="btn btn-secondary btn-sm" onclick="resetWorkFilters()">초기화</button>
+                <button class="btn btn-primary btn-sm" onclick="loadWorks()"><i class="fa-solid fa-search"></i> 검색</button>
+            </div>
+        </div>
+        <div class="search-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+            <div class="form-group">
+                <label class="form-label">시작일</label>
+                <input type="date" id="workFilterStart" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">종료일</label>
+                <input type="date" id="workFilterEnd" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">작업구분</label>
+                <select id="workFilterType" class="form-select">
+                    <option value="">전체</option>
+                    <option value="1">입고</option>
+                    <option value="3">적치</option>
+                    <option value="5">회송</option>
+                    <option value="7">반품입고</option>
+                    <option value="9">입고취소</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">입고작업내역 <span id="workCount" class="text-muted" style="font-size:14px;font-weight:400;"></span></h2>
+        <div class="table-container" style="overflow-x:auto;">
+            <table class="table" id="works-table">
+                <thead>
+                    <tr>
+                        <th>작업일시</th>
+                        <th>작업구분</th>
+                        <th>입고방식</th>
+                        <th>브랜드</th>
+                        <th>상품명</th>
+                        <th style="text-align:right;">수량</th>
+                        <th>유통기한</th>
+                        <th style="text-align:right;">박스</th>
+                        <th style="text-align:right;">팔레트</th>
+                    </tr>
+                </thead>
+                <tbody id="works-tbody">
+                    <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">검색 버튼을 클릭하세요.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="works-pagination" style="margin-top:16px;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tab-btn {
+        padding: 12px 24px;
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 14px;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+    }
+    .tab-btn:hover { color: var(--text-primary); }
+    .tab-btn.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        font-weight: 600;
+    }
+    #plans-table tbody tr { cursor: pointer; }
+    #plans-table tbody tr:hover { background: rgba(99,102,241,0.08) !important; }
+    .status-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .status-1 { background: rgba(59,130,246,0.15); color: #3b82f6; }
+    .status-2 { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .status-3 { background: rgba(16,185,129,0.15); color: #10b981; }
+    .status-4 { background: rgba(239,68,68,0.15); color: #ef4444; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/sabangnet_inbound.js"></script>
+{% endblock %}

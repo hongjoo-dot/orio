@@ -130,6 +130,39 @@ async def coupang_upload_page(request: Request, redirect = Depends(require_login
     })
 
 
+@router.get("/data-query", response_class=HTMLResponse)
+async def data_query_page(request: Request, redirect = Depends(require_login_for_page)):
+    """데이터 조회 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("data_query.html", {
+        "request": request,
+        "active_page": "data-query"
+    })
+
+
+@router.get("/sabangnet/inventory", response_class=HTMLResponse)
+async def sabangnet_inventory_page(request: Request, redirect = Depends(require_login_for_page)):
+    """WMS 재고 조회 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("sabangnet_inventory.html", {
+        "request": request,
+        "active_page": "sabangnet-inventory"
+    })
+
+
+@router.get("/sabangnet/inbound", response_class=HTMLResponse)
+async def sabangnet_inbound_page(request: Request, redirect = Depends(require_login_for_page)):
+    """WMS 입고 관리 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("sabangnet_inbound.html", {
+        "request": request,
+        "active_page": "sabangnet-inbound"
+    })
+
+
 @router.get("/utilities", response_class=HTMLResponse)
 async def utilities_page(request: Request, redirect = Depends(require_login_for_page)):
     """유틸리티 페이지"""

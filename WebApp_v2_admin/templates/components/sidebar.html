@@ -65,8 +65,28 @@
                 </div>
             </div>
 
+            <!-- 물류 (WMS) 드롭다운 -->
+            <div class="nav-dropdown {% if active_page in ['sabangnet-inventory', 'sabangnet-inbound'] %}active{% endif %}">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['sabangnet-inventory', 'sabangnet-inbound'] %}active{% endif %}">
+                    <i class="fa-solid fa-warehouse"></i>
+                    <span class="nav-text">물류 (WMS)</span>
+                    <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
+                </div>
+                <div class="nav-dropdown-menu">
+                    <a href="/sabangnet/inventory" class="nav-dropdown-item {% if active_page == 'sabangnet-inventory' %}active{% endif %}">
+                        <i class="fa-solid fa-boxes-stacked"></i> 재고 조회
+                    </a>
+                    <a href="/sabangnet/inbound" class="nav-dropdown-item {% if active_page == 'sabangnet-inbound' %}active{% endif %}">
+                        <i class="fa-solid fa-truck-ramp-box"></i> 입고 관리
+                    </a>
+                </div>
+            </div>
+
             <a href="/channels" class="nav-item {% if active_page == 'channels' %}active{% endif %}">
                 <i class="fa-solid fa-store"></i> <span class="nav-text">채널 관리</span>
+            </a>
+            <a href="/data-query" class="nav-item {% if active_page == 'data-query' %}active{% endif %}">
+                <i class="fa-solid fa-magnifying-glass-chart"></i> <span class="nav-text">데이터 조회</span>
             </a>
             <a href="/utilities" class="nav-item {% if active_page == 'utilities' %}active{% endif %}">
                 <i class="fa-solid fa-toolbox"></i> <span class="nav-text">유틸리티</span>

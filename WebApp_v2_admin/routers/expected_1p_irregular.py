@@ -244,10 +244,13 @@ async def get_expected_1p_irregular_list(
 
 
 @router.get("/year-months")
-async def get_expected_1p_irregular_year_months(user: CurrentUser = Depends(require_permission("Expected1PIrregular", "READ"))):
-    """행사 년월 목록 조회"""
+async def get_expected_1p_irregular_year_months(
+    input_month: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("Expected1PIrregular", "READ"))
+):
+    """행사 년월 목록 조회 (입력월 종속 필터)"""
     try:
-        year_months = expected_1p_irregular_repo.get_year_months()
+        year_months = expected_1p_irregular_repo.get_year_months(input_month)
         return {"year_months": year_months}
     except Exception as e:
         raise HTTPException(500, f"년월 목록 조회 실패: {str(e)}")

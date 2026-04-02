@@ -9,8 +9,9 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 # Routers
-from routers import product, brand, channel, sales, bom, pages, expected_3p_regular, expected_3p_irregular, expected_1p_regular, expected_1p_irregular, expected_sales_integration, utility, withdrawal_plan
+from routers import product, brand, channel, sales, bom, pages, expected_3p_regular, expected_3p_irregular, expected_1p_regular, expected_1p_irregular, expected_sales_integration, utility, withdrawal_plan, data_query
 from routers import auth, admin, system_config, coupang
+from routers import sabangnet_inventory, sabangnet_inbound
 
 app = FastAPI(
     title="Orio ERP System v2",
@@ -61,6 +62,9 @@ app.include_router(withdrawal_plan.router)  # 불출 계획
 app.include_router(utility.router)  # 유틸리티
 app.include_router(system_config.router)
 app.include_router(coupang.router)  # 쿠팡
+app.include_router(data_query.router)  # 데이터 조회
+app.include_router(sabangnet_inventory.router)  # WMS 재고 조회
+app.include_router(sabangnet_inbound.router)  # WMS 입고 관리
 
 
 

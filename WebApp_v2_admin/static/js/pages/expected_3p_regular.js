@@ -243,14 +243,16 @@ document.addEventListener('DOMContentLoaded', async function () {
     loadChannels();
     await Promise.all([loadYearMonths(), loadInputMonths()]);
 
-    // 연월 변경 시 입력월 목록 갱신
+    // 연월 변경 시 입력월 목록 갱신 + 데이터 재조회
     document.getElementById('searchYearMonth').addEventListener('change', async () => {
         await loadInputMonths();
+        doApplyFilters();
     });
 
-    // 입력월 변경 시 연월 목록 갱신
+    // 입력월 변경 시 연월 목록 갱신 + 데이터 재조회
     document.getElementById('searchInputMonth').addEventListener('change', async () => {
         await loadYearMonths();
+        doApplyFilters();
     });
 });
 
@@ -327,12 +329,9 @@ function doSwitchTab(tab) {
         loadStatuses();
     }
 
-    // 탭 전환 시 입력월 목록 갱신
+    // 탭 전환 시 필터 목록 갱신
+    loadYearMonths();
     loadInputMonths();
-
-    if (tab === 'irregular') {
-        loadIrregMaster();
-    }
 }
 
 // ================================================================
@@ -856,7 +855,10 @@ async function loadYearMonths() {
         const im = document.getElementById('searchInputMonth').value;
         if (im) params.input_month = im;
         const qs = api.buildQueryString(params);
-        const result = await api.get(`/api/expected/3p/regular/year-months${qs}`);
+        const ymEndpoint = currentTab === 'irregular'
+            ? '/api/expected/3p/irregular/year-months'
+            : '/api/expected/3p/regular/year-months';
+        const result = await api.get(`${ymEndpoint}${qs}`);
         const yearMonths = result.year_months || [];
 
         const sel = document.getElementById('searchYearMonth');

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}데이터 조회 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-magnifying-glass-chart"></i> 데이터 조회
+    </h1>
+    <p class="page-subtitle">판매 데이터 조회 및 엑셀 다운로드</p>
+</div>
+
+<!-- 검색 필터 카드 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;">
+            <i class="fa-solid fa-filter"></i> 검색 필터
+        </div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">초기화</button>
+            <button class="btn btn-primary btn-sm" onclick="applyFilters()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div class="search-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+        <div class="form-group">
+            <label class="form-label">브랜드</label>
+            <select id="filterBrand" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">채널</label>
+            <select id="filterChannel" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">시작일</label>
+            <input type="date" id="filterDateFrom" class="form-input">
+        </div>
+        <div class="form-group">
+            <label class="form-label">종료일</label>
+            <input type="date" id="filterDateTo" class="form-input">
+        </div>
+    </div>
+</div>
+
+<!-- 데이터 테이블 카드 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <h2 class="card-title" style="margin:0;white-space:nowrap;">
+            일별 매출 <span id="totalCount" class="text-muted" style="font-size:14px;font-weight:400;"></span>
+        </h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-success btn-sm" onclick="downloadExcel()">
+                <i class="fa-solid fa-download"></i> 엑셀 다운로드
+            </button>
+        </div>
+    </div>
+    <div class="table-container" style="overflow-x:auto;max-height:70vh;">
+        <table class="table" id="data-table">
+            <thead style="position:sticky;top:0;z-index:3;"><tr><th>ERPCode</th><th>상품명</th></tr></thead>
+            <tbody>
+                <tr><td colspan="2" style="text-align:center;padding:40px;color:var(--text-muted);">검색 조건을 설정하고 검색 버튼을 클릭하세요.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .channel-group-row td {
+        background: rgba(99, 102, 241, 0.1) !important;
+        border-top: 2px solid var(--accent);
+    }
+    #data-table th {
+        background: var(--bg-card);
+        white-space: nowrap;
+    }
+    #data-table td {
+        white-space: nowrap;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/data_query.js"></script>
+{% endblock %}

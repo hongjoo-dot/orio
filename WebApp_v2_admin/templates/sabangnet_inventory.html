@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}재고 조회 - Orio ERP v2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-warehouse"></i> WMS 재고 조회
+    </h1>
+    <p class="page-subtitle">사방넷 풀필먼트 재고 스냅샷 조회</p>
+</div>
+
+<!-- 검색 필터 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;">
+            <i class="fa-solid fa-filter"></i> 검색 필터
+        </div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">초기화</button>
+            <button class="btn btn-primary btn-sm" onclick="applyFilters()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+        </div>
+    </div>
+    <div class="search-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+        <div class="form-group">
+            <label class="form-label">조회 날짜</label>
+            <select id="filterDate" class="form-select">
+                <option value="">날짜 선택</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">시간대</label>
+            <select id="filterTime" class="form-select">
+                <option value="">전체</option>
+                <option value="AM">AM (11시)</option>
+                <option value="PM">PM (18시)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">브랜드</label>
+            <select id="filterBrand" class="form-select">
+                <option value="">전체</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">상품 검색</label>
+            <input type="text" id="filterSearch" class="form-input" placeholder="상품명 또는 코드">
+        </div>
+    </div>
+</div>
+
+<!-- 재고 테이블 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 class="card-title" style="margin:0;">
+            상품별 재고 현황 <span id="totalCount" class="text-muted" style="font-size:14px;font-weight:400;"></span>
+        </h2>
+    </div>
+    <div class="table-container" style="overflow-x:auto;max-height:60vh;">
+        <table class="table" id="inventory-table">
+            <thead style="position:sticky;top:0;z-index:3;">
+                <tr>
+                    <th style="min-width:100px;">브랜드</th>
+                    <th style="min-width:80px;">상품코드</th>
+                    <th style="min-width:200px;">상품명</th>
+                    <th style="text-align:right;min-width:80px;">총재고</th>
+                    <th style="text-align:right;min-width:80px;">출고가능</th>
+                    <th style="text-align:right;min-width:70px;">입고</th>
+                    <th style="text-align:right;min-width:70px;">출고지시</th>
+                    <th style="text-align:right;min-width:80px;">출고작업</th>
+                    <th style="text-align:right;min-width:60px;">불량</th>
+                    <th style="text-align:right;min-width:60px;">반품</th>
+                    <th style="text-align:right;min-width:60px;">보관</th>
+                </tr>
+            </thead>
+            <tbody id="inventory-tbody">
+                <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-muted);">
+                    날짜를 선택하고 검색 버튼을 클릭하세요.
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 로케이션 상세 (상품 클릭 시 표시) -->
+<div class="card" id="location-card" style="display:none;">
+    <h2 class="card-title" style="margin-bottom:16px;">
+        <i class="fa-solid fa-map-marker-alt"></i>
+        로케이션별 재고 — <span id="locationProductName"></span>
+    </h2>
+    <div class="table-container" style="overflow-x:auto;max-height:40vh;">
+        <table class="table" id="location-table">
+            <thead>
+                <tr>
+                    <th>로케이션명</th>
+                    <th>구분</th>
+                    <th>유통기한</th>
+                    <th style="text-align:right;">수량</th>
+                </tr>
+            </thead>
+            <tbody id="location-tbody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    #inventory-table tbody tr {
+        cursor: pointer;
+    }
+    #inventory-table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.08) !important;
+    }
+    #inventory-table tbody tr.selected-row {
+        background: rgba(99, 102, 241, 0.15) !important;
+    }
+    .stock-zero { color: var(--text-muted); }
+    .stock-negative { color: var(--danger); font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/sabangnet_inventory.js"></script>
+{% endblock %}
