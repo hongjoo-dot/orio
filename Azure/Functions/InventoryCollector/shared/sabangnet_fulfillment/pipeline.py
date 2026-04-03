@@ -42,16 +42,20 @@ def run_inventory_pipeline(snapshot_time: str = 'AM') -> dict:
         client = SabangnetFulfillmentClient(config)
         uploader = InventoryUploader()
 
-        # Product 매핑 로드
+        # Step 0: ERPCode 매핑 로드 + 사방넷 출고상품 전체 조회 → 매핑 구축
         uploader.load_product_mapping()
-        shipping_ids = uploader.get_shipping_product_ids()
 
-        if not shipping_ids:
-            logger.warning("[파이프라인] 매핑된 상품이 없습니다. Product 테이블의 SabangnetUniqueCode를 확인하세요.")
-            result['errors'].append('매핑된 상품 없음')
+        logger.info('[파이프라인] 사방넷 출고상품 전체 조회')
+        shipping_products = client.get_shipping_products()
+
+        if not shipping_products:
+            logger.warning("[파이프라인] 사방넷에서 출고상품을 가져올 수 없습니다.")
+            result['errors'].append('출고상품 조회 실패')
             return result
 
-        logger.info(f"[파이프라인] 매핑된 상품: {len(shipping_ids)}개")
+        uploader.build_shipping_product_mapping(shipping_products)
+        shipping_ids = uploader.get_shipping_product_ids()
+        logger.info(f"[파이프라인] 출고상품: {len(shipping_ids)}개")
 
         snapshot_date = datetime.today().strftime('%Y-%m-%d')
 

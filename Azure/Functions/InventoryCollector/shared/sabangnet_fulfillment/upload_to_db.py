@@ -16,30 +16,67 @@ from common.database import get_db_connection
 logger = logging.getLogger(__name__)
 
 
+def _safe_int(val, default=0):
+    """빈 문자열/None도 안전하게 int 변환"""
+    if val is None or val == '':
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
 class InventoryUploader:
     """재고/입고 데이터 DB 업로드"""
 
     def __init__(self):
-        self.product_mapping = {}  # ShippingProductID → ProductID
+        self.product_mapping = {}   # ShippingProductID → {ProductID, ProductCode, ProductName}
+        self.erpcode_mapping = {}   # ERPCode → {ProductID, ProductName}
 
     def load_product_mapping(self):
-        """Product 테이블에서 SabangnetUniqueCode → ProductID 매핑 로드"""
+        """ProductBox.ERPCode → ProductID 매핑 로드"""
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT SabangnetUniqueCode, ProductID, SabangnetCode, Name
-            FROM [dbo].[Product]
-            WHERE SabangnetUniqueCode IS NOT NULL AND SabangnetUniqueCode != ''
+            SELECT pb.ERPCode, pb.ProductID, p.Name
+            FROM [dbo].[ProductBox] pb
+            JOIN [dbo].[Product] p ON pb.ProductID = p.ProductID
+            WHERE pb.ERPCode IS NOT NULL AND pb.ERPCode != ''
         """)
         for row in cursor.fetchall():
-            self.product_mapping[str(row[0])] = {
+            self.erpcode_mapping[str(row[0]).strip()] = {
                 'ProductID': row[1],
-                'ProductCode': row[2],
-                'ProductName': row[3]
+                'ProductName': row[2] or ''
             }
         cursor.close()
         conn.close()
-        logger.info(f"[매핑] Product 매핑 로드: {len(self.product_mapping)}건")
+        logger.info(f"[매핑] ERPCode 매핑 로드: {len(self.erpcode_mapping)}건")
+
+    def build_shipping_product_mapping(self, shipping_products: list):
+        """
+        사방넷 출고상품 리스트에서 manage_code2(ERPCode) → ERP ProductID 매핑 구축
+
+        Args:
+            shipping_products: 사방넷 API get_shipping_products() 결과
+        """
+        matched = 0
+        for sp in shipping_products:
+            spid = str(sp.get('shipping_product_id', ''))
+            manage_code2 = str(sp.get('manage_code2', '')).strip()  # ERPCode
+            product_name = sp.get('product_name', '')
+
+            erp_info = self.erpcode_mapping.get(manage_code2, {})
+
+            self.product_mapping[spid] = {
+                'ProductID': erp_info.get('ProductID'),
+                'ProductCode': manage_code2,
+                'ProductName': erp_info.get('ProductName', product_name)
+            }
+
+            if erp_info.get('ProductID'):
+                matched += 1
+
+        logger.info(f"[매핑] 출고상품 {len(shipping_products)}개 중 ERP 매핑 성공: {matched}개, 실패: {len(shipping_products) - matched}개")
 
     def get_shipping_product_ids(self) -> list:
         """매핑된 shipping_product_id 리스트 반환"""
@@ -102,26 +139,26 @@ class InventoryUploader:
                     mapping.get('ProductID'),
                     mapping.get('ProductCode', ''),
                     mapping.get('ProductName', stock.get('product_name', '')),
-                    int(stock.get('total_stock', 0)),
-                    int(stock.get('receiving_stock', 0)),
-                    int(stock.get('normal_stock', 0)),
-                    int(stock.get('order_stock', 0)),
-                    int(stock.get('shipping_stock', 0)),
-                    int(stock.get('damaged_stock', 0)),
-                    int(stock.get('return_stock', 0)),
-                    int(stock.get('keeping_stock', 0)),
+                    _safe_int(stock.get('total_stock', 0)),
+                    _safe_int(stock.get('receiving_stock', 0)),
+                    _safe_int(stock.get('normal_stock', 0)),
+                    _safe_int(stock.get('order_stock', 0)),
+                    _safe_int(stock.get('shipping_stock', 0)),
+                    _safe_int(stock.get('damaged_stock', 0)),
+                    _safe_int(stock.get('return_stock', 0)),
+                    _safe_int(stock.get('keeping_stock', 0)),
                     # WHEN NOT MATCHED INSERT
                     snapshot_date, snapshot_time, spid, mapping.get('ProductID'),
                     mapping.get('ProductCode', ''),
                     mapping.get('ProductName', stock.get('product_name', '')),
-                    int(stock.get('total_stock', 0)),
-                    int(stock.get('receiving_stock', 0)),
-                    int(stock.get('normal_stock', 0)),
-                    int(stock.get('order_stock', 0)),
-                    int(stock.get('shipping_stock', 0)),
-                    int(stock.get('damaged_stock', 0)),
-                    int(stock.get('return_stock', 0)),
-                    int(stock.get('keeping_stock', 0)),
+                    _safe_int(stock.get('total_stock', 0)),
+                    _safe_int(stock.get('receiving_stock', 0)),
+                    _safe_int(stock.get('normal_stock', 0)),
+                    _safe_int(stock.get('order_stock', 0)),
+                    _safe_int(stock.get('shipping_stock', 0)),
+                    _safe_int(stock.get('damaged_stock', 0)),
+                    _safe_int(stock.get('return_stock', 0)),
+                    _safe_int(stock.get('keeping_stock', 0)),
                 )
 
                 action = cursor.fetchone()
@@ -187,7 +224,7 @@ class InventoryUploader:
                     loc.get('location_name', ''),
                     loc.get('loc_type'),
                     loc.get('expire_date', ''),
-                    int(loc.get('quantity', 0))
+                    _safe_int(loc.get('quantity', 0))
                 )
                 inserted += 1
 
@@ -275,7 +312,7 @@ class InventoryUploader:
                             VALUES (?, ?, ?, ?, ?, ?)
                         """,
                             plan_id, spid, mapping.get('ProductID'),
-                            int(prod.get('quantity', 0)),
+                            _safe_int(prod.get('quantity', 0)),
                             prod.get('expire_date', ''),
                             prod.get('make_date', '')
                         )
@@ -374,7 +411,7 @@ class InventoryUploader:
                     work.get('receiving_plan_id'),
                     spid,
                     mapping.get('ProductID'),
-                    int(work.get('quantity', 0)),
+                    _safe_int(work.get('quantity', 0)),
                     work.get('expire_date', ''),
                     work.get('make_date', ''),
                     work.get('location_id'),
