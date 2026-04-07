@@ -243,6 +243,49 @@ def daily_frog_customer_collector(timer: func.TimerRequest) -> None:
 
 
 # ============================================================================
+# 매일 오후 6시 20분(한국시간): Cafe24 Analytics 유입경로 수집
+# ============================================================================
+@app.timer_trigger(
+    schedule="0 20 9 * * *",  # 매일 오전 9시 20분 (UTC) = 한국시간 오후 6시 20분
+    arg_name="timer",
+    run_on_startup=False,
+    use_monitor=True
+)
+def daily_analytics_collector(timer: func.TimerRequest) -> None:
+    """
+    매일 오후 6시 20분(한국시간)에 Cafe24 Analytics 유입경로 데이터 수집
+
+    파이프라인:
+    1. 도메인/광고/키워드별 유입 수 + 매출 전환 수집
+    2. 일별 방문자 수 수집
+    3. DB MERGE (4개 테이블)
+    4. Slack 알림
+    """
+    logging.info('=' * 80)
+    logging.info('Cafe24 Analytics 유입경로 수집 시작')
+    logging.info(f'실행 시간: {datetime.utcnow().isoformat()}Z (UTC)')
+    logging.info('=' * 80)
+
+    try:
+        from cafe24_analytics.pipeline import run_analytics_pipeline
+        result = run_analytics_pipeline()
+
+        logging.info(f'Cafe24 Analytics 완료: {result}')
+
+    except Exception as e:
+        error_msg = f'Cafe24 Analytics 수집 실패: {str(e)}'
+        logging.error(error_msg, exc_info=True)
+
+        try:
+            from cafe24.slack_notifier import send_slack_notification
+            send_slack_notification(f"❌ *[ERROR] Cafe24 Analytics 수집 실패*\n\n```{str(e)}```")
+        except:
+            pass
+
+    logging.info('=' * 80)
+
+
+# ============================================================================
 # 향후 추가 예정 함수 (주석 처리)
 # ============================================================================
 

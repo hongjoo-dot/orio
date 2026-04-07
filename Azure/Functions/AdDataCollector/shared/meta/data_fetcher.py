@@ -11,7 +11,7 @@ class MetaDataFetcher:
 
     def __init__(self, access_token: str):
         self.access_token = access_token
-        self.base_url = "https://graph.facebook.com/v19.0"
+        self.base_url = "https://graph.facebook.com/v21.0"
 
     def fetch_insights_raw(
         self,
@@ -75,7 +75,10 @@ class MetaDataFetcher:
                     success = True
 
                 except requests.exceptions.HTTPError as e:
-                    if e.response.status_code in [403, 429]:
+                    status_code = e.response.status_code
+                    if status_code == 401:
+                        raise RuntimeError(f"Meta API 인증 실패 (401). 토큰이 만료되었거나 유효하지 않습니다: {e}")
+                    elif status_code in [403, 429]:
                         retry_count += 1
                         if retry_count < max_retries:
                             print(f"[WARNING] Rate Limit 감지. {retry_delay}초 후 재시도...")

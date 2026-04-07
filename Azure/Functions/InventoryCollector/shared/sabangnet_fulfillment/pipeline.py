@@ -37,6 +37,14 @@ def run_inventory_pipeline(snapshot_time: str = 'AM') -> dict:
     }
 
     try:
+        # 실제 아웃바운드 IP 확인 (디버깅용)
+        try:
+            import requests as _req
+            my_ip = _req.get('https://api.ipify.org', timeout=5).text
+            logger.info(f'[파이프라인] 아웃바운드 IP: {my_ip}')
+        except Exception:
+            logger.warning('[파이프라인] IP 확인 실패')
+
         # 설정 로드
         config = get_fulfillment_config()
         client = SabangnetFulfillmentClient(config)
@@ -55,7 +63,12 @@ def run_inventory_pipeline(snapshot_time: str = 'AM') -> dict:
 
         uploader.build_shipping_product_mapping(shipping_products)
         shipping_ids = uploader.get_shipping_product_ids()
-        logger.info(f"[파이프라인] 출고상품: {len(shipping_ids)}개")
+
+        # 매핑 통계
+        mapped = sum(1 for v in uploader.product_mapping.values() if v.get('ProductID'))
+        unmapped = len(shipping_products) - mapped
+        result['mapping'] = {'total': len(shipping_products), 'matched': mapped, 'unmatched': unmapped}
+        logger.info(f"[파이프라인] 출고상품: {len(shipping_ids)}개 (매핑 성공: {mapped}, 실패: {unmapped})")
 
         snapshot_date = datetime.today().strftime('%Y-%m-%d')
 
@@ -150,8 +163,18 @@ def _send_slack_summary(result: dict):
         works = result['receiving_works']
         errors = result['errors']
 
-        icon = '✅' if not errors else '⚠️'
+        mapping = result.get('mapping', {})
+        has_unmapped = mapping.get('unmatched', 0) > 0
+        icon = '✅' if not errors and not has_unmapped else '⚠️'
         message = f"{icon} *[풀필먼트] 재고/입고 수집 완료 ({result['snapshot_time']})*\n\n"
+
+        # 매핑 통계
+        if mapping:
+            message += f"🔗 *상품 매핑*: {mapping.get('total', 0)}개 중 {mapping.get('matched', 0)}개 성공"
+            if has_unmapped:
+                message += f" (*{mapping['unmatched']}개 미매핑*)"
+            message += "\n"
+
         message += f"📦 *재고 스냅샷*: {inv.get('total', 0)}건 (INSERT: {inv.get('inserted', 0)}, UPDATE: {inv.get('updated', 0)})\n"
         message += f"📍 *로케이션*: {loc.get('inserted', 0)}건\n"
         message += f"📋 *입고예정*: {plans.get('total', 0)}건\n"

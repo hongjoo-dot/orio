@@ -68,6 +68,8 @@ class SabangnetFulfillmentClient:
         """API 요청 (재시도 로직 포함)"""
         url = f"{self.api_host}{path}"
         headers = self._get_headers()
+        logger.info(f"[API] URL: {url}")
+        logger.info(f"[API] Headers: Authorization={headers.get('Authorization')}, Credential={headers.get('Credential')}")
 
         for attempt in range(1, max_retries + 1):
             try:

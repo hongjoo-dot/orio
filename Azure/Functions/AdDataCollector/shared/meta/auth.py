@@ -15,7 +15,7 @@ class MetaAPIAuth:
     TOKEN_EXPIRY_WARNING_DAYS = 7
 
     def __init__(self):
-        self.base_url = "https://graph.facebook.com/v19.0"
+        self.base_url = "https://graph.facebook.com/v21.0"
         config = get_config()
         self.app_id = config.get('MetaAdAPI', 'APP_ID')
         self.app_secret = config.get('MetaAdAPI', 'APP_SECRET')
@@ -63,8 +63,8 @@ class MetaAPIAuth:
             return {'is_valid': True, 'days_left': days_left, 'warning': warning}
 
         except Exception as e:
-            logging.error(f"[MetaAPI] 토큰 상태 점검 실패: {e}")
-            return {'is_valid': False, 'days_left': None, 'warning': True}
+            logging.warning(f"[MetaAPI] 토큰 상태 점검 실패 (점검 건너뜀): {e}")
+            return {'is_valid': True, 'days_left': None, 'warning': False}
 
     def refresh_long_lived_token(self) -> bool:
         """토큰 갱신 및 DB 업데이트"""

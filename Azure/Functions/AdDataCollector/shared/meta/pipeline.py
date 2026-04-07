@@ -12,6 +12,17 @@ from ..system_config import get_config
 from ..slack_notifier import send_meta_notification
 
 
+def _safe_float(value, default=0.0):
+    """NaN, inf, 빈 문자열 등을 안전하게 float으로 변환"""
+    try:
+        f = float(value)
+        if f != f or f == float('inf') or f == float('-inf'):  # NaN or inf
+            return default
+        return f
+    except (ValueError, TypeError):
+        return default
+
+
 def flatten_insights_data(insights_raw, ad_creatives_map, account_name, usd_to_krw):
     """Daily Raw 데이터를 DB 스키마에 맞게 변환"""
     rows = []
@@ -24,7 +35,7 @@ def flatten_insights_data(insights_raw, ad_creatives_map, account_name, usd_to_k
         # 기본 지표
         impressions = int(insight.get('impressions', 0))
         clicks = int(insight.get('clicks', 0))
-        spend = float(insight.get('spend', 0))
+        spend = _safe_float(insight.get('spend', 0))
         purchase = actions.get('purchase', 0) or actions.get('omni_purchase', 0)
         purchase_value = action_values.get('purchase', 0) or action_values.get('omni_purchase', 0)
 
@@ -65,18 +76,18 @@ def flatten_insights_data(insights_raw, ad_creatives_map, account_name, usd_to_k
 
             'Impressions': impressions,
             'Reach': int(insight.get('reach', 0)),
-            'Frequency': float(insight.get('frequency', 0)),
+            'Frequency': _safe_float(insight.get('frequency', 0)),
             'Clicks': clicks,
             'UniqueClicks': int(insight.get('unique_clicks', 0)),
-            'CTR': float(insight.get('ctr', 0)),
-            'UniqueCTR': float(insight.get('unique_ctr', 0)),
+            'CTR': _safe_float(insight.get('ctr', 0)),
+            'UniqueCTR': _safe_float(insight.get('unique_ctr', 0)),
             'Spend': spend,
-            'CPM': float(insight.get('cpm', 0)),
-            'CPC': float(insight.get('cpc', 0)),
+            'CPM': _safe_float(insight.get('cpm', 0)),
+            'CPC': _safe_float(insight.get('cpc', 0)),
 
             'InlineLinkClicks': inline_clicks,
-            'InlineLinkClickCTR': float(insight.get('inline_link_click_ctr', 0)),
-            'CostPerInlineLinkClick': float(insight.get('cost_per_inline_link_click', 0)),
+            'InlineLinkClickCTR': _safe_float(insight.get('inline_link_click_ctr', 0)),
+            'CostPerInlineLinkClick': _safe_float(insight.get('cost_per_inline_link_click', 0)),
             'QualityRanking': insight.get('quality_ranking'),
             'EngagementRateRanking': insight.get('engagement_rate_ranking'),
             'ConversionRateRanking': insight.get('conversion_rate_ranking'),
@@ -98,21 +109,21 @@ def flatten_insights_data(insights_raw, ad_creatives_map, account_name, usd_to_k
             'PageEngagement': actions.get('page_engagement', 0),
             'PostClick': actions.get('post_click', 0),
 
-            'PurchaseValue': purchase_value,
-            'WebsitePurchaseValue': purchase_value,
+            'PurchaseValue': _safe_float(purchase_value),
+            'WebsitePurchaseValue': _safe_float(purchase_value),
 
-            'AOV': aov, 'CPA': cpa, 'ROAS': roas, 'CVR': cvr,
+            'AOV': _safe_float(aov), 'CPA': _safe_float(cpa), 'ROAS': _safe_float(roas), 'CVR': _safe_float(cvr),
 
-            'EngagementRate': actions.get('post_engagement', 0) / impressions if impressions > 0 else 0,
-            'ReactionRate': actions.get('post_reaction', 0) / impressions if impressions > 0 else 0,
-            'CommentRate': actions.get('comment', 0) / impressions if impressions > 0 else 0,
-            'VideoViewRate': actions.get('video_view', 0) / impressions if impressions > 0 else 0,
-            'SaveRate': actions.get('post', 0) / impressions if impressions > 0 else 0,
+            'EngagementRate': _safe_float(actions.get('post_engagement', 0) / impressions if impressions > 0 else 0),
+            'ReactionRate': _safe_float(actions.get('post_reaction', 0) / impressions if impressions > 0 else 0),
+            'CommentRate': _safe_float(actions.get('comment', 0) / impressions if impressions > 0 else 0),
+            'VideoViewRate': _safe_float(actions.get('video_view', 0) / impressions if impressions > 0 else 0),
+            'SaveRate': _safe_float(actions.get('post', 0) / impressions if impressions > 0 else 0),
 
-            'SpendKRW': spend_krw,
-            'PurchaseValueKRW': purchase_value_krw,
-            'AOVKRW': aov_krw,
-            'CPAKRW': cpa_krw,
+            'SpendKRW': _safe_float(spend_krw),
+            'PurchaseValueKRW': _safe_float(purchase_value_krw),
+            'AOVKRW': _safe_float(aov_krw),
+            'CPAKRW': _safe_float(cpa_krw),
 
             'CreativeID': creative.get('creative_id'),
             'AdTitle': creative.get('title'),
@@ -140,7 +151,7 @@ def flatten_breakdown_data(insights_raw, breakdown_type, account_name, usd_to_kr
 
         impressions = int(insight.get('impressions', 0))
         clicks = int(insight.get('clicks', 0))
-        spend = float(insight.get('spend', 0))
+        spend = _safe_float(insight.get('spend', 0))
         purchase = actions.get('purchase', 0) or actions.get('omni_purchase', 0)
         purchase_value = action_values.get('purchase', 0) or action_values.get('omni_purchase', 0)
 
@@ -180,12 +191,12 @@ def flatten_breakdown_data(insights_raw, breakdown_type, account_name, usd_to_kr
 
             'Impressions': impressions,
             'Reach': int(insight.get('reach', 0)),
-            'Frequency': float(insight.get('frequency', 0)),
+            'Frequency': _safe_float(insight.get('frequency', 0)),
             'Clicks': clicks,
-            'CTR': float(insight.get('ctr', 0)),
+            'CTR': _safe_float(insight.get('ctr', 0)),
             'Spend': spend,
-            'CPM': float(insight.get('cpm', 0)),
-            'CPC': float(insight.get('cpc', 0)),
+            'CPM': _safe_float(insight.get('cpm', 0)),
+            'CPC': _safe_float(insight.get('cpc', 0)),
 
             'LandingPageViews': actions.get('landing_page_view', 0),
             'AddToCart': actions.get('add_to_cart', 0),
@@ -195,10 +206,10 @@ def flatten_breakdown_data(insights_raw, breakdown_type, account_name, usd_to_kr
             'OutboundClicks': outbound_clicks,
             'LinkClicks': actions.get('link_click', 0),
 
-            'PurchaseValue': purchase_value,
-            'AOV': aov, 'CPA': cpa, 'ROAS': roas, 'CVR': cvr,
-            'SpendKRW': spend_krw, 'PurchaseValueKRW': purchase_value_krw,
-            'AOVKRW': aov_krw, 'CPAKRW': cpa_krw
+            'PurchaseValue': _safe_float(purchase_value),
+            'AOV': _safe_float(aov), 'CPA': _safe_float(cpa), 'ROAS': _safe_float(roas), 'CVR': _safe_float(cvr),
+            'SpendKRW': _safe_float(spend_krw), 'PurchaseValueKRW': _safe_float(purchase_value_krw),
+            'AOVKRW': _safe_float(aov_krw), 'CPAKRW': _safe_float(cpa_krw)
         }
         rows.append(row)
 
@@ -240,7 +251,7 @@ def run_meta_pipeline():
         if not token_status['is_valid']:
             msg = "[CRITICAL] Meta API 토큰이 만료되었습니다. 즉시 새 토큰을 발급해주세요."
             logging.error(msg)
-            send_meta_notification(msg)
+            raise RuntimeError(msg)
         elif token_status['warning']:
             days_left = token_status['days_left']
             msg = f"[WARNING] Meta API 토큰이 {days_left}일 후 만료됩니다. 갱신이 필요합니다."
