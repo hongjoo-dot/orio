@@ -46,6 +46,10 @@ class MetaDBUploader:
                 )
             """)
 
+            # NaN → None 변환 (pandas NaN이 pyodbc에서 float으로 전달되는 문제 방지)
+            # astype(object)로 먼저 변환해야 float dtype 컬럼에서도 None 저장 가능
+            df = df.astype(object).where(pd.notnull(df), None)
+
             # 데이터 매핑 및 삽입
             data_to_insert = []
             for _, row in df.iterrows():
@@ -174,6 +178,9 @@ class MetaDBUploader:
                     [SpendKRW] [float], [PurchaseValueKRW] [float], [AOVKRW] [float], [CPAKRW] [float]
                 )
             """)
+
+            # NaN → None 변환
+            df = df.astype(object).where(pd.notnull(df), None)
 
             data_to_insert = []
             for _, row in df.iterrows():

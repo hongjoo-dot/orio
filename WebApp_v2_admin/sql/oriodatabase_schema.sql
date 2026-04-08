@@ -321,6 +321,82 @@ CREATE TABLE oriodatabase.dbo.Cafe24Orders (
 	 ON [PRIMARY ] ;
 
 
+-- oriodatabase.dbo.Cafe24Visitors definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Cafe24Visitors;
+
+CREATE TABLE oriodatabase.dbo.Cafe24Visitors (
+	ID int IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	VisitCount int NULL,
+	FirstVisitCount int NULL,
+	ReVisitCount int NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Cafe24Vi__3214EC27AA84B7BE PRIMARY KEY (ID),
+	CONSTRAINT UQ_Visitors_Date UNIQUE ([Date])
+);
+
+
+-- oriodatabase.dbo.Cafe24VisitpathAds definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Cafe24VisitpathAds;
+
+CREATE TABLE oriodatabase.dbo.Cafe24VisitpathAds (
+	ID int IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	Ad nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	VisitCount int NULL,
+	OrderCount int NULL,
+	OrderAmount bigint NULL,
+	JoinCount int NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Cafe24Vi__3214EC27B0C8730D PRIMARY KEY (ID),
+	CONSTRAINT UQ_VisitpathAds_Date_Ad UNIQUE ([Date],Ad)
+);
+
+
+-- oriodatabase.dbo.Cafe24VisitpathDomains definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Cafe24VisitpathDomains;
+
+CREATE TABLE oriodatabase.dbo.Cafe24VisitpathDomains (
+	ID int IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	[Domain] nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	VisitCount int NULL,
+	OrderCount int NULL,
+	OrderAmount bigint NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Cafe24Vi__3214EC2706E7A52F PRIMARY KEY (ID),
+	CONSTRAINT UQ_VisitpathDomains_Date_Domain UNIQUE ([Date],[Domain])
+);
+
+
+-- oriodatabase.dbo.Cafe24VisitpathKeywords definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Cafe24VisitpathKeywords;
+
+CREATE TABLE oriodatabase.dbo.Cafe24VisitpathKeywords (
+	ID int IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	Keyword nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	VisitCount int NULL,
+	OrderCount int NULL,
+	OrderAmount bigint NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Cafe24Vi__3214EC272E8EDA50 PRIMARY KEY (ID),
+	CONSTRAINT UQ_VisitpathKeywords_Date_Keyword UNIQUE ([Date],Keyword)
+);
+
+
 -- oriodatabase.dbo.ChangeLog definition
 
 -- Drop table
@@ -466,6 +542,121 @@ CREATE TABLE oriodatabase.dbo.Expected3PRegularProduct (
 );
 
 
+-- oriodatabase.dbo.FrogCafe24Customers definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.FrogCafe24Customers;
+
+CREATE TABLE oriodatabase.dbo.FrogCafe24Customers (
+	CustomerID int IDENTITY(1,1) NOT NULL,
+	member_id nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	shop_no int NULL,
+	group_no int NULL,
+	phone nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	cellphone nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	member_authentication bit NULL,
+	authentication_method nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	sms bit NULL,
+	news_mail bit NULL,
+	gender nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	total_points int NULL,
+	available_points int NULL,
+	used_points int NULL,
+	use_mobile_app bit NULL,
+	fixed_group bit NULL,
+	last_login_date datetime NULL,
+	created_date datetime NULL,
+	next_grade nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	total_purchase_amount decimal(18,2) NULL,
+	total_purchase_count int NULL,
+	required_purchase_amount decimal(18,2) NULL,
+	required_purchase_count int NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__FrogCafe__A4AE64B841D7B59E PRIMARY KEY (CustomerID)
+);
+ CREATE UNIQUE NONCLUSTERED INDEX UX_FrogCafe24Customers_member_id ON oriodatabase.dbo.FrogCafe24Customers (  member_id ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.FrogCafe24Orders definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.FrogCafe24Orders;
+
+CREATE TABLE oriodatabase.dbo.FrogCafe24Orders (
+	Cafe24OrderID int IDENTITY(1,1) NOT NULL,
+	order_id nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	order_date datetime NULL,
+	payment_date datetime NULL,
+	order_status nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	shipping_status nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	shipped_date datetime NULL,
+	purchaseconfirmation_date datetime NULL,
+	member_id nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	billing_name nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	member_email nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	order_place_name nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	order_from_mobile bit NULL,
+	order_price_amount decimal(18,2) NULL,
+	shipping_fee decimal(18,2) NULL,
+	coupon_discount_price decimal(18,2) NULL,
+	points_spent_amount decimal(18,2) NULL,
+	payment_amount decimal(18,2) NULL,
+	payment_method nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	payment_gateway_names nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	paid bit NULL,
+	canceled bit NULL,
+	cancel_date datetime NULL,
+	first_order bit NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__FrogCafe__B61C31D8D7654C6C PRIMARY KEY (Cafe24OrderID)
+);
+ CREATE UNIQUE NONCLUSTERED INDEX UX_FrogCafe24Orders_order_id ON oriodatabase.dbo.FrogCafe24Orders (  order_id ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.FrogCafe24OrdersDetail definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.FrogCafe24OrdersDetail;
+
+CREATE TABLE oriodatabase.dbo.FrogCafe24OrdersDetail (
+	DetailID int IDENTITY(1,1) NOT NULL,
+	Cafe24OrderID int NULL,
+	order_id nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	order_item_code nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	item_no int NULL,
+	ProductUniqueCode nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ProductID int NULL,
+	custom_product_code nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	custom_variant_code nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	product_name nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	option_value nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	quantity int NULL,
+	product_price decimal(18,2) NULL,
+	payment_amount decimal(18,2) NULL,
+	coupon_discount_price decimal(18,2) NULL,
+	order_status nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	order_status_additional_info nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	shipping_code nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	shipping_company_name nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	tracking_no nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	product_bundle bit NULL,
+	supplier_id nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	made_in_code nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__FrogCafe__135C314D30EB3A7C PRIMARY KEY (DetailID)
+);
+ CREATE UNIQUE NONCLUSTERED INDEX UX_FrogCafe24OrdersDetail_order_item_code ON oriodatabase.dbo.FrogCafe24OrdersDetail (  order_item_code ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
 -- oriodatabase.dbo.GoogleAdsSearchVolume definition
 
 -- Drop table
@@ -543,6 +734,32 @@ CREATE TABLE oriodatabase.dbo.[Role] (
 );
 
 
+-- oriodatabase.dbo.SabangnetReceivingPlan definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.SabangnetReceivingPlan;
+
+CREATE TABLE oriodatabase.dbo.SabangnetReceivingPlan (
+	ReceivingPlanID int NOT NULL,
+	MemberID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ReceivingPlanCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	PlanDate nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	PlanStatus int NULL,
+	CompleteDt nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Memo nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	LastSyncedAt datetime DEFAULT getdate() NULL,
+	CreatedAt datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Sabangne__6CC186CB90BFE840 PRIMARY KEY (ReceivingPlanID)
+);
+ CREATE NONCLUSTERED INDEX IX_RecvPlan_PlanDate ON oriodatabase.dbo.SabangnetReceivingPlan (  PlanDate ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_RecvPlan_PlanStatus ON oriodatabase.dbo.SabangnetReceivingPlan (  PlanStatus ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
 -- oriodatabase.dbo.SystemConfig definition
 
 -- Drop table
@@ -618,6 +835,24 @@ CREATE TABLE oriodatabase.dbo.[User] (
  CREATE NONCLUSTERED INDEX IX_User_Email ON oriodatabase.dbo.User (  Email ASC  )  
 	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
 	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.Vendor definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.Vendor;
+
+CREATE TABLE oriodatabase.dbo.Vendor (
+	VendorID int IDENTITY(1,1) NOT NULL,
+	Name nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	Country nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Currency nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ShippingMethod nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CreatedDate datetime DEFAULT getdate() NULL,
+	UpdatedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK_Vendor PRIMARY KEY (VendorID)
+);
 
 
 -- oriodatabase.dbo.ViralKeywords definition
@@ -737,13 +972,14 @@ CREATE TABLE oriodatabase.dbo.AdContractNaver (
 	ContractID int IDENTITY(1,1) NOT NULL,
 	ContractName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
 	BrandID int NULL,
-	CampaignID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	AdGroupID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	StartDate date NOT NULL,
 	EndDate date NOT NULL,
 	TotalBudget decimal(18,2) NOT NULL,
 	IsActive bit DEFAULT 1 NULL,
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
+	AdGroupName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CONSTRAINT PK__AdContra__C90D3409C5FB26BF PRIMARY KEY (ContractID),
 	CONSTRAINT FK_AdContractNaver_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID)
 );
@@ -924,7 +1160,6 @@ CREATE TABLE oriodatabase.dbo.Expected3PIrregularProduct (
 	CreatedDate datetime DEFAULT getdate() NULL,
 	UpdatedDate datetime DEFAULT getdate() NULL,
 	ERPCode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
-	InputMonth nvarchar(7) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	ExpectedSalesAmountExVAT float NULL,
 	CONSTRAINT PK__Promotio__C7B85D3CBB631920 PRIMARY KEY (Expected3PIrregularProductID),
 	CONSTRAINT UQ_PromotionProduct UNIQUE (Expected3PIrregularID,UniqueCode),
@@ -1062,6 +1297,9 @@ CREATE TABLE oriodatabase.dbo.ProductBox (
 	QuantityInBox int NULL,
 	UpdatedDate datetime2 DEFAULT getdate() NULL,
 	CoupangSKU nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	UnitCostKRW decimal(18,2) NULL,
+	SalesPrice decimal(18,2) NULL,
+	SupplyPrice decimal(18,2) NULL,
 	CONSTRAINT PK_ProductBox PRIMARY KEY (BoxID),
 	CONSTRAINT FK_ProductBox_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
 );
@@ -1162,6 +1400,73 @@ CREATE TABLE oriodatabase.dbo.RolePermission (
 	 ON [PRIMARY ] ;
 
 
+-- oriodatabase.dbo.SabangnetInventorySnapshot definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.SabangnetInventorySnapshot;
+
+CREATE TABLE oriodatabase.dbo.SabangnetInventorySnapshot (
+	SnapshotID bigint IDENTITY(1,1) NOT NULL,
+	SnapshotDate date NOT NULL,
+	SnapshotTime nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ShippingProductID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ProductID int NULL,
+	ProductCode nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ProductName nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	TotalStock int DEFAULT 0 NULL,
+	ReceivingStock int DEFAULT 0 NULL,
+	NormalStock int DEFAULT 0 NULL,
+	OrderStock int DEFAULT 0 NULL,
+	ShippingStock int DEFAULT 0 NULL,
+	DamagedStock int DEFAULT 0 NULL,
+	ReturnStock int DEFAULT 0 NULL,
+	KeepingStock int DEFAULT 0 NULL,
+	CreatedAt datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Sabangne__664F570BD047ECB4 PRIMARY KEY (SnapshotID),
+	CONSTRAINT UQ_InvSnapshot_Date_Time_Product UNIQUE (SnapshotDate,SnapshotTime,ShippingProductID),
+	CONSTRAINT FK_InvSnapshot_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
+);
+ CREATE NONCLUSTERED INDEX IX_InvSnapshot_Date ON oriodatabase.dbo.SabangnetInventorySnapshot (  SnapshotDate ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_InvSnapshot_ProductID ON oriodatabase.dbo.SabangnetInventorySnapshot (  ProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_InvSnapshot_ShippingProductID ON oriodatabase.dbo.SabangnetInventorySnapshot (  ShippingProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.SabangnetLocationSnapshot definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.SabangnetLocationSnapshot;
+
+CREATE TABLE oriodatabase.dbo.SabangnetLocationSnapshot (
+	LocationSnapshotID bigint IDENTITY(1,1) NOT NULL,
+	SnapshotDate date NOT NULL,
+	SnapshotTime nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ShippingProductID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ProductID int NULL,
+	LocationID int NULL,
+	LocationName nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	LocType int NULL,
+	ExpireDate nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Quantity int DEFAULT 0 NULL,
+	CreatedAt datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Sabangne__540A5E0066CA2523 PRIMARY KEY (LocationSnapshotID),
+	CONSTRAINT FK_LocSnapshot_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
+);
+ CREATE NONCLUSTERED INDEX IX_LocSnapshot_Date ON oriodatabase.dbo.SabangnetLocationSnapshot (  SnapshotDate ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_LocSnapshot_ShippingProductID ON oriodatabase.dbo.SabangnetLocationSnapshot (  ShippingProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
 -- oriodatabase.dbo.SabangnetOrders definition
 
 -- Drop table
@@ -1242,6 +1547,73 @@ CREATE TABLE oriodatabase.dbo.SabangnetOrdersDetail (
 	 ON [PRIMARY ] ;
 
 
+-- oriodatabase.dbo.SabangnetReceivingPlanProduct definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.SabangnetReceivingPlanProduct;
+
+CREATE TABLE oriodatabase.dbo.SabangnetReceivingPlanProduct (
+	ID bigint IDENTITY(1,1) NOT NULL,
+	ReceivingPlanID int NOT NULL,
+	ShippingProductID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	ProductID int NULL,
+	Quantity int DEFAULT 0 NULL,
+	ReceivingQuantity int NULL,
+	PlanProductStatus int NULL,
+	ExpireDate nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	MakeDate nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__Sabangne__3214EC276B81E186 PRIMARY KEY (ID),
+	CONSTRAINT FK_RecvPlanProduct_Plan FOREIGN KEY (ReceivingPlanID) REFERENCES oriodatabase.dbo.SabangnetReceivingPlan(ReceivingPlanID),
+	CONSTRAINT FK_RecvPlanProduct_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
+);
+ CREATE NONCLUSTERED INDEX IX_RecvPlanProduct_PlanID ON oriodatabase.dbo.SabangnetReceivingPlanProduct (  ReceivingPlanID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_RecvPlanProduct_ShippingProductID ON oriodatabase.dbo.SabangnetReceivingPlanProduct (  ShippingProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.SabangnetReceivingWork definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.SabangnetReceivingWork;
+
+CREATE TABLE oriodatabase.dbo.SabangnetReceivingWork (
+	WorkHistoryID bigint NOT NULL,
+	WorkDate nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	WorkType int NULL,
+	ReceivingType int NULL,
+	ReceivingPlanID int NULL,
+	ShippingProductID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ProductID int NULL,
+	Quantity int DEFAULT 0 NULL,
+	ExpireDate nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	MakeDate nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	LocationID int NULL,
+	BoxQuantity int NULL,
+	PalletQuantity int NULL,
+	LastSyncedAt datetime DEFAULT getdate() NULL,
+	CreatedAt datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK__Sabangne__9C9E690D66F4858D PRIMARY KEY (WorkHistoryID),
+	CONSTRAINT FK_RecvWork_Product FOREIGN KEY (ProductID) REFERENCES oriodatabase.dbo.Product(ProductID)
+);
+ CREATE NONCLUSTERED INDEX IX_RecvWork_ReceivingPlanID ON oriodatabase.dbo.SabangnetReceivingWork (  ReceivingPlanID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_RecvWork_ShippingProductID ON oriodatabase.dbo.SabangnetReceivingWork (  ShippingProductID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_RecvWork_WorkDate ON oriodatabase.dbo.SabangnetReceivingWork (  WorkDate ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_RecvWork_WorkType ON oriodatabase.dbo.SabangnetReceivingWork (  WorkType ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
 -- oriodatabase.dbo.UserPermission definition
 
 -- Drop table
@@ -1284,6 +1656,123 @@ CREATE TABLE oriodatabase.dbo.UserRole (
 	CONSTRAINT FK__UserRole__RoleID__0EE3280B FOREIGN KEY (RoleID) REFERENCES oriodatabase.dbo.[Role](RoleID),
 	CONSTRAINT FK__UserRole__UserID__0DEF03D2 FOREIGN KEY (UserID) REFERENCES oriodatabase.dbo.[User](UserID) ON DELETE CASCADE
 );
+
+
+-- oriodatabase.dbo.CoupangInventory definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.CoupangInventory;
+
+CREATE TABLE oriodatabase.dbo.CoupangInventory (
+	Idx bigint IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	ProductCategory nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	SubCategory nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	DetailCategory nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Brand nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Center nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	SKUID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	SKUName nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Barcode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	OrderableStatus nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	OrderableStatusDetail nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	InboundQty int DEFAULT 0 NULL,
+	OutboundQty int DEFAULT 0 NULL,
+	CurrentStockQty int DEFAULT 0 NULL,
+	PurchaseCost float DEFAULT 0 NULL,
+	OrderFulfillmentRate float DEFAULT 0 NULL,
+	ConfirmFulfillmentRate float DEFAULT 0 NULL,
+	ReturnRate float DEFAULT 0 NULL,
+	ReturnReason nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	SoldOut nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	DetailCategorySoldOutRate float DEFAULT 0 NULL,
+	BoxID int NULL,
+	BrandID int NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK_CoupangInventory PRIMARY KEY (Idx),
+	CONSTRAINT FK_CoupangInventory_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID),
+	CONSTRAINT FK_CoupangInventory_ProductBox FOREIGN KEY (BoxID) REFERENCES oriodatabase.dbo.ProductBox(BoxID)
+);
+ CREATE NONCLUSTERED INDEX IX_CoupangInventory_BoxID ON oriodatabase.dbo.CoupangInventory (  BoxID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_CoupangInventory_BrandID ON oriodatabase.dbo.CoupangInventory (  BrandID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_CoupangInventory_Date_SKUID ON oriodatabase.dbo.CoupangInventory (  Date ASC  , SKUID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+
+
+-- oriodatabase.dbo.CoupangSales definition
+
+-- Drop table
+
+-- DROP TABLE oriodatabase.dbo.CoupangSales;
+
+CREATE TABLE oriodatabase.dbo.CoupangSales (
+	Idx bigint IDENTITY(1,1) NOT NULL,
+	[Date] date NOT NULL,
+	ProductID_Coupang nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Barcode nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	SKUID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	SKUName nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	VendorItemID nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	VendorItemName nvarchar(500) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	IsRocketFresh nvarchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	ProductCategory nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	SubCategory nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	DetailCategory nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Brand nvarchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	GMV float DEFAULT 0 NULL,
+	UnitsSold int DEFAULT 0 NULL,
+	ReturnUnits int DEFAULT 0 NULL,
+	COGS float DEFAULT 0 NULL,
+	AMV float DEFAULT 0 NULL,
+	CouponDiscount float DEFAULT 0 NULL,
+	CoupangExtraDiscount float DEFAULT 0 NULL,
+	InstantDiscount float DEFAULT 0 NULL,
+	PromoGMV float DEFAULT 0 NULL,
+	PromoUnitsSold int DEFAULT 0 NULL,
+	ASP float DEFAULT 0 NULL,
+	OrderCount int DEFAULT 0 NULL,
+	OrderCustomerCount int DEFAULT 0 NULL,
+	PricePerCustomer float DEFAULT 0 NULL,
+	ConversionRate float DEFAULT 0 NULL,
+	PV int DEFAULT 0 NULL,
+	SnSGMV float DEFAULT 0 NULL,
+	SnSCOGS float DEFAULT 0 NULL,
+	SnSPercent float DEFAULT 0 NULL,
+	SnSUnitsSold int DEFAULT 0 NULL,
+	SnSReturnUnits int DEFAULT 0 NULL,
+	ReviewCount int DEFAULT 0 NULL,
+	AvgRating float DEFAULT 0 NULL,
+	BoxID int NULL,
+	BrandID int NULL,
+	CollectedDate datetime DEFAULT getdate() NULL,
+	CONSTRAINT PK_CoupangSales PRIMARY KEY (Idx),
+	CONSTRAINT FK_CoupangSales_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID),
+	CONSTRAINT FK_CoupangSales_ProductBox FOREIGN KEY (BoxID) REFERENCES oriodatabase.dbo.ProductBox(BoxID)
+);
+ CREATE NONCLUSTERED INDEX IX_CoupangSales_BoxID ON oriodatabase.dbo.CoupangSales (  BoxID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_CoupangSales_BrandID ON oriodatabase.dbo.CoupangSales (  BrandID ASC  )  
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_CoupangSales_Date_Brand ON oriodatabase.dbo.CoupangSales (  Date ASC  , Brand ASC  )  
+	 INCLUDE ( COGS , GMV , UnitsSold ) 
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_CoupangSales_Date_BrandID ON oriodatabase.dbo.CoupangSales (  Date ASC  , BrandID ASC  )  
+	 INCLUDE ( COGS , GMV , UnitsSold ) 
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
+ CREATE NONCLUSTERED INDEX IX_CoupangSales_Date_SKUID ON oriodatabase.dbo.CoupangSales (  Date ASC  , SKUID ASC  )  
+	 INCLUDE ( COGS , GMV , UnitsSold ) 
+	 WITH (  PAD_INDEX = OFF ,FILLFACTOR = 100  ,SORT_IN_TEMPDB = OFF , IGNORE_DUP_KEY = OFF , STATISTICS_NORECOMPUTE = OFF , ONLINE = OFF , ALLOW_ROW_LOCKS = ON , ALLOW_PAGE_LOCKS = ON  )
+	 ON [PRIMARY ] ;
 
 
 -- oriodatabase.dbo.ERPSales definition
@@ -1366,13 +1855,13 @@ CREATE TABLE oriodatabase.dbo.OrdersRealtime (
 	OrderQuantity int NOT NULL,
 	OrderPrice decimal(18,2) NOT NULL,
 	OrderAmountExVAT decimal(18,2) NULL,
-	OrderAmountInVAT decimal(18,2) NULL,
 	OrderStatus nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
 	CollectedDate datetime2 DEFAULT getdate() NULL,
 	UpdatedDate datetime2 DEFAULT getdate() NULL,
 	BrandID int NULL,
 	ShippedDate datetime2 NULL,
 	SabangnetIDX int NULL,
+	OrderAmountInVAT decimal(18,2) NULL,
 	CONSTRAINT PK_OrdersRealtime PRIMARY KEY (OrderID),
 	CONSTRAINT FK_OrdersRT_Brand FOREIGN KEY (BrandID) REFERENCES oriodatabase.dbo.Brand(BrandID),
 	CONSTRAINT FK_OrdersRT_Channel FOREIGN KEY (ChannelID) REFERENCES oriodatabase.dbo.Channel(ChannelID),
@@ -1464,16 +1953,21 @@ LEFT JOIN dbo.AdContractNaver c
 
 -- dbo.vw_NaverAdWithCost_ScrubDaddy source
 
-ALTER   VIEW vw_NaverAdWithCost_ScrubDaddy AS
+ALTER VIEW vw_NaverAdWithCost_ScrubDaddy AS
 SELECT 
     ad.*,
     c.ContractName,
-    ISNULL(c.TotalBudget / (DATEDIFF(day, c.StartDate, c.EndDate) + 1), 0) AS DailyBudget
+    c.AdGroupName AS ContractAdGroupName,
+    ISNULL(
+        c.TotalBudget / (DATEDIFF(day, c.StartDate, c.EndDate) + 1) 
+        / COUNT(*) OVER (PARTITION BY ad.Date, ad.AdGroupID)
+    , 0) AS DailyBudget
 FROM dbo.AdDataNaver ad
 LEFT JOIN dbo.AdContractNaver c 
     ON ad.Date BETWEEN c.StartDate AND c.EndDate
     AND c.IsActive = 1
-    AND c.BrandID = 3;
+    AND c.BrandID = 3
+    AND c.AdGroupID = ad.AdGroupID;
 
 
 -- dbo.vw_TargetAll source

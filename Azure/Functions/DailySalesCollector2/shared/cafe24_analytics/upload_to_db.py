@@ -1,6 +1,6 @@
 """
-Cafe24 Analytics 데이터 DB 업로드 모듈
-MERGE 로직: Date + Key 기준으로 INSERT or UPDATE
+Cafe24 주문별 UTM 데이터 DB 업로드 모듈
+MERGE 로직: OrderID 기준으로 INSERT or UPDATE
 """
 
 import os
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class AnalyticsDatabaseUploader:
-    """Cafe24 Analytics 데이터 DB 업로더"""
+    """Cafe24 주문별 UTM 데이터 DB 업로더"""
 
     def __init__(self):
         connection_string = self._get_connection_string()
@@ -39,175 +39,72 @@ class AnalyticsDatabaseUploader:
             f"Connection Timeout=60;"
         )
 
-    def merge_domains(self, data: list, date: str) -> dict:
+    def merge_order_utm(self, data: list) -> dict:
         """
-        Cafe24VisitpathDomains 테이블 MERGE
-        유입(domains) + 매출(domainsales) 합친 데이터
+        Cafe24OrderUTM 테이블 MERGE
 
         Args:
-            data: [{domain, visit_count, order_count, order_amount}, ...]
-            date: 수집 기준일 (YYYY-MM-DD)
+            data: [{order_id, order_date, ad, keyword, medium, campaign, content, payment_method, order_amount}, ...]
+
+        Returns:
+            dict: {inserted, updated}
         """
         inserted = 0
         updated = 0
 
         for row in data:
-            domain = row.get('domain', '')
-            visit_count = row.get('visit_count')
-            order_count = row.get('order_count')
-            order_amount = row.get('order_amount')
-
-            # 기존 데이터 확인
-            self.cursor.execute(
-                "SELECT ID FROM Cafe24VisitpathDomains WHERE Date = ? AND Domain = ?",
-                (date, domain)
-            )
-            existing = self.cursor.fetchone()
-
-            if existing:
-                self.cursor.execute("""
-                    UPDATE Cafe24VisitpathDomains SET
-                        VisitCount = ?, OrderCount = ?, OrderAmount = ?,
-                        CollectedDate = GETDATE()
-                    WHERE Date = ? AND Domain = ?
-                """, (visit_count, order_count, order_amount, date, domain))
-                updated += 1
-            else:
-                self.cursor.execute("""
-                    INSERT INTO Cafe24VisitpathDomains
-                        (Date, Domain, VisitCount, OrderCount, OrderAmount, CollectedDate)
-                    VALUES (?, ?, ?, ?, ?, GETDATE())
-                """, (date, domain, visit_count, order_count, order_amount))
-                inserted += 1
-
-        self.connection.commit()
-        logger.info(f"[Domains] INSERT {inserted}건, UPDATE {updated}건")
-        return {"inserted": inserted, "updated": updated}
-
-    def merge_ads(self, data: list, date: str) -> dict:
-        """
-        Cafe24VisitpathAds 테이블 MERGE
-        유입(ads) + 매출(adsales) 합친 데이터
-        """
-        inserted = 0
-        updated = 0
-
-        for row in data:
-            ad = row.get('ad', '')
-            visit_count = row.get('visit_count')
-            order_count = row.get('order_count')
-            order_amount = row.get('order_amount')
-            join_count = row.get('join_count')
-
-            self.cursor.execute(
-                "SELECT ID FROM Cafe24VisitpathAds WHERE Date = ? AND Ad = ?",
-                (date, ad)
-            )
-            existing = self.cursor.fetchone()
-
-            if existing:
-                self.cursor.execute("""
-                    UPDATE Cafe24VisitpathAds SET
-                        VisitCount = ?, OrderCount = ?, OrderAmount = ?,
-                        JoinCount = ?, CollectedDate = GETDATE()
-                    WHERE Date = ? AND Ad = ?
-                """, (visit_count, order_count, order_amount, join_count, date, ad))
-                updated += 1
-            else:
-                self.cursor.execute("""
-                    INSERT INTO Cafe24VisitpathAds
-                        (Date, Ad, VisitCount, OrderCount, OrderAmount, JoinCount, CollectedDate)
-                    VALUES (?, ?, ?, ?, ?, ?, GETDATE())
-                """, (date, ad, visit_count, order_count, order_amount, join_count))
-                inserted += 1
-
-        self.connection.commit()
-        logger.info(f"[Ads] INSERT {inserted}건, UPDATE {updated}건")
-        return {"inserted": inserted, "updated": updated}
-
-    def merge_keywords(self, data: list, date: str) -> dict:
-        """
-        Cafe24VisitpathKeywords 테이블 MERGE
-        유입(keywords) + 매출(keywordsales) 합친 데이터
-        """
-        inserted = 0
-        updated = 0
-
-        for row in data:
-            keyword = row.get('keyword', '')
-            visit_count = row.get('visit_count')
-            order_count = row.get('order_count')
-            order_amount = row.get('order_amount')
-
-            self.cursor.execute(
-                "SELECT ID FROM Cafe24VisitpathKeywords WHERE Date = ? AND Keyword = ?",
-                (date, keyword)
-            )
-            existing = self.cursor.fetchone()
-
-            if existing:
-                self.cursor.execute("""
-                    UPDATE Cafe24VisitpathKeywords SET
-                        VisitCount = ?, OrderCount = ?, OrderAmount = ?,
-                        CollectedDate = GETDATE()
-                    WHERE Date = ? AND Keyword = ?
-                """, (visit_count, order_count, order_amount, date, keyword))
-                updated += 1
-            else:
-                self.cursor.execute("""
-                    INSERT INTO Cafe24VisitpathKeywords
-                        (Date, Keyword, VisitCount, OrderCount, OrderAmount, CollectedDate)
-                    VALUES (?, ?, ?, ?, ?, GETDATE())
-                """, (date, keyword, visit_count, order_count, order_amount))
-                inserted += 1
-
-        self.connection.commit()
-        logger.info(f"[Keywords] INSERT {inserted}건, UPDATE {updated}건")
-        return {"inserted": inserted, "updated": updated}
-
-    def merge_visitors(self, data: list) -> dict:
-        """
-        Cafe24Visitors 테이블 MERGE
-        일별 방문자 수 데이터
-        """
-        inserted = 0
-        updated = 0
-
-        for row in data:
-            # date 형식: "2026-04-01T00:00+09:00" → "2026-04-01"
-            date_raw = row.get('date', '')
-            date = date_raw[:10] if date_raw else None
-            if not date:
+            order_id = row.get('order_id', '')
+            if not order_id:
                 continue
 
-            visit_count = row.get('visit_count')
-            first_visit_count = row.get('first_visit_count')
-            re_visit_count = row.get('re_visit_count')
+            order_date = row.get('order_date')
+            ad = row.get('ad', '')
+            keyword = row.get('keyword', '')
+            medium = row.get('medium', '')
+            campaign = row.get('campaign', '')
+            content = row.get('content', '')
+            payment_method = row.get('payment_method', '')
+            order_amount = row.get('order_amount')
 
             self.cursor.execute(
-                "SELECT ID FROM Cafe24Visitors WHERE Date = ?",
-                (date,)
+                "SELECT ID FROM Cafe24OrderUTM WHERE OrderID = ?",
+                (order_id,)
             )
             existing = self.cursor.fetchone()
 
             if existing:
                 self.cursor.execute("""
-                    UPDATE Cafe24Visitors SET
-                        VisitCount = ?, FirstVisitCount = ?, ReVisitCount = ?,
+                    UPDATE Cafe24OrderUTM SET
+                        OrderDate = ?,
+                        Ad = ?, Keyword = ?, Medium = ?,
+                        Campaign = ?, Content = ?,
+                        PaymentMethod = ?, OrderAmount = ?,
                         CollectedDate = GETDATE()
-                    WHERE Date = ?
-                """, (visit_count, first_visit_count, re_visit_count, date))
+                    WHERE OrderID = ?
+                """, (
+                    order_date,
+                    ad, keyword, medium,
+                    campaign, content,
+                    payment_method, order_amount,
+                    order_id
+                ))
                 updated += 1
             else:
                 self.cursor.execute("""
-                    INSERT INTO Cafe24Visitors
-                        (Date, VisitCount, FirstVisitCount, ReVisitCount, CollectedDate)
-                    VALUES (?, ?, ?, ?, GETDATE())
-                """, (date, visit_count, first_visit_count, re_visit_count))
+                    INSERT INTO Cafe24OrderUTM (
+                        OrderID, OrderDate,
+                        Ad, Keyword, Medium, Campaign, Content,
+                        PaymentMethod, OrderAmount, CollectedDate
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())
+                """, (
+                    order_id, order_date,
+                    ad, keyword, medium, campaign, content,
+                    payment_method, order_amount
+                ))
                 inserted += 1
 
         self.connection.commit()
-        logger.info(f"[Visitors] INSERT {inserted}건, UPDATE {updated}건")
+        logger.info(f"[OrderUTM] INSERT {inserted}건, UPDATE {updated}건")
         return {"inserted": inserted, "updated": updated}
 
     def close(self):

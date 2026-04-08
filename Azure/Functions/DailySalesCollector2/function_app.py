@@ -253,16 +253,15 @@ def daily_frog_customer_collector(timer: func.TimerRequest) -> None:
 )
 def daily_analytics_collector(timer: func.TimerRequest) -> None:
     """
-    매일 오후 6시 20분(한국시간)에 Cafe24 Analytics 유입경로 데이터 수집
+    매��� 오후 6시 20분(��국시간)에 Cafe24 주문별 UTM 유입경로 수집
 
     파이프라인:
-    1. 도메인/광고/키워드별 유입 수 + 매출 전환 수집
-    2. 일별 방문자 수 수집
-    3. DB MERGE (4개 테이블)
-    4. Slack 알림
+    1. Analytics API /sales/orderdetails 호출 (주문별 UTM 로우데이터)
+    2. Cafe24OrderUTM 테이블 MERGE
+    3. Slack 알림
     """
     logging.info('=' * 80)
-    logging.info('Cafe24 Analytics 유입경로 수집 시작')
+    logging.info('Cafe24 주문별 UTM 수집 시작')
     logging.info(f'실행 시간: {datetime.utcnow().isoformat()}Z (UTC)')
     logging.info('=' * 80)
 
@@ -270,19 +269,47 @@ def daily_analytics_collector(timer: func.TimerRequest) -> None:
         from cafe24_analytics.pipeline import run_analytics_pipeline
         result = run_analytics_pipeline()
 
-        logging.info(f'Cafe24 Analytics 완료: {result}')
+        logging.info(f'Cafe24 UTM 수집 완료: {result}')
 
     except Exception as e:
-        error_msg = f'Cafe24 Analytics 수집 실패: {str(e)}'
+        error_msg = f'Cafe24 UTM 수집 실패: {str(e)}'
         logging.error(error_msg, exc_info=True)
 
         try:
             from cafe24.slack_notifier import send_slack_notification
-            send_slack_notification(f"❌ *[ERROR] Cafe24 Analytics 수집 실패*\n\n```{str(e)}```")
+            send_slack_notification(f"❌ *[ERROR] Cafe24 UTM 수집 실패*\n\n```{str(e)}```")
         except:
             pass
 
     logging.info('=' * 80)
+
+
+# ============================================================================
+# UTM 백필용 HTTP Trigger (일회성 사용 후 제거)
+# ============================================================================
+@app.route(route="backfill-utm", auth_level=func.AuthLevel.FUNCTION)
+def backfill_utm(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    UTM 과거 데이터 백필 (HTTP 트리거)
+    호출: POST /api/backfill-utm?start_date=2024-01-01&end_date=2026-04-08
+    """
+    start_date = req.params.get('start_date', '2024-01-01')
+    end_date = req.params.get('end_date', datetime.utcnow().strftime('%Y-%m-%d'))
+
+    logging.info(f'UTM 백필 시작: {start_date} ~ {end_date}')
+
+    try:
+        from cafe24_analytics.main import backfill
+        result = backfill(start_date=start_date, end_date=end_date, chunk_days=30)
+
+        msg = f"백필 완료: INSERT {result['inserted']}건, UPDATE {result['updated']}건"
+        logging.info(msg)
+        return func.HttpResponse(msg, status_code=200)
+
+    except Exception as e:
+        error_msg = f'백필 실패: {str(e)}'
+        logging.error(error_msg, exc_info=True)
+        return func.HttpResponse(error_msg, status_code=500)
 
 
 # ============================================================================

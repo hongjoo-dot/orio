@@ -33,9 +33,8 @@
         <div class="form-group">
             <label class="form-label">시간대</label>
             <select id="filterTime" class="form-select">
-                <option value="">전체</option>
-                <option value="AM">AM (11시)</option>
-                <option value="PM">PM (18시)</option>
+                <option value="AM">AM (12:30)</option>
+                <option value="PM" selected>PM (18:00)</option>
             </select>
         </div>
         <div class="form-group">
@@ -51,74 +50,363 @@
     </div>
 </div>
 
-<!-- 재고 테이블 -->
-<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <h2 class="card-title" style="margin:0;">
-            상품별 재고 현황 <span id="totalCount" class="text-muted" style="font-size:14px;font-weight:400;"></span>
-        </h2>
+<!-- Master-Detail 레이아웃 -->
+<div class="inv-master-detail">
+    <!-- 좌측: 재고 테이블 (70%) -->
+    <div class="inv-master">
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h2 class="card-title" style="margin:0;">
+                    <i class="fa-solid fa-boxes-stacked"></i> 상품별 재고 현황
+                    <span id="totalCount" class="text-muted" style="font-size:14px;font-weight:400;"></span>
+                </h2>
+            </div>
+            <div class="inv-table-wrap">
+                <table class="table inv-table" id="inventory-table">
+                    <thead>
+                        <tr class="inv-header-group">
+                            <th colspan="3" class="inv-group-product">상품 정보</th>
+                            <th colspan="8" class="inv-group-stock">재고 현황</th>
+                        </tr>
+                        <tr class="inv-header-cols">
+                            <th class="inv-col-fixed" style="left:0;min-width:100px;">브랜드</th>
+                            <th class="inv-col-fixed" style="left:100px;min-width:100px;">상품코드</th>
+                            <th class="inv-col-fixed" style="left:200px;min-width:200px;">상품명</th>
+                            <th class="inv-col-total">총재고</th>
+                            <th class="inv-col-stock">출고가능</th>
+                            <th class="inv-col-stock">입고</th>
+                            <th class="inv-col-stock">출고지시</th>
+                            <th class="inv-col-stock">출고작업</th>
+                            <th class="inv-col-stock">불량</th>
+                            <th class="inv-col-stock">반품</th>
+                            <th class="inv-col-stock">보관</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-tbody">
+                        <tr><td colspan="11" class="inv-empty-msg">
+                            날짜를 선택하고 검색 버튼을 클릭하세요.
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-    <div class="table-container" style="overflow-x:auto;max-height:60vh;">
-        <table class="table" id="inventory-table">
-            <thead style="position:sticky;top:0;z-index:3;">
-                <tr>
-                    <th style="min-width:100px;">브랜드</th>
-                    <th style="min-width:80px;">상품코드</th>
-                    <th style="min-width:200px;">상품명</th>
-                    <th style="text-align:right;min-width:80px;">총재고</th>
-                    <th style="text-align:right;min-width:80px;">출고가능</th>
-                    <th style="text-align:right;min-width:70px;">입고</th>
-                    <th style="text-align:right;min-width:70px;">출고지시</th>
-                    <th style="text-align:right;min-width:80px;">출고작업</th>
-                    <th style="text-align:right;min-width:60px;">불량</th>
-                    <th style="text-align:right;min-width:60px;">반품</th>
-                    <th style="text-align:right;min-width:60px;">보관</th>
-                </tr>
-            </thead>
-            <tbody id="inventory-tbody">
-                <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-muted);">
-                    날짜를 선택하고 검색 버튼을 클릭하세요.
-                </td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
 
-<!-- 로케이션 상세 (상품 클릭 시 표시) -->
-<div class="card" id="location-card" style="display:none;">
-    <h2 class="card-title" style="margin-bottom:16px;">
-        <i class="fa-solid fa-map-marker-alt"></i>
-        로케이션별 재고 — <span id="locationProductName"></span>
-    </h2>
-    <div class="table-container" style="overflow-x:auto;max-height:40vh;">
-        <table class="table" id="location-table">
-            <thead>
-                <tr>
-                    <th>로케이션명</th>
-                    <th>구분</th>
-                    <th>유통기한</th>
-                    <th style="text-align:right;">수량</th>
-                </tr>
-            </thead>
-            <tbody id="location-tbody"></tbody>
-        </table>
+    <!-- 우측: 상세 패널 (30%, Sticky) -->
+    <div class="inv-detail-panel" id="detailPanel">
+        <!-- 재고 요약 카드 -->
+        <div class="inv-summary-cards" id="summaryCard" style="display:none;">
+            <div class="inv-summary-header">
+                <span id="detailProductName" class="inv-summary-product-name">-</span>
+                <span id="detailProductCode" class="inv-summary-product-code">-</span>
+            </div>
+            <div class="inv-summary-grid">
+                <div class="inv-summary-item inv-summary-highlight">
+                    <span class="inv-summary-label">총재고</span>
+                    <span id="detailTotalStock" class="inv-summary-value">-</span>
+                </div>
+                <div class="inv-summary-item">
+                    <span class="inv-summary-label">출고가능</span>
+                    <span id="detailNormalStock" class="inv-summary-value" style="color:var(--success);">-</span>
+                </div>
+                <div class="inv-summary-item">
+                    <span class="inv-summary-label">입고</span>
+                    <span id="detailReceivingStock" class="inv-summary-value">-</span>
+                </div>
+                <div class="inv-summary-item">
+                    <span class="inv-summary-label">출고지시</span>
+                    <span id="detailOrderStock" class="inv-summary-value">-</span>
+                </div>
+                <div class="inv-summary-item">
+                    <span class="inv-summary-label">출고작업</span>
+                    <span id="detailShippingStock" class="inv-summary-value">-</span>
+                </div>
+                <div class="inv-summary-item">
+                    <span class="inv-summary-label">불량</span>
+                    <span id="detailDamagedStock" class="inv-summary-value">-</span>
+                </div>
+                <div class="inv-summary-item">
+                    <span class="inv-summary-label">반품</span>
+                    <span id="detailReturnStock" class="inv-summary-value">-</span>
+                </div>
+                <div class="inv-summary-item">
+                    <span class="inv-summary-label">보관</span>
+                    <span id="detailKeepingStock" class="inv-summary-value">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 로케이션 상세 카드 -->
+        <div class="card inv-location-card" id="locationCard" style="display:none;">
+            <div class="inv-location-header">
+                <span class="inv-location-title">
+                    <i class="fa-solid fa-map-marker-alt"></i> 로케이션별 재고
+                </span>
+            </div>
+            <div id="locationContent">
+                <div class="inv-detail-empty">
+                    <i class="fa-solid fa-arrow-left" style="font-size:20px;margin-bottom:8px;opacity:0.3;"></i>
+                    <div>좌측 목록에서 상품을 선택해주세요</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 초기 상태 (아무것도 선택 안 했을 때) -->
+        <div class="card" id="emptyDetailCard">
+            <div class="inv-detail-empty">
+                <i class="fa-solid fa-arrow-left" style="font-size:24px;margin-bottom:12px;opacity:0.3;"></i>
+                <div>좌측 목록에서 상품을 선택하면<br>재고 상세와 로케이션 정보가 표시됩니다</div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_css %}
 <style>
-    #inventory-table tbody tr {
-        cursor: pointer;
+    /* ==========================================
+     * Master-Detail 레이아웃
+     * ========================================== */
+    .inv-master-detail {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
     }
-    #inventory-table tbody tr:hover {
-        background: rgba(99, 102, 241, 0.08) !important;
+    .inv-master {
+        flex: 7;
+        min-width: 0;
     }
-    #inventory-table tbody tr.selected-row {
-        background: rgba(99, 102, 241, 0.15) !important;
+    .inv-detail-panel {
+        flex: 3;
+        min-width: 280px;
+        max-width: 360px;
+        position: sticky;
+        top: 76px;
+        max-height: calc(100vh - 96px);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-y: auto;
     }
+
+    /* ==========================================
+     * 재고 요약 카드
+     * ========================================== */
+    .inv-summary-cards {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 16px 20px;
+    }
+    .inv-summary-header {
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border);
+    }
+    .inv-summary-product-name {
+        display: block;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 2px;
+    }
+    .inv-summary-product-code {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+    .inv-summary-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    .inv-summary-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+    }
+    .inv-summary-highlight {
+        grid-column: 1 / -1;
+        background: rgba(74, 222, 128, 0.08);
+        border-radius: var(--radius-sm);
+        padding: 8px 12px;
+        margin-bottom: 4px;
+    }
+    .inv-summary-label {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+    .inv-summary-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text-main);
+    }
+
+    /* ==========================================
+     * 로케이션 상세 카드
+     * ========================================== */
+    .inv-location-card {
+        padding: 16px 18px !important;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+    }
+    .inv-location-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+    }
+    .inv-location-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+    .inv-location-title i {
+        margin-right: 6px;
+        color: var(--accent);
+    }
+    .inv-location-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 7px 0;
+        border-bottom: 1px solid rgba(148,163,184,0.1);
+        font-size: 13px;
+    }
+    .inv-location-row:last-child { border-bottom: none; }
+    .inv-location-name {
+        color: var(--text-main);
+        font-weight: 500;
+    }
+    .inv-location-type {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-left: 6px;
+    }
+    .inv-location-expire {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+    .inv-location-qty {
+        font-weight: 700;
+        color: var(--text-main);
+        min-width: 50px;
+        text-align: right;
+    }
+    .inv-detail-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 16px;
+        color: var(--text-muted);
+        font-size: 12px;
+        text-align: center;
+    }
+
+    /* ==========================================
+     * 재고 테이블
+     * ========================================== */
+    .inv-table-wrap {
+        overflow: auto;
+        max-height: 65vh;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+    }
+    .inv-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: max-content;
+        min-width: 100%;
+    }
+
+    /* 2단 헤더 공통 */
+    .inv-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #1a1a2e;
+        border-bottom: 1px solid var(--border);
+    }
+    .inv-header-group th {
+        top: 0;
+        z-index: 11;
+        padding: 10px 16px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .inv-group-product {
+        background: #1a2332 !important;
+        color: #60a5fa;
+        border-right: 2px solid var(--border);
+        text-align: center;
+    }
+    .inv-group-stock {
+        background: #1a2e1a !important;
+        color: #4ade80;
+        text-align: center;
+    }
+    .inv-header-cols th {
+        top: 39px;
+        z-index: 11;
+        padding: 10px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .inv-col-fixed {
+        position: sticky;
+        z-index: 12 !important;
+        background: #1a2332 !important;
+        color: #93c5fd;
+        border-right: 1px solid var(--border);
+    }
+    .inv-col-fixed[style*="left:200px"] {
+        border-right: 2px solid var(--border) !important;
+    }
+    .inv-col-total {
+        background: #1a2e1a !important;
+        color: #4ade80;
+        text-align: right;
+        min-width: 80px;
+        border-right: 1px solid rgba(74, 222, 128, 0.2);
+    }
+    .inv-col-stock {
+        background: #1a2e1a !important;
+        text-align: right;
+        min-width: 70px;
+    }
+
+    /* 바디 행 */
+    .inv-table tbody tr { cursor: pointer; transition: background 0.15s; }
+    .inv-table tbody tr:hover { background: rgba(99, 102, 241, 0.08) !important; }
+    .inv-table tbody tr.selected-row { background: rgba(99, 102, 241, 0.15) !important; }
+
+    .inv-table tbody td.inv-td-fixed {
+        position: sticky;
+        z-index: 5;
+        background: var(--bg-card);
+    }
+    .inv-table tbody tr:hover td.inv-td-fixed { background: #252545; }
+    .inv-table tbody tr.selected-row td.inv-td-fixed { background: #2a2a5a; }
+    .inv-table tbody td.inv-td-fixed-last { border-right: 2px solid var(--border); }
+    .inv-td-total {
+        background: rgba(74, 222, 128, 0.05);
+        font-weight: 700;
+        text-align: right;
+        border-right: 1px solid rgba(74, 222, 128, 0.15);
+    }
+    .inv-td-stock { text-align: right; font-size: 13px; }
     .stock-zero { color: var(--text-muted); }
     .stock-negative { color: var(--danger); font-weight: 600; }
+    .inv-empty-msg { text-align: center; padding: 40px !important; color: var(--text-muted); }
+
+    /* 로케이션 카드 내 테이블 */
+    #location-table thead th { background: var(--bg-card); }
 </style>
 {% endblock %}
 
