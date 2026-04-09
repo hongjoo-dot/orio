@@ -36,10 +36,13 @@ class SabangnetInventoryRepository:
                     s.ReturnStock, s.KeepingStock,
                     p.Name AS ERPProductName,
                     p.UniqueCode AS ERPUniqueCode,
-                    b.Name AS BrandName
+                    b.Name AS BrandName,
+                    s.BoxID,
+                    pb.ERPCode
                 FROM [dbo].[SabangnetInventorySnapshot] s
                 LEFT JOIN [dbo].[Product] p ON s.ProductID = p.ProductID
                 LEFT JOIN [dbo].[Brand] b ON p.BrandID = b.BrandID
+                LEFT JOIN [dbo].[ProductBox] pb ON s.BoxID = pb.BoxID
                 WHERE s.SnapshotDate = ?
             """
             params = [snapshot_date]
@@ -140,6 +143,8 @@ class SabangnetInventoryRepository:
             'ERPProductName': row[15] or '',
             'ERPUniqueCode': row[16] or '',
             'BrandName': row[17] or '',
+            'BoxID': row[18],
+            'ERPCode': row[19] or '',
         }
 
     @staticmethod

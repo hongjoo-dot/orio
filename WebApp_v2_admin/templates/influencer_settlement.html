@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}인플루언서 정산 - Orio ERP{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Master-Detail 6:4 */
+    .inf-master-detail {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
+    }
+    .inf-master { flex: 6; min-width: 0; }
+    .inf-detail-panel {
+        flex: 4;
+        min-width: 320px;
+        max-width: 500px;
+        position: sticky;
+        top: 76px;
+        max-height: calc(100vh - 96px);
+        overflow-y: auto;
+    }
+
+    /* 테이블 */
+    .inf-table-wrap {
+        overflow: auto;
+        max-height: 65vh;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+    }
+    .inf-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+    }
+    .inf-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #1a1a2e;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        border-bottom: 1px solid var(--border);
+    }
+    .inf-table tbody td {
+        padding: 7px 14px;
+        font-size: 13px;
+        border-bottom: 1px solid rgba(148,163,184,0.08);
+    }
+    .inf-table tbody tr { transition: background 0.15s; }
+
+    /* 검색어 합계 행 */
+    .inf-group-row {
+        background: rgba(99, 102, 241, 0.06) !important;
+        font-weight: 700;
+        cursor: default;
+    }
+    .inf-group-row td:first-child {
+        color: var(--accent);
+    }
+
+    /* UTM 상세 행 */
+    .inf-utm-row {
+        cursor: pointer;
+    }
+    .inf-utm-row:hover { background: rgba(99, 102, 241, 0.08) !important; }
+    .inf-utm-row.selected-row { background: rgba(99, 102, 241, 0.15) !important; }
+
+    /* 요율 입력 */
+    .rate-input {
+        width: 60px;
+        padding: 3px 6px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        text-align: right;
+        font-size: 12px;
+        background: var(--bg-input);
+        color: var(--text-primary);
+    }
+    .rate-input:focus { outline: none; border-color: var(--accent); }
+    .settlement-amount { font-weight: 600; color: var(--accent); }
+
+    /* 우측 패널 */
+    .inf-panel-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 16px 18px;
+    }
+    .inf-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+    }
+    .inf-panel-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+    .inf-panel-title i { margin-right: 6px; color: var(--accent); }
+    .inf-panel-badge {
+        background: var(--accent);
+        color: white;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    /* 상품 행 */
+    .inf-item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(148,163,184,0.1);
+        font-size: 13px;
+    }
+    .inf-item-row:last-child { border-bottom: none; }
+    .inf-item-info { flex: 1; min-width: 0; }
+    .inf-item-name { color: var(--text-main); font-weight: 500; font-size: 12px; }
+    .inf-item-option { font-size: 11px; color: var(--text-muted); }
+    .inf-item-qty { min-width: 45px; text-align: center; font-size: 12px; color: var(--text-muted); }
+    .inf-item-amount { min-width: 80px; text-align: right; font-weight: 600; color: var(--text-main); font-size: 12px; }
+
+    .inf-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 16px;
+        color: var(--text-muted);
+        font-size: 12px;
+        text-align: center;
+    }
+    .inf-empty-msg {
+        text-align: center;
+        padding: 40px !important;
+        color: var(--text-muted);
+    }
+
+    /* 전체 합계 */
+    .inf-grand-total {
+        background: rgba(74, 222, 128, 0.06) !important;
+        font-weight: 700;
+        border-top: 2px solid var(--border);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa-solid fa-handshake"></i> 인플루언서 정산
+    </h1>
+    <p class="page-subtitle">UTM Content 기준 인플루언서별 광고비 정산</p>
+</div>
+
+<!-- 검색 필터 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div class="card-title" style="margin:0;">
+            <i class="fa-solid fa-filter"></i> 검색 필터
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="search()">
+            <i class="fa-solid fa-search"></i> 검색
+        </button>
+    </div>
+    <div class="search-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+        <div class="form-group">
+            <label class="form-label">시작일</label>
+            <input type="date" id="startDate" class="form-input">
+        </div>
+        <div class="form-group">
+            <label class="form-label">종료일</label>
+            <input type="date" id="endDate" class="form-input">
+        </div>
+        <div class="form-group" style="grid-column: span 2;">
+            <label class="form-label">인플루언서 (쉼표 구분)</label>
+            <input type="text" id="influencerInput" class="form-input" placeholder="예: chaevelyvely, eezy">
+        </div>
+    </div>
+</div>
+
+<!-- Master-Detail 레이아웃 -->
+<div class="inf-master-detail">
+    <!-- 좌측: 검색어별 > UTM별 테이블 -->
+    <div class="inf-master">
+        <div class="card">
+            <h2 class="card-title" style="margin-bottom:16px;">
+                <i class="fa-solid fa-chart-bar"></i> 정산 내역
+                <span id="summaryInfo" class="text-muted" style="font-size:14px;font-weight:400;"></span>
+            </h2>
+            <div class="inf-table-wrap">
+                <table class="inf-table" id="summaryTable">
+                    <thead>
+                        <tr>
+                            <th>검색어</th>
+                            <th>Content (UTM)</th>
+                            <th style="text-align:right">주문 수</th>
+                            <th style="text-align:right">매출</th>
+                            <th style="text-align:center">요율 (%)</th>
+                            <th style="text-align:right">정산금</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryBody">
+                        <tr><td colspan="6" class="inf-empty-msg">
+                            인플루언서 이름을 입력하고 검색 버튼을 클릭하세요.
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 우측: 상품별 상세 -->
+    <div class="inf-detail-panel" id="detailPanel">
+        <div class="inf-panel-card" id="itemsCard" style="display:none;">
+            <div class="inf-panel-header">
+                <span class="inf-panel-title">
+                    <i class="fa-solid fa-box"></i> <span id="itemsTitle">상품 내역</span>
+                </span>
+                <span class="inf-panel-badge" id="itemsCount">0</span>
+            </div>
+            <div id="itemsContent"></div>
+        </div>
+
+        <div class="inf-panel-card" id="emptyDetailCard">
+            <div class="inf-empty">
+                <i class="fa-solid fa-arrow-left" style="font-size:24px;margin-bottom:12px;opacity:0.3;"></i>
+                <div>좌측에서 UTM 행을 선택하면<br>해당 UTM의 상품별 데이터가 표시됩니다</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/influencer_settlement.js"></script>
+{% endblock %}

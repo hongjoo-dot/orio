@@ -272,91 +272,43 @@
 
 <!-- Bulk Edit Product Modal -->
 <div id="bulkEditProductModal" class="modal">
-    <div class="modal-content" style="max-width:800px;">
+    <div class="modal-content" style="max-width:95vw;width:95vw;">
         <div class="modal-header">
             <h2 class="modal-title">제품 선택 수정</h2>
             <button class="modal-close" onclick="closeBulkEditProductModal()">&times;</button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body" style="padding:16px;">
             <div style="background:var(--bg-hover);padding:12px;border-radius:6px;margin-bottom:16px;">
                 <p style="margin:0;color:var(--text-muted);font-size:13px;">
                     <i class="fa-solid fa-info-circle"></i> 선택한 <span id="bulkEditProductCount"
                         style="color:var(--accent);font-weight:600;">0</span>개 제품을 수정합니다.
-                    <br>값을 입력한 항목만 수정됩니다. (빈 칸은 유지)
+                    셀을 직접 수정하세요. <span style="display:inline-block;width:8px;height:8px;background:var(--accent);border-radius:2px;margin:0 2px;"></span> 변경된 셀은 하이라이트됩니다.
                 </p>
             </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-                <div class="form-group">
-                    <label class="form-label">브랜드</label>
-                    <select id="bulkBrand" class="form-select"></select>
-                    <small>현재: <span id="currentBrand"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">고유코드</label>
-                    <input type="text" id="bulkUniqueCode" class="form-input">
-                    <small>현재: <span id="currentUniqueCode"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">제품명</label>
-                    <input type="text" id="bulkProductName" class="form-input">
-                    <small>현재: <span id="currentProductName"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">TypeERP</label>
-                    <select id="bulkTypeERP" class="form-select"></select>
-                    <small>현재: <span id="currentTypeERP"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">TypeDB</label>
-                    <select id="bulkTypeDB" class="form-select"></select>
-                    <small>현재: <span id="currentTypeDB"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">기본바코드</label>
-                    <input type="text" id="bulkBaseBarcode" class="form-input">
-                    <small>현재: <span id="currentBaseBarcode"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">바코드2</label>
-                    <input type="text" id="bulkBarcode2" class="form-input">
-                    <small>현재: <span id="currentBarcode2"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">사방넷코드</label>
-                    <input type="text" id="bulkSabangnetCode" class="form-input">
-                    <small>현재: <span id="currentSabangnetCode"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">사방넷고유코드</label>
-                    <input type="text" id="bulkSabangnetUniqueCode" class="form-input">
-                    <small>현재: <span id="currentSabangnetUniqueCode"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">번들타입</label>
-                    <select id="bulkBundleType" class="form-select"></select>
-                    <small>현재: <span id="currentBundleType"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">중분류</label>
-                    <input type="text" id="bulkCategoryMid" class="form-input" list="categoryMidList">
-                    <small>현재: <span id="currentCategoryMid"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">소분류</label>
-                    <input type="text" id="bulkCategorySub" class="form-input" list="categorySubList">
-                    <small>현재: <span id="currentCategorySub"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">상태</label>
-                    <select id="bulkStatus" class="form-select"></select>
-                    <small>현재: <span id="currentStatus"></span></small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">출시일</label>
-                    <input type="date" id="bulkReleaseDate" class="form-input">
-                    <small>현재: <span id="currentReleaseDate"></span></small>
-                </div>
+            <div class="bulk-edit-table-wrap">
+                <table class="bulk-edit-table" id="bulkEditTable">
+                    <thead>
+                        <tr>
+                            <th class="sticky-col">ID</th>
+                            <th>브랜드</th>
+                            <th>고유코드</th>
+                            <th>제품명</th>
+                            <th>TypeERP</th>
+                            <th>TypeDB</th>
+                            <th>기본바코드</th>
+                            <th>바코드2</th>
+                            <th>사방넷코드</th>
+                            <th>사방넷고유코드</th>
+                            <th>번들타입</th>
+                            <th>중분류</th>
+                            <th>소분류</th>
+                            <th>상태</th>
+                            <th>출시일</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bulkEditTableBody">
+                    </tbody>
+                </table>
             </div>
         </div>
         <div class="modal-footer">

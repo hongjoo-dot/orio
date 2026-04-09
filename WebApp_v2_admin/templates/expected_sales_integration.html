@@ -206,6 +206,24 @@
         flex: 6;
         min-width: 0;
     }
+    /* 테이블 고정 높이 + 내부 스크롤 */
+    .sku-master .table-wrapper {
+        max-height: 65vh;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+    }
+    .sku-master .table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .sku-master .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--bg-card);
+        border-bottom: 2px solid var(--border);
+    }
     .sku-detail-panel {
         flex: 4;
         min-width: 280px;

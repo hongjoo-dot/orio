@@ -877,3 +877,100 @@
     color: var(--text-muted);
     font-size: 13px;
 }
+
+/* ==================== Bulk Edit Table ==================== */
+.bulk-edit-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.bulk-edit-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.bulk-edit-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.bulk-edit-table th {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 12px;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    text-align: left;
+}
+
+.bulk-edit-table td {
+    padding: 4px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.bulk-edit-table th.sticky-col,
+.bulk-edit-table td.sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bg-card);
+}
+
+.bulk-edit-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.bulk-edit-table .cell-input,
+.bulk-edit-table .cell-select {
+    width: 100%;
+    min-width: 100px;
+    padding: 6px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-main);
+    font-size: 13px;
+    transition: border-color 0.15s;
+}
+
+.bulk-edit-table .cell-input:focus,
+.bulk-edit-table .cell-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--bg-input);
+}
+
+.bulk-edit-table .cell-input:hover,
+.bulk-edit-table .cell-select:hover {
+    border-color: var(--border);
+}
+
+.bulk-edit-table .cell-changed {
+    background: rgba(0, 100, 255, 0.08);
+    border-color: var(--accent);
+}
+
+.bulk-edit-table .cell-id {
+    color: var(--text-muted);
+    padding: 6px 10px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.bulk-edit-table .cell-input[type="date"] {
+    min-width: 140px;
+}
+
+.bulk-edit-table .cell-input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}

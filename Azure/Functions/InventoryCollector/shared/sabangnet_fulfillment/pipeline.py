@@ -25,7 +25,7 @@ def run_inventory_pipeline(snapshot_time: str = 'AM') -> dict:
     """
     from .config import get_fulfillment_config
     from .api_client import SabangnetFulfillmentClient
-    from .upload_to_db import InventoryUploader
+    from .upload_to_db import InventoryUploader, _safe_int
 
     result = {
         'snapshot_time': snapshot_time,
@@ -64,11 +64,7 @@ def run_inventory_pipeline(snapshot_time: str = 'AM') -> dict:
         uploader.build_shipping_product_mapping(shipping_products)
         shipping_ids = uploader.get_shipping_product_ids()
 
-        # 매핑 통계
-        mapped = sum(1 for v in uploader.product_mapping.values() if v.get('ProductID'))
-        unmapped = len(shipping_products) - mapped
-        result['mapping'] = {'total': len(shipping_products), 'matched': mapped, 'unmatched': unmapped}
-        logger.info(f"[파이프라인] 출고상품: {len(shipping_ids)}개 (매핑 성공: {mapped}, 실패: {unmapped})")
+        logger.info(f"[파이프라인] 출고상품: {len(shipping_ids)}개")
 
         snapshot_date = datetime.today().strftime('%Y-%m-%d')
 
@@ -76,6 +72,7 @@ def run_inventory_pipeline(snapshot_time: str = 'AM') -> dict:
         # 1. 재고 스냅샷 수집
         # ============================================================
         logger.info('Step 1: 재고 스냅샷 수집')
+        stocks = []
         try:
             stocks = client.get_stocks(shipping_ids)
             if stocks:
@@ -84,6 +81,14 @@ def run_inventory_pipeline(snapshot_time: str = 'AM') -> dict:
         except Exception as e:
             logger.error(f"재고 스냅샷 실패: {e}", exc_info=True)
             result['errors'].append(f'재고 스냅샷: {str(e)}')
+
+        # 매핑 통계: 재고가 0이 아닌 상품 중 미매핑만 카운팅
+        stock_by_spid = {str(s.get('shipping_product_id', '')): _safe_int(s.get('total_stock', 0)) for s in stocks}
+        total_with_stock = sum(1 for spid, qty in stock_by_spid.items() if qty != 0)
+        mapped_with_stock = sum(1 for spid, qty in stock_by_spid.items() if qty != 0 and uploader.product_mapping.get(spid, {}).get('ProductID'))
+        unmapped_with_stock = total_with_stock - mapped_with_stock
+        result['mapping'] = {'total': total_with_stock, 'matched': mapped_with_stock, 'unmatched': unmapped_with_stock}
+        logger.info(f"[매핑] 재고 보유 상품 {total_with_stock}개 중 매핑 성공: {mapped_with_stock}, 미매핑: {unmapped_with_stock}")
 
         # ============================================================
         # 2. 로케이션별 재고 수집

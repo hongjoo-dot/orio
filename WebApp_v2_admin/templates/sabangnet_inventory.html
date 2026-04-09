@@ -69,11 +69,11 @@
                             <th colspan="8" class="inv-group-stock">재고 현황</th>
                         </tr>
                         <tr class="inv-header-cols">
-                            <th class="inv-col-fixed" style="left:0;min-width:100px;">브랜드</th>
-                            <th class="inv-col-fixed" style="left:100px;min-width:100px;">상품코드</th>
-                            <th class="inv-col-fixed" style="left:200px;min-width:200px;">상품명</th>
-                            <th class="inv-col-total">총재고</th>
-                            <th class="inv-col-stock">출고가능</th>
+                            <th class="inv-col-fixed inv-resizable" style="left:0;min-width:80px;width:100px;">브랜드</th>
+                            <th class="inv-col-fixed inv-resizable" style="left:100px;min-width:80px;width:100px;">상품코드</th>
+                            <th class="inv-col-fixed inv-resizable" style="left:200px;min-width:120px;width:200px;">상품명</th>
+                            <th class="inv-col-total inv-sortable" data-sort="TotalStock" onclick="toggleSort('TotalStock')">총재고 <span class="inv-sort-icon">⇅</span></th>
+                            <th class="inv-col-stock inv-sortable" data-sort="NormalStock" onclick="toggleSort('NormalStock')">출고가능 <span class="inv-sort-icon">⇅</span></th>
                             <th class="inv-col-stock">입고</th>
                             <th class="inv-col-stock">출고지시</th>
                             <th class="inv-col-stock">출고작업</th>
@@ -404,6 +404,54 @@
     .stock-zero { color: var(--text-muted); }
     .stock-negative { color: var(--danger); font-weight: 600; }
     .inv-empty-msg { text-align: center; padding: 40px !important; color: var(--text-muted); }
+
+    /* 컬럼 리사이즈 */
+    .inv-resizable {
+        position: relative;
+        overflow: hidden;
+    }
+    .inv-resize-handle {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 5px;
+        cursor: col-resize;
+        background: transparent;
+        z-index: 20;
+    }
+    .inv-resize-handle:hover,
+    .inv-resize-handle.active {
+        background: var(--accent);
+        opacity: 0.5;
+    }
+
+    /* 정렬 */
+    .inv-sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+    .inv-sortable:hover {
+        background: rgba(74, 222, 128, 0.15) !important;
+    }
+    .inv-sort-icon {
+        font-size: 11px;
+        opacity: 0.4;
+        margin-left: 2px;
+    }
+    .inv-sortable.sort-asc .inv-sort-icon {
+        opacity: 1;
+        color: var(--accent);
+    }
+    .inv-sortable.sort-asc .inv-sort-icon::after { content: '▲'; }
+    .inv-sortable.sort-asc .inv-sort-icon { font-size: 0; }
+    .inv-sortable.sort-asc .inv-sort-icon::after { font-size: 11px; }
+    .inv-sortable.sort-desc .inv-sort-icon {
+        opacity: 1;
+        color: var(--accent);
+    }
+    .inv-sortable.sort-desc .inv-sort-icon { font-size: 0; }
+    .inv-sortable.sort-desc .inv-sort-icon::after { content: '▼'; font-size: 11px; }
 
     /* 로케이션 카드 내 테이블 */
     #location-table thead th { background: var(--bg-card); }

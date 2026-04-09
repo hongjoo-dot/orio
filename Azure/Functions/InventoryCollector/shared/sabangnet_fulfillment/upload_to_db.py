@@ -38,7 +38,7 @@ class InventoryUploader:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT pb.ERPCode, pb.ProductID, p.Name
+            SELECT pb.ERPCode, pb.ProductID, p.Name, pb.BoxID
             FROM [dbo].[ProductBox] pb
             JOIN [dbo].[Product] p ON pb.ProductID = p.ProductID
             WHERE pb.ERPCode IS NOT NULL AND pb.ERPCode != ''
@@ -46,7 +46,8 @@ class InventoryUploader:
         for row in cursor.fetchall():
             self.erpcode_mapping[str(row[0]).strip()] = {
                 'ProductID': row[1],
-                'ProductName': row[2] or ''
+                'ProductName': row[2] or '',
+                'BoxID': row[3]
             }
         cursor.close()
         conn.close()
@@ -69,6 +70,7 @@ class InventoryUploader:
 
             self.product_mapping[spid] = {
                 'ProductID': erp_info.get('ProductID'),
+                'BoxID': erp_info.get('BoxID'),
                 'ProductCode': manage_code2,
                 'ProductName': erp_info.get('ProductName', product_name)
             }
@@ -115,6 +117,7 @@ class InventoryUploader:
                        AND target.ShippingProductID = source.ShippingProductID
                     WHEN MATCHED THEN UPDATE SET
                         ProductID = ?,
+                        BoxID = ?,
                         ProductCode = ?,
                         ProductName = ?,
                         TotalStock = ?,
@@ -126,17 +129,18 @@ class InventoryUploader:
                         ReturnStock = ?,
                         KeepingStock = ?
                     WHEN NOT MATCHED THEN INSERT (
-                        SnapshotDate, SnapshotTime, ShippingProductID, ProductID,
+                        SnapshotDate, SnapshotTime, ShippingProductID, ProductID, BoxID,
                         ProductCode, ProductName,
                         TotalStock, ReceivingStock, NormalStock, OrderStock,
                         ShippingStock, DamagedStock, ReturnStock, KeepingStock
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     OUTPUT $action;
                 """,
                     # MERGE ON
                     snapshot_date, snapshot_time, spid,
                     # WHEN MATCHED UPDATE
                     mapping.get('ProductID'),
+                    mapping.get('BoxID'),
                     mapping.get('ProductCode', ''),
                     mapping.get('ProductName', stock.get('product_name', '')),
                     _safe_int(stock.get('total_stock', 0)),
@@ -149,6 +153,7 @@ class InventoryUploader:
                     _safe_int(stock.get('keeping_stock', 0)),
                     # WHEN NOT MATCHED INSERT
                     snapshot_date, snapshot_time, spid, mapping.get('ProductID'),
+                    mapping.get('BoxID'),
                     mapping.get('ProductCode', ''),
                     mapping.get('ProductName', stock.get('product_name', '')),
                     _safe_int(stock.get('total_stock', 0)),
@@ -214,12 +219,13 @@ class InventoryUploader:
 
                 cursor.execute("""
                     INSERT INTO [dbo].[SabangnetLocationSnapshot]
-                    (SnapshotDate, SnapshotTime, ShippingProductID, ProductID,
+                    (SnapshotDate, SnapshotTime, ShippingProductID, ProductID, BoxID,
                      LocationID, LocationName, LocType, ExpireDate, Quantity)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     snapshot_date, snapshot_time, spid,
                     mapping.get('ProductID'),
+                    mapping.get('BoxID'),
                     loc.get('location_id'),
                     loc.get('location_name', ''),
                     loc.get('loc_type'),
@@ -307,11 +313,11 @@ class InventoryUploader:
 
                         cursor.execute("""
                             INSERT INTO [dbo].[SabangnetReceivingPlanProduct]
-                            (ReceivingPlanID, ShippingProductID, ProductID,
+                            (ReceivingPlanID, ShippingProductID, ProductID, BoxID,
                              Quantity, ExpireDate, MakeDate)
-                            VALUES (?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
-                            plan_id, spid, mapping.get('ProductID'),
+                            plan_id, spid, mapping.get('ProductID'), mapping.get('BoxID'),
                             _safe_int(prod.get('quantity', 0)),
                             prod.get('expire_date', ''),
                             prod.get('make_date', '')
@@ -396,10 +402,10 @@ class InventoryUploader:
                         LastSyncedAt = GETDATE()
                     WHEN NOT MATCHED THEN INSERT (
                         WorkHistoryID, WorkDate, WorkType, ReceivingType,
-                        ReceivingPlanID, ShippingProductID, ProductID,
+                        ReceivingPlanID, ShippingProductID, ProductID, BoxID,
                         Quantity, ExpireDate, MakeDate,
                         LocationID, BoxQuantity, PalletQuantity
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     OUTPUT $action;
                 """,
                     work_id,
@@ -411,6 +417,7 @@ class InventoryUploader:
                     work.get('receiving_plan_id'),
                     spid,
                     mapping.get('ProductID'),
+                    mapping.get('BoxID'),
                     _safe_int(work.get('quantity', 0)),
                     work.get('expire_date', ''),
                     work.get('make_date', ''),

@@ -51,6 +51,20 @@
                 </div>
             </div>
 
+            <!-- 자사몰 드롭다운 -->
+            <div class="nav-dropdown {% if active_page in ['influencer-settlement'] %}active{% endif %}">
+                <div class="nav-item nav-dropdown-toggle {% if active_page in ['influencer-settlement'] %}active{% endif %}">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                    <span class="nav-text">자사몰</span>
+                    <i class="fa-solid fa-chevron-down nav-dropdown-arrow"></i>
+                </div>
+                <div class="nav-dropdown-menu">
+                    <a href="/cafe24/influencer-settlement" class="nav-dropdown-item {% if active_page == 'influencer-settlement' %}active{% endif %}">
+                        <i class="fa-solid fa-handshake"></i> 인플루언서 정산
+                    </a>
+                </div>
+            </div>
+
             <!-- 쿠팡 드롭다운 -->
             <div class="nav-dropdown {% if active_page in ['coupang-upload'] %}active{% endif %}">
                 <div class="nav-item nav-dropdown-toggle {% if active_page in ['coupang-upload'] %}active{% endif %}">

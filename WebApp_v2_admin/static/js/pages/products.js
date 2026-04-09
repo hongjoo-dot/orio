@@ -5,6 +5,9 @@ let currentProductId = null;
 let currentSortBy = null;
 let currentSortDir = null;
 let bomChildRowCounter = 0;
+let bulkEditOriginalData = {};
+let cachedBrands = [];
+let cachedSelectOptions = { TypeERP: [], TypeDB: [], BundleType: [], Status: [] };
 
 // 마스터 테이블 컬럼
 const masterColumns = [
@@ -149,6 +152,7 @@ async function loadBrands() {
     try {
         const res = await api.get('/api/brands/all');
         const brands = res.data || [];
+        cachedBrands = brands;
 
         // 필터용
         const uniqueTitles = [...new Set(brands.filter(b => b.Title).map(b => b.Title))];
@@ -158,7 +162,6 @@ async function loadBrands() {
         // 모달용
         const brandOptions = brands.sort((a, b) => (a.Name || '').localeCompare(b.Name || '')).map(brand => `<option value="${brand.BrandID}">${brand.Name}</option>`).join('');
         document.getElementById('intBrand').innerHTML = '<option value="">선택</option>' + brandOptions;
-        document.getElementById('bulkBrand').innerHTML = '<option value="">변경하지 않음</option>' + brandOptions;
     } catch (e) {
         console.error('브랜드 로드 실패:', e);
     }
@@ -183,10 +186,15 @@ async function loadProductMetadata() {
             });
         };
 
-        setupOptions('TypeERP', ['intTypeERP', 'bulkTypeERP']);
-        setupOptions('TypeDB', ['intTypeDB', 'bulkTypeDB']);
-        setupOptions('BundleType', ['intBundleType', 'bulkBundleType', 'filterBundleType']);
-        setupOptions('Status', ['intStatus', 'bulkStatus']);
+        setupOptions('TypeERP', ['intTypeERP']);
+        setupOptions('TypeDB', ['intTypeDB']);
+        setupOptions('BundleType', ['intBundleType', 'filterBundleType']);
+        setupOptions('Status', ['intStatus']);
+
+        // 테이블 수정 모달용 옵션 캐시
+        ['TypeERP', 'TypeDB', 'BundleType', 'Status'].forEach(key => {
+            cachedSelectOptions[key] = [...new Set(data.filter(p => p[key]).map(p => p[key]))].sort();
+        });
 
         // Datalist 세팅 (CategoryMid, CategorySub, UniqueCode, Name)
         const setupDatalist = (key, listId) => {
@@ -424,33 +432,78 @@ async function bulkEdit() {
         return;
     }
 
-    const firstId = selectedIds[0];
     try {
-        const product = await api.get(`/api/products/${firstId}`);
+        const products = await Promise.all(selectedIds.map(id => api.get(`/api/products/${id}`)));
+        document.getElementById('bulkEditProductCount').textContent = products.length;
 
-        document.getElementById('bulkEditProductCount').textContent = selectedIds.length;
+        bulkEditOriginalData = {};
+        const tbody = document.getElementById('bulkEditTableBody');
+        tbody.innerHTML = '';
 
-        // 입력 필드 초기화
-        ['bulkBrand', 'bulkUniqueCode', 'bulkProductName', 'bulkTypeERP', 'bulkTypeDB',
-         'bulkBaseBarcode', 'bulkBarcode2', 'bulkSabangnetCode', 'bulkSabangnetUniqueCode',
-         'bulkBundleType', 'bulkCategoryMid', 'bulkCategorySub', 'bulkStatus', 'bulkReleaseDate'
-        ].forEach(id => { document.getElementById(id).value = ''; });
+        const brandOpts = cachedBrands.sort((a, b) => (a.Name || '').localeCompare(b.Name || '')).map(b => `<option value="${b.BrandID}">${b.Name}</option>`).join('');
+        const selectOptHtml = (key, currentVal) => {
+            return cachedSelectOptions[key].map(v => `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${v}</option>`).join('');
+        };
 
-        // 현재 값 표시 (첫 번째 선택 항목 기준)
-        document.getElementById('currentBrand').textContent = product.BrandName || '(없음)';
-        document.getElementById('currentUniqueCode').textContent = product.UniqueCode || '(없음)';
-        document.getElementById('currentProductName').textContent = product.Name || '(없음)';
-        document.getElementById('currentTypeERP').textContent = product.TypeERP || '(없음)';
-        document.getElementById('currentTypeDB').textContent = product.TypeDB || '(없음)';
-        document.getElementById('currentBaseBarcode').textContent = product.BaseBarcode || '(없음)';
-        document.getElementById('currentBarcode2').textContent = product.Barcode2 || '(없음)';
-        document.getElementById('currentSabangnetCode').textContent = product.SabangnetCode || '(없음)';
-        document.getElementById('currentSabangnetUniqueCode').textContent = product.SabangnetUniqueCode || '(없음)';
-        document.getElementById('currentBundleType').textContent = product.BundleType || '(없음)';
-        document.getElementById('currentCategoryMid').textContent = product.CategoryMid || '(없음)';
-        document.getElementById('currentCategorySub').textContent = product.CategorySub || '(없음)';
-        document.getElementById('currentStatus').textContent = product.Status || '(없음)';
-        document.getElementById('currentReleaseDate').textContent = product.ReleaseDate || '(없음)';
+        for (const p of products) {
+            const id = p.ProductID;
+            bulkEditOriginalData[id] = {
+                BrandID: p.BrandID ? String(p.BrandID) : '',
+                UniqueCode: p.UniqueCode || '',
+                Name: p.Name || '',
+                TypeERP: p.TypeERP || '',
+                TypeDB: p.TypeDB || '',
+                BaseBarcode: p.BaseBarcode || '',
+                Barcode2: p.Barcode2 || '',
+                SabangnetCode: p.SabangnetCode || '',
+                SabangnetUniqueCode: p.SabangnetUniqueCode || '',
+                BundleType: p.BundleType || '',
+                CategoryMid: p.CategoryMid || '',
+                CategorySub: p.CategorySub || '',
+                Status: p.Status || '',
+                ReleaseDate: p.ReleaseDate ? p.ReleaseDate.split('T')[0] : ''
+            };
+
+            const tr = document.createElement('tr');
+            tr.dataset.productId = id;
+            tr.innerHTML = `
+                <td class="sticky-col"><span class="cell-id">${id}</span></td>
+                <td><select class="cell-select" data-field="BrandID" data-original="${p.BrandID || ''}">
+                    <option value="">-</option>${brandOpts}
+                </select></td>
+                <td><input class="cell-input" data-field="UniqueCode" value="${p.UniqueCode || ''}" list="uniqueCodeList"></td>
+                <td><input class="cell-input" data-field="Name" value="${p.Name || ''}" style="min-width:160px;" list="nameList"></td>
+                <td><select class="cell-select" data-field="TypeERP">
+                    <option value="">-</option>${selectOptHtml('TypeERP', p.TypeERP)}
+                </select></td>
+                <td><select class="cell-select" data-field="TypeDB">
+                    <option value="">-</option>${selectOptHtml('TypeDB', p.TypeDB)}
+                </select></td>
+                <td><input class="cell-input" data-field="BaseBarcode" value="${p.BaseBarcode || ''}"></td>
+                <td><input class="cell-input" data-field="Barcode2" value="${p.Barcode2 || ''}"></td>
+                <td><input class="cell-input" data-field="SabangnetCode" value="${p.SabangnetCode || ''}"></td>
+                <td><input class="cell-input" data-field="SabangnetUniqueCode" value="${p.SabangnetUniqueCode || ''}"></td>
+                <td><select class="cell-select" data-field="BundleType">
+                    <option value="">-</option>${selectOptHtml('BundleType', p.BundleType)}
+                </select></td>
+                <td><input class="cell-input" data-field="CategoryMid" value="${p.CategoryMid || ''}" list="categoryMidList"></td>
+                <td><input class="cell-input" data-field="CategorySub" value="${p.CategorySub || ''}" list="categorySubList"></td>
+                <td><select class="cell-select" data-field="Status">
+                    <option value="">-</option>${selectOptHtml('Status', p.Status)}
+                </select></td>
+                <td><input class="cell-input" type="date" data-field="ReleaseDate" value="${p.ReleaseDate ? p.ReleaseDate.split('T')[0] : ''}"></td>
+            `;
+
+            // 브랜드 select 초기값 설정
+            const brandSelect = tr.querySelector('[data-field="BrandID"]');
+            if (p.BrandID) brandSelect.value = String(p.BrandID);
+
+            tbody.appendChild(tr);
+        }
+
+        // 변경 감지 이벤트
+        tbody.addEventListener('input', handleBulkEditCellChange);
+        tbody.addEventListener('change', handleBulkEditCellChange);
 
         bulkEditProductModal.show();
     } catch (e) {
@@ -458,60 +511,77 @@ async function bulkEdit() {
     }
 }
 
+function handleBulkEditCellChange(e) {
+    const el = e.target;
+    const field = el.dataset.field;
+    if (!field) return;
+
+    const tr = el.closest('tr');
+    const productId = tr.dataset.productId;
+    const original = bulkEditOriginalData[productId];
+    if (!original) return;
+
+    const currentVal = el.value;
+    const originalVal = original[field];
+
+    if (currentVal !== originalVal) {
+        el.classList.add('cell-changed');
+    } else {
+        el.classList.remove('cell-changed');
+    }
+}
+
 function closeBulkEditProductModal() {
     bulkEditProductModal.hide();
+    bulkEditOriginalData = {};
 }
 
 async function saveBulkEditProduct() {
-    const selectedIds = masterTableManager.getSelectedRows();
-    if (selectedIds.length === 0) return;
+    const tbody = document.getElementById('bulkEditTableBody');
+    const rows = tbody.querySelectorAll('tr');
+    const updates = [];
 
-    const updateData = {};
+    for (const tr of rows) {
+        const productId = tr.dataset.productId;
+        const original = bulkEditOriginalData[productId];
+        if (!original) continue;
 
-    const brandVal = document.getElementById('bulkBrand').value;
-    if (brandVal) updateData.BrandID = parseInt(brandVal);
+        const updateData = {};
+        const cells = tr.querySelectorAll('.cell-input, .cell-select');
 
-    const fields = [
-        ['bulkUniqueCode', 'UniqueCode'],
-        ['bulkProductName', 'Name'],
-        ['bulkBaseBarcode', 'BaseBarcode'],
-        ['bulkBarcode2', 'Barcode2'],
-        ['bulkSabangnetCode', 'SabangnetCode'],
-        ['bulkSabangnetUniqueCode', 'SabangnetUniqueCode'],
-        ['bulkCategoryMid', 'CategoryMid'],
-        ['bulkCategorySub', 'CategorySub'],
-        ['bulkReleaseDate', 'ReleaseDate']
-    ];
-    fields.forEach(([elId, key]) => {
-        const val = document.getElementById(elId).value.trim();
-        if (val) updateData[key] = val;
-    });
+        for (const cell of cells) {
+            const field = cell.dataset.field;
+            const currentVal = cell.value;
+            const originalVal = original[field];
 
-    const selectFields = [
-        ['bulkTypeERP', 'TypeERP'],
-        ['bulkTypeDB', 'TypeDB'],
-        ['bulkBundleType', 'BundleType'],
-        ['bulkStatus', 'Status']
-    ];
-    selectFields.forEach(([elId, key]) => {
-        const val = document.getElementById(elId).value;
-        if (val) updateData[key] = val;
-    });
+            if (currentVal !== originalVal) {
+                if (field === 'BrandID') {
+                    updateData[field] = currentVal ? parseInt(currentVal) : null;
+                } else {
+                    updateData[field] = currentVal || null;
+                }
+            }
+        }
 
-    if (Object.keys(updateData).length === 0) {
-        showAlert('변경할 값을 입력하세요.', 'warning');
+        if (Object.keys(updateData).length > 0) {
+            updates.push({ id: productId, data: updateData });
+        }
+    }
+
+    if (updates.length === 0) {
+        showAlert('변경된 항목이 없습니다.', 'warning');
         return;
     }
 
     try {
-        const promises = selectedIds.map(id => api.put(`/api/products/${id}`, updateData));
+        const promises = updates.map(u => api.put(`/api/products/${u.id}`, u.data));
         await Promise.all(promises);
-        showAlert(`${selectedIds.length}개 제품이 수정되었습니다.`, 'success');
+        showAlert(`${updates.length}개 제품이 수정되었습니다.`, 'success');
         closeBulkEditProductModal();
         masterTableManager.clearSelection();
         loadProducts(paginationManager.getCurrentPage(), paginationManager.getLimit());
     } catch (e) {
-        showAlert('일괄 수정 실패: ' + e.message, 'error');
+        showAlert('수정 실패: ' + e.message, 'error');
     }
 }
 

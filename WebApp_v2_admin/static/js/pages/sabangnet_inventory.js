@@ -6,12 +6,14 @@
  */
 
 let currentData = null;
+let currentSort = { key: null, dir: null }; // 정렬 상태
 
 // ==========================================
 // 초기화
 // ==========================================
 document.addEventListener('DOMContentLoaded', async function() {
     await loadMetadata();
+    initColumnResize();
 
     document.getElementById('filterSearch')?.addEventListener('keypress', e => {
         if (e.key === 'Enter') applyFilters();
@@ -254,8 +256,126 @@ function resetFilters() {
     document.getElementById('filterBrand').value = '';
     document.getElementById('filterSearch').value = '';
     currentData = null;
+    currentSort = { key: null, dir: null };
     document.getElementById('totalCount').textContent = '';
     document.getElementById('inventory-tbody').innerHTML =
         '<tr><td colspan="11" class="inv-empty-msg">날짜를 선택하고 검색 버튼을 클릭하세요.</td></tr>';
     hideDetailPanel();
+    clearSortIcons();
+}
+
+// ==========================================
+// 정렬
+// ==========================================
+function toggleSort(key) {
+    if (currentSort.key === key) {
+        if (currentSort.dir === 'desc') currentSort.dir = 'asc';
+        else if (currentSort.dir === 'asc') { currentSort.key = null; currentSort.dir = null; }
+    } else {
+        currentSort.key = key;
+        currentSort.dir = 'desc';
+    }
+
+    updateSortIcons();
+
+    if (!currentData) return;
+
+    if (!currentSort.key) {
+        renderTable(currentData);
+        return;
+    }
+
+    const sorted = [...currentData].sort((a, b) => {
+        const va = Number(a[currentSort.key]) || 0;
+        const vb = Number(b[currentSort.key]) || 0;
+        return currentSort.dir === 'desc' ? vb - va : va - vb;
+    });
+
+    renderTable(sorted);
+}
+
+function updateSortIcons() {
+    document.querySelectorAll('.inv-sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.dataset.sort === currentSort.key) {
+            th.classList.add(currentSort.dir === 'desc' ? 'sort-desc' : 'sort-asc');
+        }
+    });
+}
+
+function clearSortIcons() {
+    document.querySelectorAll('.inv-sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+    });
+}
+
+// ==========================================
+// 컬럼 리사이즈
+// ==========================================
+function initColumnResize() {
+    document.querySelectorAll('.inv-resizable').forEach(th => {
+        const handle = document.createElement('div');
+        handle.className = 'inv-resize-handle';
+        th.appendChild(handle);
+
+        let startX, startWidth, colIndex;
+
+        handle.addEventListener('mousedown', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            startX = e.pageX;
+            startWidth = th.offsetWidth;
+            colIndex = Array.from(th.parentElement.children).indexOf(th);
+            handle.classList.add('active');
+
+            const onMouseMove = e2 => {
+                const diff = e2.pageX - startX;
+                const newWidth = Math.max(60, startWidth + diff);
+                th.style.width = newWidth + 'px';
+                th.style.minWidth = newWidth + 'px';
+
+                // 같은 열의 바디 셀 너비도 업데이트
+                document.querySelectorAll(`#inventory-tbody tr`).forEach(tr => {
+                    const td = tr.children[colIndex];
+                    if (td) {
+                        td.style.width = newWidth + 'px';
+                        td.style.minWidth = newWidth + 'px';
+                    }
+                });
+
+                // 고정 컬럼 left 위치 재계산
+                updateFixedColumnPositions();
+            };
+
+            const onMouseUp = () => {
+                handle.classList.remove('active');
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    });
+}
+
+function updateFixedColumnPositions() {
+    const headerCols = document.querySelectorAll('.inv-header-cols .inv-col-fixed');
+    let left = 0;
+    headerCols.forEach((th, i) => {
+        th.style.left = left + 'px';
+        const width = th.offsetWidth;
+
+        // 바디의 고정 컬럼도 같은 left
+        document.querySelectorAll(`#inventory-tbody tr`).forEach(tr => {
+            const td = tr.children[i];
+            if (td && td.classList.contains('inv-td-fixed')) {
+                td.style.left = left + 'px';
+            }
+        });
+
+        left += width;
+    });
+
+    // 그룹 헤더의 colspan은 자동으로 맞춰지므로 별도 처리 불필요
 }

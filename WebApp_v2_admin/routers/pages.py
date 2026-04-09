@@ -130,6 +130,17 @@ async def coupang_upload_page(request: Request, redirect = Depends(require_login
     })
 
 
+@router.get("/cafe24/influencer-settlement", response_class=HTMLResponse)
+async def influencer_settlement_page(request: Request, redirect = Depends(require_login_for_page)):
+    """인플루언서 정산 페이지"""
+    if redirect:
+        return redirect
+    return templates.TemplateResponse("influencer_settlement.html", {
+        "request": request,
+        "active_page": "influencer-settlement"
+    })
+
+
 @router.get("/data-query", response_class=HTMLResponse)
 async def data_query_page(request: Request, redirect = Depends(require_login_for_page)):
     """데이터 조회 페이지"""
