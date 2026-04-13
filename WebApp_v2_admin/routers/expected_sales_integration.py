@@ -1976,3 +1976,389 @@ async def sku_inline_update(
             pass
 
     return {"message": f"{total_updated}건이 수정되었습니다", "updated": total_updated}
+
+
+# ==================== 재고 대비 분석 ====================
+
+def _build_inv_bom_query(
+    year_month_from: str, year_month_to: str,
+    input_month: Optional[str] = None,
+    brand: Optional[str] = None,
+    channel: Optional[str] = None,
+    owner_channels: Optional[list] = None
+):
+    """ERPCode 기준 BOM 분해 소요량 쿼리 (재고 대비 분석용)"""
+    params = []
+    sub_queries = []
+
+    def _reg_where(alias):
+        w = [f"FORMAT({alias}.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+        p = [year_month_from, year_month_to]
+        if input_month:
+            w.append(f"{alias}.InputMonth = ?"); p.append(input_month)
+        _add_in_filter(w, p, brand, f"{alias}.BrandName")
+        _add_in_filter(w, p, channel, f"{alias}.ChannelName")
+        _add_owner_filter(w, p, owner_channels, f"{alias}.ChannelName")
+        return ' AND '.join(w), p
+
+    def _irreg_where(pa):
+        w = [f"FORMAT({pa}.StartDate,'yyyy-MM') BETWEEN ? AND ?"]
+        p = [year_month_from, year_month_to]
+        if input_month:
+            w.append(f"{pa}.InputMonth = ?"); p.append(input_month)
+        _add_in_filter(w, p, brand, f"{pa}.BrandName")
+        _add_in_filter(w, p, channel, f"{pa}.ChannelName")
+        _add_owner_filter(w, p, owner_channels, f"{pa}.ChannelName")
+        return ' AND '.join(w), p
+
+    # --- 3P 정기 단품 ---
+    ws, wp = _reg_where('e')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT e.ERPCode, pr.UniqueCode, e.ProductName, e.BrandName,
+               e.ExpectedQuantity AS Qty
+        FROM Expected3PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """)
+    # --- 3P 정기 세트 ---
+    ws, wp = _reg_where('e')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT cpb.ERPCode, cp.UniqueCode, cp.Name AS ProductName, e.BrandName,
+               e.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty
+        FROM Expected3PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN ProductBox cpb ON cpb.BoxID = bom.ChildProductBoxID
+        INNER JOIN Product cp ON cpb.ProductID = cp.ProductID
+        WHERE {ws}
+    """)
+
+    # --- 3P 비정기 단품 ---
+    ws, wp = _irreg_where('p')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT pp.ERPCode, pr.UniqueCode, pp.ProductName, p.BrandName,
+               pp.ExpectedQuantity AS Qty
+        FROM Expected3PIrregularProduct pp
+        INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """)
+    # --- 3P 비정기 세트 ---
+    ws, wp = _irreg_where('p')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT cpb.ERPCode, cp.UniqueCode, cp.Name AS ProductName, p.BrandName,
+               pp.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty
+        FROM Expected3PIrregularProduct pp
+        INNER JOIN Expected3PIrregular p ON pp.Expected3PIrregularID = p.Expected3PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN ProductBox cpb ON cpb.BoxID = bom.ChildProductBoxID
+        INNER JOIN Product cp ON cpb.ProductID = cp.ProductID
+        WHERE {ws}
+    """)
+
+    # --- 1P 정기 단품 ---
+    ws, wp = _reg_where('e')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT e.ERPCode, pr.UniqueCode, e.ProductName, e.BrandName,
+               e.ExpectedQuantity AS Qty
+        FROM Expected1PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """)
+    # --- 1P 정기 세트 ---
+    ws, wp = _reg_where('e')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT cpb.ERPCode, cp.UniqueCode, cp.Name AS ProductName, e.BrandName,
+               e.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty
+        FROM Expected1PRegularProduct e
+        INNER JOIN Product pr ON e.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN ProductBox cpb ON cpb.BoxID = bom.ChildProductBoxID
+        INNER JOIN Product cp ON cpb.ProductID = cp.ProductID
+        WHERE {ws}
+    """)
+
+    # --- 1P 비정기 단품 ---
+    ws, wp = _irreg_where('p')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT pp.ERPCode, pr.UniqueCode, pp.ProductName, p.BrandName,
+               pp.ExpectedQuantity AS Qty
+        FROM Expected1PIrregularProduct pp
+        INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+          AND {ws}
+    """)
+    # --- 1P 비정기 세트 ---
+    ws, wp = _irreg_where('p')
+    params.extend(wp)
+    sub_queries.append(f"""
+        SELECT cpb.ERPCode, cp.UniqueCode, cp.Name AS ProductName, p.BrandName,
+               pp.ExpectedQuantity * CAST(bom.QuantityRequired AS int) AS Qty
+        FROM Expected1PIrregularProduct pp
+        INNER JOIN Expected1PIrregular p ON pp.Expected1PIrregularID = p.Expected1PIrregularID
+        INNER JOIN Product pr ON pp.UniqueCode = pr.UniqueCode
+        INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+        INNER JOIN ProductBox cpb ON cpb.BoxID = bom.ChildProductBoxID
+        INNER JOIN Product cp ON cpb.ProductID = cp.ProductID
+        WHERE {ws}
+    """)
+
+    # --- 불출 단품 ---
+    channel_list = _parse_multi(channel) if channel else []
+    include_withdrawal = (not channel_list or '불출' in channel_list) and not owner_channels
+    if include_withdrawal:
+        ww = ["FORMAT(w.[Date],'yyyy-MM') BETWEEN ? AND ?"]
+        wp = [year_month_from, year_month_to]
+        if input_month:
+            ww.append("w.InputMonth = ?"); wp.append(input_month)
+        _add_in_filter(ww, wp, brand, "b.Name")
+        ww_str = ' AND '.join(ww)
+
+        params.extend(wp)
+        sub_queries.append(f"""
+            SELECT pb.ERPCode, pr.UniqueCode, w.ProductName, b.Name AS BrandName,
+                   w.PlannedQty AS Qty
+            FROM WithdrawalPlan w
+            LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
+            LEFT JOIN Brand b ON pr.BrandID = b.BrandID
+            LEFT JOIN ProductBox pb ON pb.ProductID = pr.ProductID
+            WHERE NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductID = pr.ProductID)
+              AND {ww_str}
+        """)
+        # 불출 세트
+        params.extend(wp)
+        sub_queries.append(f"""
+            SELECT cpb.ERPCode, cp.UniqueCode, cp.Name AS ProductName, b.Name AS BrandName,
+                   w.PlannedQty * CAST(bom.QuantityRequired AS int) AS Qty
+            FROM WithdrawalPlan w
+            LEFT JOIN Product pr ON w.UniqueCode = pr.UniqueCode
+            LEFT JOIN Brand b ON pr.BrandID = b.BrandID
+            INNER JOIN ProductBOM bom ON bom.ParentProductID = pr.ProductID
+            INNER JOIN ProductBox cpb ON cpb.BoxID = bom.ChildProductBoxID
+            INNER JOIN Product cp ON cpb.ProductID = cp.ProductID
+            WHERE {ww_str}
+        """)
+
+    full_query = f"""
+        SELECT ERPCode, MAX(UniqueCode) AS UniqueCode, MAX(ProductName) AS ProductName, MAX(BrandName) AS BrandName,
+               SUM(ISNULL(Qty, 0)) AS TotalQty
+        FROM (
+            {' UNION ALL '.join(sub_queries)}
+        ) AS InvBOM
+        WHERE ERPCode IS NOT NULL
+        GROUP BY ERPCode
+        ORDER BY ERPCode
+    """
+
+    return full_query, params
+
+
+@router.get("/inventory-analysis")
+async def get_inventory_analysis(
+    year_month_from: str = Query(...),
+    year_month_to: str = Query(...),
+    input_month: Optional[str] = Query(None),
+    brand: Optional[str] = Query(None),
+    channel: Optional[str] = Query(None),
+    owner: Optional[str] = Query(None),
+    user: CurrentUser = Depends(get_current_user)
+):
+    """재고 대비 분석 - ERPCode 기준 BOM 분해 소요량 + 최신 재고 스냅샷"""
+    oc = _get_owner_channels(owner) if owner else None
+    if owner and not oc:
+        return {"data": [], "summary": {}}
+
+    # 1. ERPCode 기준 BOM 분해 소요량 쿼리
+    bom_query, bom_params = _build_inv_bom_query(
+        year_month_from, year_month_to, input_month, brand, channel, oc
+    )
+
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute(bom_query, *bom_params)
+        bom_rows = cursor.fetchall()
+
+    # ERPCode → 소요량 맵
+    bom_map = {}
+    for row in bom_rows:
+        erp_code, unique_code, product_name, brand_name, tq = row
+        bom_map[erp_code] = {
+            "code": erp_code or '',
+            "uniqueCode": unique_code or '',
+            "name": product_name or '',
+            "brand": brand_name or '',
+            "requiredQty": int(tq or 0),
+        }
+
+    # 2. 최신 재고 스냅샷 조회 (ERPCode = ShippingProductID 기준)
+    with get_db_cursor(commit=False) as cursor:
+        cursor.execute("""
+            SELECT TOP 1 SnapshotDate, SnapshotTime
+            FROM [dbo].[SabangnetInventorySnapshot]
+            ORDER BY SnapshotDate DESC, CASE SnapshotTime WHEN 'PM' THEN 1 ELSE 2 END
+        """)
+        latest = cursor.fetchone()
+        if not latest:
+            data = []
+            for item in bom_map.values():
+                item.update({"normalStock": None, "totalStock": None, "shortage": None, "daysLeft": None, "matched": False, "bomOnly": True})
+                data.append(item)
+            data.sort(key=lambda x: x.get("shortage") or 0)
+            return {"data": data, "summary": _build_inv_summary(data), "snapshotDate": None}
+
+        snap_date, snap_time = latest[0], latest[1]
+
+        inv_where = ["s.SnapshotDate = ?", "s.SnapshotTime = ?"]
+        inv_params = [snap_date, snap_time]
+        if brand:
+            brand_list = _parse_multi(brand)
+            if brand_list:
+                placeholders = ','.join(['?' for _ in brand_list])
+                inv_where.append(f"b.Name IN ({placeholders})")
+                inv_params.extend(brand_list)
+
+        inv_where_sql = ' AND '.join(inv_where)
+
+        # 단품 재고: BOM에 부모로 등록되지 않은 ERPCode
+        cursor.execute(f"""
+            SELECT
+                pb.ERPCode, p.UniqueCode,
+                COALESCE(p.Name, s.ProductName) AS ProductName,
+                b.Name AS BrandName,
+                s.NormalStock, s.TotalStock,
+                s.ReceivingStock, s.OrderStock, s.ShippingStock,
+                s.DamagedStock, s.ReturnStock, s.KeepingStock
+            FROM [dbo].[SabangnetInventorySnapshot] s
+            LEFT JOIN [dbo].[ProductBox] pb ON s.ProductCode = pb.ERPCode
+            LEFT JOIN [dbo].[Product] p ON pb.ProductID = p.ProductID
+            LEFT JOIN [dbo].[Brand] b ON p.BrandID = b.BrandID
+            WHERE {inv_where_sql}
+              AND NOT EXISTS (SELECT 1 FROM ProductBOM bom WHERE bom.ParentProductBoxID = pb.BoxID)
+        """, inv_params)
+        single_rows = cursor.fetchall()
+
+        # 세트 재고: BOM 분해 → 자식 ERPCode별 환산
+        cursor.execute(f"""
+            SELECT
+                cpb.ERPCode, cp.UniqueCode,
+                cp.Name AS ProductName,
+                b.Name AS BrandName,
+                s.NormalStock * CAST(bom.QuantityRequired AS int) AS NormalStock,
+                s.TotalStock * CAST(bom.QuantityRequired AS int) AS TotalStock,
+                s.ReceivingStock * CAST(bom.QuantityRequired AS int) AS ReceivingStock,
+                s.OrderStock * CAST(bom.QuantityRequired AS int) AS OrderStock,
+                s.ShippingStock * CAST(bom.QuantityRequired AS int) AS ShippingStock,
+                s.DamagedStock * CAST(bom.QuantityRequired AS int) AS DamagedStock,
+                s.ReturnStock * CAST(bom.QuantityRequired AS int) AS ReturnStock,
+                s.KeepingStock * CAST(bom.QuantityRequired AS int) AS KeepingStock
+            FROM [dbo].[SabangnetInventorySnapshot] s
+            INNER JOIN [dbo].[ProductBox] pb ON s.ProductCode = pb.ERPCode
+            INNER JOIN [dbo].[ProductBOM] bom ON bom.ParentProductBoxID = pb.BoxID
+            INNER JOIN [dbo].[ProductBox] cpb ON cpb.BoxID = bom.ChildProductBoxID
+            INNER JOIN [dbo].[Product] cp ON cpb.ProductID = cp.ProductID
+            LEFT JOIN [dbo].[Product] p ON pb.ProductID = p.ProductID
+            LEFT JOIN [dbo].[Brand] b ON p.BrandID = b.BrandID
+            WHERE {inv_where_sql}
+        """, inv_params)
+        set_rows = cursor.fetchall()
+
+    # ERPCode → 재고 맵 (단품 + 세트분해 합산)
+    inv_map = {}
+    for row in list(single_rows) + list(set_rows):
+        erp_code = row[0]
+        if not erp_code:
+            continue
+        if erp_code not in inv_map:
+            inv_map[erp_code] = {
+                "uniqueCode": row[1] or '',
+                "name": row[2] or '',
+                "brand": row[3] or '',
+                "normalStock": 0, "totalStock": 0,
+                "receivingStock": 0, "orderStock": 0, "shippingStock": 0,
+                "damagedStock": 0, "returnStock": 0, "keepingStock": 0,
+            }
+        inv = inv_map[erp_code]
+        inv["normalStock"] += int(row[4] or 0)
+        inv["totalStock"] += int(row[5] or 0)
+        inv["receivingStock"] += int(row[6] or 0)
+        inv["orderStock"] += int(row[7] or 0)
+        inv["shippingStock"] += int(row[8] or 0)
+        inv["damagedStock"] += int(row[9] or 0)
+        inv["returnStock"] += int(row[10] or 0)
+        inv["keepingStock"] += int(row[11] or 0)
+
+    # 3. ERPCode 기준 FULL JOIN
+    all_codes = set(list(bom_map.keys()) + list(inv_map.keys()))
+    data = []
+    for code in all_codes:
+        bom = bom_map.get(code)
+        inv = inv_map.get(code)
+
+        required = bom["requiredQty"] if bom else 0
+        normal = inv["normalStock"] if inv else None
+        shortage = (normal - required) if normal is not None else None
+
+        days_left = None
+        if normal is not None and required > 0:
+            days_left = round(normal / (required / 30))
+
+        unique_code = bom.get("uniqueCode", '') if bom else (inv.get("uniqueCode", '') if inv else '')
+        item = {
+            "code": code,
+            "uniqueCode": unique_code,
+            "name": bom["name"] if bom else (inv["name"] if inv else ''),
+            "brand": bom.get("brand", '') if bom else (inv.get("brand", '') if inv else ''),
+            "requiredQty": required,
+            "normalStock": normal,
+            "totalStock": inv["totalStock"] if inv else None,
+            "receivingStock": inv.get("receivingStock", 0) if inv else None,
+            "orderStock": inv.get("orderStock", 0) if inv else None,
+            "shippingStock": inv.get("shippingStock", 0) if inv else None,
+            "damagedStock": inv.get("damagedStock", 0) if inv else None,
+            "returnStock": inv.get("returnStock", 0) if inv else None,
+            "keepingStock": inv.get("keepingStock", 0) if inv else None,
+            "shortage": shortage,
+            "daysLeft": days_left,
+            "matched": bom is not None and inv is not None,
+            "bomOnly": bom is not None and inv is None,
+        }
+        # 소요량 0 + 재고 0 → 제외
+        if required == 0 and (normal is None or normal == 0):
+            continue
+        data.append(item)
+
+    data.sort(key=lambda x: (x.get("brand") or '', x.get("name") or '', x.get("code") or ''))
+
+    return {
+        "data": data,
+        "summary": _build_inv_summary(data),
+        "snapshotDate": str(snap_date),
+        "snapshotTime": snap_time,
+    }
+
+
+def _build_inv_summary(data):
+    total = len(data)
+    matched = sum(1 for d in data if d["matched"])
+    bom_only = sum(1 for d in data if d.get("bomOnly"))
+    shortage_count = sum(1 for d in data if d["matched"] and d.get("shortage") is not None and d["shortage"] < 0)
+    warning_count = sum(1 for d in data if d.get("daysLeft") is not None and d["daysLeft"] <= 30)
+    return {
+        "totalItems": total,
+        "matchedItems": matched,
+        "unmatchedItems": bom_only,
+        "matchRate": round(matched / total * 100, 1) if total > 0 else 0,
+        "shortageCount": shortage_count,
+        "warningCount": warning_count,
+    }

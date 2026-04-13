@@ -42,6 +42,9 @@ async function search() {
         renderSummary(res.data);
         resetDetailPanel();
 
+        // 결과 있으면 엑셀 버튼 표시
+        document.getElementById('btnExcel').style.display = res.data.length ? '' : 'none';
+
     } catch (err) {
         showAlert('검색 중 오류가 발생했습니다.', 'error');
         console.error(err);
@@ -229,6 +232,39 @@ function renderItems(title, items) {
         </div>`;
 
     contentEl.innerHTML = html;
+}
+
+// ──────────────────────────────────────
+// 엑셀 다운로드
+// ──────────────────────────────────────
+async function downloadExcel() {
+    const influencers = document.getElementById('influencerInput').value.trim();
+    if (!currentStartDate || !currentEndDate || !influencers) {
+        return showAlert('먼저 검색을 실행해주세요.', 'warning');
+    }
+
+    const params = new URLSearchParams({
+        start_date: currentStartDate,
+        end_date: currentEndDate,
+        influencers
+    });
+
+    const token = localStorage.getItem('access_token');
+    const response = await fetch(`/api/influencer-settlement/download/excel?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!response.ok) {
+        return showAlert('다운로드 중 오류가 발생했습니다.', 'error');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `influencer_settlement_${currentStartDate}_${currentEndDate}.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
 }
 
 // ──────────────────────────────────────

@@ -4,7 +4,10 @@
 - UTM Content별 상품 내역
 """
 
+import io
+import pandas as pd
 from fastapi import APIRouter, Query, Depends
+from fastapi.responses import StreamingResponse
 from core.dependencies import require_permission
 
 router = APIRouter(
@@ -55,3 +58,33 @@ async def get_content_items(
     """특정 UTM Content의 상품별 집계"""
     data = repo.get_content_items(start_date, end_date, content)
     return {"data": data}
+
+
+@router.get("/download/excel")
+async def download_excel(
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+    influencers: str = Query(...),
+    user = Depends(require_permission("InfluencerSettlement", "READ"))
+):
+    """엑셀 다운로드 (플랫 구조: 주문+상품 1행)"""
+    influencer_list = [name.strip() for name in influencers.split(",") if name.strip()]
+
+    if not influencer_list:
+        return {"error": "인플루언서를 입력해주세요."}
+
+    data = repo.get_excel_data(start_date, end_date, influencer_list)
+    df = pd.DataFrame(data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='인플루언서 정산')
+    output.seek(0)
+
+    filename = f"influencer_settlement_{start_date}_{end_date}.xlsx"
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )

@@ -167,9 +167,14 @@
         <div class="card-title" style="margin:0;">
             <i class="fa-solid fa-filter"></i> 검색 필터
         </div>
-        <button class="btn btn-primary btn-sm" onclick="search()">
-            <i class="fa-solid fa-search"></i> 검색
-        </button>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="search()">
+                <i class="fa-solid fa-search"></i> 검색
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadExcel()" id="btnExcel" style="display:none;">
+                <i class="fa-solid fa-file-excel"></i> 엑셀 다운로드
+            </button>
+        </div>
     </div>
     <div class="search-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
         <div class="form-group">

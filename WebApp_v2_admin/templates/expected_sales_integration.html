@@ -54,10 +54,13 @@
 <!-- Tab Buttons -->
 <div style="display:flex;gap:8px;margin-bottom:24px;">
     <button class="btn btn-primary btn-sm" id="tabSku" onclick="switchTab('sku')">
-        <i class="fa-solid fa-boxes-stacked"></i> 예상 매출 관리
+        <i class="fa-solid fa-boxes-stacked"></i> 예상 매출
     </button>
     <button class="btn btn-secondary btn-sm" id="tabBom" onclick="switchTab('bom')">
-        <i class="fa-solid fa-sitemap"></i> BOM 분해
+        <i class="fa-solid fa-sitemap"></i> 구매 수량
+    </button>
+    <button class="btn btn-secondary btn-sm" id="tabInv" onclick="switchTab('inv')">
+        <i class="fa-solid fa-scale-balanced"></i> 재고 비교
     </button>
 </div>
 
@@ -186,6 +189,76 @@
                         <button class="btn btn-primary btn-sm" onclick="saveSkuDetail()" style="font-size:11px;padding:4px 12px;">
                             <i class="fa-solid fa-check"></i> 저장
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 재고 대비 분석 섹션 (inv 탭에서만 표시) -->
+<div id="invSection" style="display:none;">
+    <div class="sku-master-detail">
+        <!-- 좌측: 분석 테이블 -->
+        <div class="sku-master">
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <div class="card-title" style="margin:0;">
+                        <i class="fa-solid fa-scale-balanced"></i> 재고 대비 분석
+                        <span id="invDataCount" class="text-muted" style="font-size:13px;font-weight:400;"></span>
+                        <span id="invSnapshotInfo" class="text-muted" style="font-size:11px;font-weight:400;margin-left:8px;"></span>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select id="invStatusFilter" class="form-select" onchange="renderInvTable()" style="font-size:12px;padding:4px 8px;width:auto;min-width:100px;">
+                            <option value="">전체</option>
+                            <option value="shortage">부족</option>
+                            <option value="normal">정상</option>
+                            <option value="unmatched">재고 미매칭</option>
+                            <option value="nodemand">예상판매량 없음</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- 매칭률 요약 -->
+                <div id="invSummaryBar" style="display:flex;gap:16px;margin-bottom:12px;font-size:12px;color:var(--text-muted);"></div>
+                <div class="table-wrapper">
+                    <table class="table" id="invTable">
+                        <thead><tr></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 우측: 디테일 패널 -->
+        <div class="sku-detail-panel">
+            <!-- 요약 카드 -->
+            <div class="sku-summary-cards">
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">매칭률</span>
+                    <span id="invMatchRate" class="sku-summary-value" style="color:var(--accent);">-</span>
+                </div>
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">부족 품목</span>
+                    <span id="invShortageCount" class="sku-summary-value" style="color:var(--danger);">-</span>
+                </div>
+                <div class="sku-summary-item">
+                    <span class="sku-summary-label">30일 이내 소진</span>
+                    <span id="invWarningCount" class="sku-summary-value" style="color:var(--warning);">-</span>
+                </div>
+            </div>
+
+            <!-- 상세 카드 -->
+            <div class="card sku-detail-card">
+                <div class="sku-detail-panel-header">
+                    <span class="sku-detail-panel-title">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <span id="invDetailTitle">상세 정보</span>
+                    </span>
+                </div>
+                <div id="invDetailContent">
+                    <div class="sku-detail-empty">
+                        <i class="fa-solid fa-arrow-left" style="font-size:20px;margin-bottom:8px;opacity:0.3;"></i>
+                        <div>좌측 목록에서 상품을 선택해주세요</div>
                     </div>
                 </div>
             </div>

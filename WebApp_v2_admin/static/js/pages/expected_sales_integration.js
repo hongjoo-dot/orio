@@ -50,10 +50,13 @@ function switchTab(tab) {
         tab === 'sku' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
     document.getElementById('tabBom').className =
         tab === 'bom' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+    document.getElementById('tabInv').className =
+        tab === 'inv' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
 
     // 섹션 표시/숨김
     document.getElementById('bomSection').style.display = (tab === 'bom') ? '' : 'none';
     document.getElementById('skuSection').style.display = (tab === 'sku') ? '' : 'none';
+    document.getElementById('invSection').style.display = (tab === 'inv') ? '' : 'none';
 
     loadData();
 }
@@ -173,7 +176,10 @@ async function loadOwners() {
 async function loadData() {
     const ym = document.getElementById('filterYearMonth').value;
     if (!ym) {
-        showAlert('연월을 설정해주세요.', 'warning');
+        var emptyMsg = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">\uC5F0\uC6D4\uC744 \uC120\uD0DD\uD574\uC8FC\uC138\uC694</td></tr>';
+        if (currentTab === 'sku') document.querySelector('#skuTable tbody').innerHTML = emptyMsg;
+        if (currentTab === 'bom') document.querySelector('#bomSkuTable tbody').innerHTML = emptyMsg;
+        if (currentTab === 'inv') document.querySelector('#invTable tbody').innerHTML = emptyMsg;
         return;
     }
 
@@ -184,6 +190,11 @@ async function loadData() {
 
     if (currentTab === 'bom') {
         await loadBomSummary();
+        return;
+    }
+
+    if (currentTab === 'inv') {
+        await loadInvAnalysis();
         return;
     }
 }
@@ -1026,4 +1037,264 @@ function downloadExcel() {
         console.error('엑셀 다운로드 실패:', e);
         showAlert('엑셀 다운로드에 실패했습니다.', 'error');
     });
+}
+
+// ==================== 재고 대비 분석 ====================
+let invData = [];
+let invSortKey = 'shortage', invSortDir = 'ASC';
+let selectedInvCode = null;
+
+async function loadInvAnalysis() {
+    const tbody = document.querySelector('#invTable tbody');
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;"><div class="spinner spinner-lg"></div></td></tr>';
+    _resetInvDetailPanel();
+
+    try {
+        const ym = document.getElementById('filterYearMonth').value;
+        const params = {
+            year_month_from: ym, year_month_to: ym,
+            input_month: document.getElementById('filterInputMonth').value,
+            brand: msBrand.getSelectedString(),
+            channel: msChannel.getSelectedString()
+        };
+        const ow = msOwner.getSelectedString();
+        if (ow) params.owner = ow;
+        const qs = api.buildQueryString(params);
+        const result = await api.get(API_BASE + '/inventory-analysis' + qs);
+        invData = result.data || [];
+        const summary = result.summary || {};
+
+        document.getElementById('invMatchRate').textContent = (summary.matchRate || 0) + '%';
+        document.getElementById('invShortageCount').textContent = (summary.shortageCount || 0) + '\uAC1C';
+        document.getElementById('invWarningCount').textContent = (summary.warningCount || 0) + '\uAC1C';
+
+        const snapInfo = document.getElementById('invSnapshotInfo');
+        snapInfo.textContent = result.snapshotDate
+            ? '(\uC7AC\uACE0 \uAE30\uC900: ' + result.snapshotDate + ' ' + (result.snapshotTime || '') + ')'
+            : '(\uC7AC\uACE0 \uB370\uC774\uD130 \uC5C6\uC74C)';
+
+        var normalCount = (summary.matchedItems || 0) - (summary.shortageCount || 0);
+        document.getElementById('invSummaryBar').innerHTML =
+            '<span>\uCD1D \uD488\uBAA9: <b>' + (summary.totalItems || 0) + '</b></span>' +
+            '<span style="margin-left:4px;">|</span>' +
+            '<span>\uB9E4\uCE6D: <b style="color:var(--success);">' + (summary.matchedItems || 0) + '</b></span>' +
+            '<span>\uBBF8\uB9E4\uCE6D: <b style="color:var(--warning);">' + (summary.unmatchedItems || 0) + '</b></span>' +
+            '<span style="margin-left:4px;">|</span>' +
+            '<span>\uC815\uC0C1: <b style="color:var(--success);">' + normalCount + '</b></span>' +
+            '<span>\uBD80\uC871: <b style="color:var(--danger);">' + (summary.shortageCount || 0) + '</b></span>';
+
+        renderInvTable();
+        document.getElementById('invDataCount').textContent = '(' + invData.length + '\uAC1C)';
+    } catch (e) {
+        console.error('\uC7AC\uACE0 \uB300\uBE44 \uBD84\uC11D \uB85C\uB4DC \uC2E4\uD328:', e);
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--danger);">\uB370\uC774\uD130 \uB85C\uB4DC \uC2E4\uD328</td></tr>';
+    }
+}
+
+function renderInvTable() {
+    var thead = document.querySelector('#invTable thead tr');
+    var tbody = document.querySelector('#invTable tbody');
+    var filtered = invData.slice();
+    var statusFilter = document.getElementById('invStatusFilter').value;
+    if (statusFilter === 'shortage') {
+        filtered = filtered.filter(function(d) { return d.matched && d.shortage !== null && d.shortage < 0; });
+    } else if (statusFilter === 'normal') {
+        filtered = filtered.filter(function(d) { return d.matched && (d.shortage === null || d.shortage >= 0); });
+    } else if (statusFilter === 'unmatched') {
+        filtered = filtered.filter(function(d) { return d.bomOnly; });
+    } else if (statusFilter === 'nodemand') {
+        filtered = filtered.filter(function(d) { return !d.matched && !d.bomOnly; });
+    }
+
+    // 헤더
+    thead.innerHTML = '';
+    var invTable = document.getElementById('invTable');
+    var headers = [
+        { label: '\uBE0C\uB79C\uB4DC', border: false },
+        { label: '\uD488\uBAA9\uBA85', border: false },
+        { label: '\uD488\uBAA9\uCF54\uB4DC', border: true },
+        { label: '\uC608\uC0C1\uD310\uB9E4\uB7C9', border: false },
+        { label: '\uCD9C\uACE0\uAC00\uB2A5', border: false },
+        { label: '\uACFC\uBD80\uC871', border: true },
+        { label: '\uC0C1\uD0DC', border: false }
+    ];
+    headers.forEach(function(col) {
+        var th = document.createElement('th');
+        th.textContent = col.label;
+        if (col.border) th.style.borderRight = '2px solid var(--border)';
+        _addResizeHandle(th, invTable);
+        thead.appendChild(th);
+    });
+
+    // 브랜드 > 품목명 기준 그룹핑
+    // 데이터는 이미 brand > name > code 순 정렬됨
+    tbody.innerHTML = '';
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">\uB370\uC774\uD130\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4</td></tr>';
+        return;
+    }
+
+    // rowspan 계산을 위한 그룹핑
+    var brandGroups = {};
+    var nameGroups = {};
+    filtered.forEach(function(item) {
+        var bk = item.brand || '';
+        var nk = bk + '||' + (item.name || '');
+        if (!brandGroups[bk]) brandGroups[bk] = 0;
+        brandGroups[bk]++;
+        if (!nameGroups[nk]) nameGroups[nk] = 0;
+        nameGroups[nk]++;
+    });
+
+    var prevBrand = null, prevName = null;
+    filtered.forEach(function(item) {
+        var tr = document.createElement('tr');
+        if (selectedInvCode === item.code) tr.classList.add('active');
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', function() { selectInvItem(item, tr); });
+
+        var curBrand = item.brand || '';
+        var curName = item.name || '';
+        var nameKey = curBrand + '||' + curName;
+
+        // 브랜드 셀 (rowspan)
+        if (curBrand !== prevBrand) {
+            var tdBrand = document.createElement('td');
+            tdBrand.textContent = curBrand;
+            tdBrand.rowSpan = brandGroups[curBrand];
+            tdBrand.style.verticalAlign = 'top';
+            tdBrand.style.fontWeight = '600';
+            tdBrand.style.borderRight = '2px solid var(--border)';
+            tr.appendChild(tdBrand);
+            prevBrand = curBrand;
+            prevName = null;
+        }
+
+        // 품목명 셀 (rowspan)
+        if (nameKey !== (prevBrand === curBrand ? ((prevBrand || '') + '||' + (prevName || '')) : '')) {
+            var tdName = document.createElement('td');
+            tdName.textContent = curName;
+            tdName.rowSpan = nameGroups[nameKey];
+            tdName.style.verticalAlign = 'top';
+            tdName.style.borderRight = '1px solid var(--border)';
+            tr.appendChild(tdName);
+            prevName = curName;
+        }
+
+        // 품목코드
+        var tdCode = document.createElement('td');
+        tdCode.textContent = item.code;
+        tdCode.style.fontFamily = 'monospace';
+        tdCode.style.fontSize = '12px';
+        tdCode.style.borderRight = '2px solid var(--border)';
+        tr.appendChild(tdCode);
+
+        // 소요량
+        var tdReq = document.createElement('td');
+        tdReq.style.textAlign = 'right';
+        tdReq.textContent = item.requiredQty > 0 ? item.requiredQty.toLocaleString() : '-';
+        tr.appendChild(tdReq);
+
+        // 출고가능
+        var tdStock = document.createElement('td');
+        tdStock.style.textAlign = 'right';
+        tdStock.textContent = item.normalStock !== null ? item.normalStock.toLocaleString() : '-';
+        tr.appendChild(tdStock);
+
+        // 과부족
+        var tdS = document.createElement('td');
+        tdS.style.textAlign = 'right';
+        tdS.style.fontWeight = '600';
+        if (item.shortage !== null) {
+            tdS.textContent = (item.shortage >= 0 ? '+' : '') + item.shortage.toLocaleString();
+            tdS.style.color = item.shortage < 0 ? 'var(--danger)' : 'var(--success)';
+        } else { tdS.textContent = '-'; }
+        tdS.style.borderRight = '2px solid var(--border)';
+        tr.appendChild(tdS);
+
+        // 상태
+        var tdSt = document.createElement('td');
+        if (item.bomOnly) {
+            tdSt.innerHTML = '<span style="background:var(--warning);color:#000;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;">\uC7AC\uACE0 \uBBF8\uB9E4\uCE6D</span>';
+        } else if (!item.matched && !item.bomOnly) {
+            tdSt.innerHTML = '<span style="background:var(--text-muted);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;">\uC608\uC0C1\uD310\uB9E4\uB7C9 \uC5C6\uC74C</span>';
+        } else if (item.shortage !== null && item.shortage < 0) {
+            tdSt.innerHTML = '<span style="background:var(--danger);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;">\uBD80\uC871</span>';
+        } else {
+            tdSt.innerHTML = '<span style="background:var(--success);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;">\uC815\uC0C1</span>';
+        }
+        tr.appendChild(tdSt);
+        tbody.appendChild(tr);
+    });
+}
+
+function selectInvItem(item, clickedTr) {
+    selectedInvCode = item.code;
+    document.querySelectorAll('#invTable tbody tr').forEach(function(tr) { tr.classList.remove('active'); });
+    clickedTr.classList.add('active');
+    document.getElementById('invDetailTitle').textContent = item.name || item.code;
+
+    var container = document.getElementById('invDetailContent');
+    container.innerHTML = '';
+
+    // stock detail
+    if (item.normalStock !== null) {
+        var stockHtml = '<div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-muted);"><i class="fa-solid fa-warehouse" style="margin-right:4px;"></i> \uC7AC\uACE0 \uC0C1\uC138</div>';
+        stockHtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+        var stockItems = [
+            ['\uCD9C\uACE0\uAC00\uB2A5', item.normalStock, 'rgba(34,197,94,0.1)', 'var(--success)'],
+            ['\uCD1D\uC7AC\uACE0', item.totalStock, 'var(--bg-main)', ''],
+            ['\uC785\uACE0', item.receivingStock, 'var(--bg-main)', ''],
+            ['\uCD9C\uACE0\uC9C0\uC2DC', item.orderStock, 'var(--bg-main)', ''],
+            ['\uCD9C\uACE0\uC791\uC5C5', item.shippingStock, 'var(--bg-main)', ''],
+            ['\uBD88\uB7C9', item.damagedStock, 'var(--bg-main)', ''],
+            ['\uBC18\uD488', item.returnStock, 'var(--bg-main)', ''],
+            ['\uBCF4\uAD00', item.keepingStock, 'var(--bg-main)', '']
+        ];
+        stockItems.forEach(function(s) {
+            var valStyle = s[3] ? 'font-weight:600;color:' + s[3] : '';
+            stockHtml += '<div style="padding:6px 10px;background:' + s[2] + ';border-radius:6px;display:flex;justify-content:space-between;">' +
+                '<span style="font-size:11px;color:var(--text-muted);">' + s[0] + '</span>' +
+                '<span style="font-size:12px;' + valStyle + '">' + (s[1] || 0).toLocaleString() + '</span></div>';
+        });
+        stockHtml += '</div>';
+        var stockDiv = document.createElement('div');
+        stockDiv.style.marginBottom = '16px';
+        stockDiv.innerHTML = stockHtml;
+        container.appendChild(stockDiv);
+    } else {
+        var warn = document.createElement('div');
+        warn.style.cssText = 'padding:12px;background:rgba(245,158,11,0.1);border-radius:8px;margin-bottom:16px;font-size:12px;color:var(--warning);';
+        warn.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i> \uC7AC\uACE0 \uB370\uC774\uD130 \uBBF8\uB9E4\uCE6D \u2014 WMS \uC0C1\uD488 \uB9E4\uD551\uC744 \uD655\uC778\uD558\uC138\uC694.';
+        container.appendChild(warn);
+    }
+
+    // analysis result
+    if (item.matched) {
+        var sColor = item.shortage < 0 ? 'var(--danger)' : 'var(--success)';
+        var sSign = item.shortage >= 0 ? '+' : '';
+        var aHtml = '<div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-muted);"><i class="fa-solid fa-scale-balanced" style="margin-right:4px;"></i> \uBD84\uC11D \uACB0\uACFC</div>';
+        aHtml += '<div style="display:flex;flex-direction:column;gap:6px;">';
+        aHtml += '<div style="display:flex;justify-content:space-between;padding:6px 10px;"><span style="font-size:11px;">\uC608\uC0C1\uD310\uB9E4\uB7C9</span><span style="font-size:12px;font-weight:600;">' + item.requiredQty.toLocaleString() + '</span></div>';
+        aHtml += '<div style="display:flex;justify-content:space-between;padding:6px 10px;"><span style="font-size:11px;">\uCD9C\uACE0\uAC00\uB2A5 \uC7AC\uACE0</span><span style="font-size:12px;font-weight:600;">' + item.normalStock.toLocaleString() + '</span></div>';
+        aHtml += '<div style="display:flex;justify-content:space-between;padding:8px 10px;border-top:1px solid var(--border);font-weight:700;"><span style="font-size:12px;">\uACFC\uBD80\uC871</span><span style="font-size:14px;color:' + sColor + ';">' + sSign + item.shortage.toLocaleString() + '</span></div>';
+        if (item.daysLeft !== null) {
+            var dColor = item.daysLeft <= 30 ? 'var(--warning)' : 'var(--text-main)';
+            aHtml += '<div style="display:flex;justify-content:space-between;padding:6px 10px;"><span style="font-size:11px;">\uC18C\uC9C4 \uC608\uC0C1\uC77C</span><span style="font-size:12px;font-weight:600;color:' + dColor + ';">' + item.daysLeft + '\uC77C</span></div>';
+        }
+        aHtml += '</div>';
+        var aDiv = document.createElement('div');
+        aDiv.innerHTML = aHtml;
+        container.appendChild(aDiv);
+    }
+}
+
+function _resetInvDetailPanel() {
+    selectedInvCode = null;
+    document.querySelectorAll('#invTable tbody tr').forEach(function(tr) { tr.classList.remove('active'); });
+    document.getElementById('invDetailTitle').textContent = '\uC0C1\uC138 \uC815\uBCF4';
+    document.getElementById('invDetailContent').innerHTML =
+        '<div class="sku-detail-empty">' +
+        '<i class="fa-solid fa-arrow-left" style="font-size:20px;margin-bottom:8px;opacity:0.3;"></i>' +
+        '<div>\uC88C\uCE21 \uBAA9\uB85D\uC5D0\uC11C \uC0C1\uD488\uC744 \uC120\uD0DD\uD574\uC8FC\uC138\uC694</div></div>';
 }
