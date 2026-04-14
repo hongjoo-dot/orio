@@ -76,6 +76,9 @@
             <button class="btn btn-sm" onclick="showUploadModal()" style="background:#f59e0b;color:white;">
                 <i class="fa-solid fa-upload"></i> 엑셀 업로드
             </button>
+            <button class="btn btn-sm" onclick="showDeleteByDateModal()" style="background:#dc2626;color:white;">
+                <i class="fa-solid fa-calendar-xmark"></i> ERP 기간 삭제
+            </button>
             <button class="btn btn-sm" onclick="showSyncModal()" style="background:#8b5cf6;color:white;">
                 <i class="fa-solid fa-sync"></i> OrdersRealtime 동기화
             </button>
@@ -165,6 +168,51 @@
             <button class="btn btn-secondary" data-modal-close>취소</button>
             <button class="btn btn-primary" onclick="saveBulkEdit()">
                 <i class="fa-solid fa-save"></i> 저장
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete by Date Modal -->
+<div id="deleteByDateModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title"><i class="fa-solid fa-calendar-xmark"></i> ERP 기간 데이터 삭제</h2>
+            <button class="modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background:rgba(239,68,68,0.1);border-radius:12px;padding:16px;margin-bottom:20px;">
+                <p style="margin:0;color:var(--danger);font-size:13px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <strong>주의:</strong> 선택한 기간의 <strong>ERPSales</strong>와 <strong>OrdersRealtime(ERP)</strong> 데이터가 모두 삭제됩니다.
+                    이 작업은 되돌릴 수 없습니다.
+                </p>
+            </div>
+
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+                <h4 style="font-size:15px;margin-bottom:16px;">
+                    <i class="fa-solid fa-calendar-days"></i> 삭제 기간 선택
+                </h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label class="form-label required">시작 날짜</label>
+                        <input type="date" id="deleteStartDate" class="form-input" required>
+                    </div>
+                    <div>
+                        <label class="form-label required">종료 날짜</label>
+                        <input type="date" id="deleteEndDate" class="form-input" required>
+                    </div>
+                </div>
+            </div>
+
+            <div id="deleteByDateResult" style="display:none;margin-top:16px;background:rgba(16,185,129,0.1);border-radius:12px;padding:16px;">
+                <p id="deleteByDateResultText" style="margin:0;color:var(--success);font-size:13px;"></p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>취소</button>
+            <button class="btn btn-danger" id="deleteByDateButton" onclick="executeDeleteByDate()">
+                <i class="fa-solid fa-trash"></i> 삭제 실행
             </button>
         </div>
     </div>

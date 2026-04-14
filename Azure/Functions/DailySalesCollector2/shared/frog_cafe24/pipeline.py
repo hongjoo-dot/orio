@@ -23,7 +23,7 @@ def run_frog_cafe24_pipeline(days: int = None) -> dict:
     # DB에서 롤링 일수 로드 (파라미터가 없을 경우)
     if days is None:
         config = get_config()
-        days = config.get('FrogCafe24', 'ROLLING_DAYS', 10)
+        days = int(config.get('FrogCafe24', 'ROLLING_DAYS', 10) or 10)
         logger.info(f'DB에서 롤링 일수 로드: {days}일')
 
     logger.info(f'Frog Cafe24 파이프라인 시작 (최근 {days}일)')

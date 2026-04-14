@@ -71,7 +71,8 @@ class OrdersRealtimeUploader:
                     ROUND(d.payment_amount / 1.1, 0) AS OrderAmountExVAT,
                     d.payment_amount AS OrderAmountInVAT,
                     d.order_status AS OrderStatus,
-                    d.CollectedDate
+                    d.CollectedDate,
+                    o.canceled AS Canceled
                 FROM Cafe24OrdersDetail d
                 INNER JOIN Cafe24Orders o ON d.Cafe24OrderID = o.Cafe24OrderID
                 WHERE o.shipped_date IS NOT NULL  -- 출고된 건만
@@ -79,7 +80,10 @@ class OrdersRealtimeUploader:
             ON target.SourceChannel = N'자사몰'
                AND target.SourceOrderID = source.SourceOrderID
 
-            WHEN MATCHED THEN
+            WHEN MATCHED AND source.Canceled = 1 THEN
+                DELETE
+
+            WHEN MATCHED AND (source.Canceled IS NULL OR source.Canceled = 0) THEN
                 UPDATE SET
                     OrderDate = source.OrderDate,
                     shippedDate = source.shippedDate,
@@ -92,7 +96,7 @@ class OrdersRealtimeUploader:
                     OrderStatus = source.OrderStatus,
                     UpdatedDate = GETDATE()
 
-            WHEN NOT MATCHED THEN
+            WHEN NOT MATCHED AND (source.Canceled IS NULL OR source.Canceled = 0) THEN
                 INSERT (
                     SourceChannel, SourceOrderID, ContractType,
                     OrderDate, shippedDate, ChannelID, ProductID, CustomerName,

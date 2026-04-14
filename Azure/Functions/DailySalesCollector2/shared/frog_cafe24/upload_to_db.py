@@ -284,6 +284,24 @@ class DatabaseUploader:
             print(f"[WARNING] ProductID 조회 실패 (UniqueCode: {unique_code}): {e}")
             return None
 
+    def _calculate_order_payment_amount(self, order):
+        """
+        주문 헤더 payment_amount 계산
+        공식: 판매가 + 배송비 - 쿠폰할인 - 내부적립금
+        - 취소된 주문(canceled='T')은 0
+        - 외부 적립금(네이버페이 등)은 매출로 인정하므로 차감하지 않음
+        """
+        if order.get('canceled') == 'T':
+            return 0
+
+        actual_amount = order.get('actual_order_amount', {})
+        order_price = float(actual_amount.get('order_price_amount', 0) or 0)
+        shipping_fee = float(actual_amount.get('shipping_fee', 0) or 0)
+        order_coupon = float(actual_amount.get('coupon_discount_price', 0) or 0)
+        order_points = float(actual_amount.get('points_spent_amount', 0) or 0)
+
+        return round(order_price + shipping_fee - order_coupon - order_points, 2)
+
     def _extract_order_data(self, order):
         """주문 마스터 데이터 추출"""
         actual_amount = order.get('actual_order_amount', {})
@@ -318,7 +336,7 @@ class DatabaseUploader:
             'shipping_fee': actual_amount.get('shipping_fee'),
             'coupon_discount_price': actual_amount.get('coupon_discount_price'),
             'points_spent_amount': actual_amount.get('points_spent_amount'),
-            'payment_amount': order.get('payment_amount'),
+            'payment_amount': self._calculate_order_payment_amount(order),
             'payment_method': ','.join(order.get('payment_method', [])) if isinstance(order.get('payment_method'), list) else order.get('payment_method'),
             'payment_gateway_names': ','.join(order.get('payment_gateway_names', [])) if isinstance(order.get('payment_gateway_names'), list) else order.get('payment_gateway_names'),
             'paid': self._parse_boolean(order.get('paid')),
@@ -347,6 +365,42 @@ class DatabaseUploader:
         else:
             return None
 
+    def _calculate_item_payment_amount(self, order, item):
+        """
+        아이템별 payment_amount 계산
+        공식: (product_price + option_price) × quantity - 쿠폰(비례배분) - 내부적립금(비례배분)
+        - 취소된 주문(canceled='T')은 0
+        - 외부 적립금(네이버페이 등)은 매출로 인정하므로 차감하지 않음
+        - API payment_amount는 외부 적립금이 차감되어 있어 사용하지 않고 직접 계산
+        """
+        if order.get('canceled') == 'T':
+            return 0
+
+        actual_amount = order.get('actual_order_amount', {})
+        order_coupon = float(actual_amount.get('coupon_discount_price', 0) or 0)
+        order_points = float(actual_amount.get('points_spent_amount', 0) or 0)
+
+        # 각 아이템의 자체 판매가 (product_price + option_price)
+        item_price = float(item.get('product_price', 0) or 0)
+        item_option = float(item.get('option_price', 0) or 0)
+        item_qty = int(item.get('quantity', 0) or 0)
+        item_subtotal = (item_price + item_option) * item_qty
+
+        # 전체 아이템 판매가 합계
+        total_subtotal = sum(
+            (float(i.get('product_price', 0) or 0) + float(i.get('option_price', 0) or 0))
+            * int(i.get('quantity', 0) or 0)
+            for i in order.get('items', [])
+        )
+
+        if total_subtotal <= 0:
+            return 0
+
+        # 쿠폰/내부적립금을 아이템 판매가 비율로 배분
+        ratio = item_subtotal / total_subtotal
+        item_payment = item_subtotal - (order_coupon * ratio) - (order_points * ratio)
+        return round(item_payment, 2)
+
     def _extract_detail_data(self, order, item):
         """주문 상세 데이터 추출 (ProductUniqueCode, ProductID 포함)"""
         option_value = item.get('option_value')
@@ -370,8 +424,8 @@ class DatabaseUploader:
             'product_name': item.get('product_name'),
             'option_value': option_value,
             'quantity': item.get('quantity'),
-            'product_price': item.get('product_price'),
-            'payment_amount': item.get('payment_amount'),
+            'product_price': float(item.get('product_price', 0) or 0) + float(item.get('option_price', 0) or 0),
+            'payment_amount': self._calculate_item_payment_amount(order, item),
             'coupon_discount_price': item.get('coupon_discount_price'),
             'order_status': item.get('order_status'),
             'order_status_additional_info': item.get('order_status_additional_info'),

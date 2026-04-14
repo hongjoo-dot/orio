@@ -1,5 +1,5 @@
 let tableManager, paginationManager;
-let uploadModal, bulkEditModal, uploadResultModal, syncModal;
+let uploadModal, bulkEditModal, uploadResultModal, syncModal, deleteByDateModal;
 let currentFilters = {};
 let currentSortBy = null;
 let currentSortDir = null;
@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', function () {
     bulkEditModal = new ModalManager('bulkEditModal');
     uploadResultModal = new ModalManager('uploadResultModal');
     syncModal = new ModalManager('syncModal');
+    deleteByDateModal = new ModalManager('deleteByDateModal');
 
     // 테이블 매니저 초기화
     tableManager = new TableManager('sales-table', {
@@ -397,6 +398,54 @@ async function uploadFile() {
 
 function showSyncModal() {
     syncModal.show();
+}
+
+function showDeleteByDateModal() {
+    document.getElementById('deleteStartDate').value = '';
+    document.getElementById('deleteEndDate').value = '';
+    document.getElementById('deleteByDateResult').style.display = 'none';
+    document.getElementById('deleteByDateButton').disabled = false;
+    deleteByDateModal.show();
+}
+
+async function executeDeleteByDate() {
+    const startDate = document.getElementById('deleteStartDate').value;
+    const endDate = document.getElementById('deleteEndDate').value;
+
+    if (!startDate || !endDate) {
+        showAlert('시작 날짜와 종료 날짜를 모두 선택하세요.', 'warning');
+        return;
+    }
+
+    if (startDate > endDate) {
+        showAlert('시작 날짜가 종료 날짜보다 클 수 없습니다.', 'warning');
+        return;
+    }
+
+    showConfirm(
+        `${startDate} ~ ${endDate} 기간의 ERPSales 및 OrdersRealtime(ERP) 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
+        async () => {
+            document.getElementById('deleteByDateButton').disabled = true;
+            try {
+                const res = await api.post('/api/erpsales/delete-by-date', {
+                    start_date: startDate,
+                    end_date: endDate
+                });
+
+                const resultDiv = document.getElementById('deleteByDateResult');
+                resultDiv.style.display = 'block';
+                document.getElementById('deleteByDateResultText').innerHTML =
+                    `<i class="fa-solid fa-circle-check"></i> 삭제 완료: ERPSales <strong>${res.erp_sales_deleted.toLocaleString()}</strong>건, OrdersRealtime(ERP) <strong>${res.orders_realtime_deleted.toLocaleString()}</strong>건`;
+
+                showAlert(`삭제 완료! ERPSales: ${res.erp_sales_deleted}건, OrdersRealtime: ${res.orders_realtime_deleted}건`, 'success');
+                loadSales(1, paginationManager.getLimit());
+            } catch (e) {
+                showAlert('기간 삭제 실패: ' + e.message, 'error');
+            } finally {
+                document.getElementById('deleteByDateButton').disabled = false;
+            }
+        }
+    );
 }
 
 async function executeSyncToOrders() {

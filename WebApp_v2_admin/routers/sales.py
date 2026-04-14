@@ -77,6 +77,11 @@ class BulkUpdateRequest(BaseModel):
     updates: dict
 
 
+class DateRangeDeleteRequest(BaseModel):
+    start_date: str
+    end_date: str
+
+
 # ========== CRUD 엔드포인트 ==========
 
 @router.get("")
@@ -521,6 +526,46 @@ async def upload_excel(
         raise
     except Exception as e:
         raise HTTPException(500, f"업로드 실패: {str(e)}")
+
+
+@router.post("/delete-by-date")
+@log_activity("DELETE_BY_DATE", "ERPSales")
+async def delete_erpsales_by_date(
+    data: DateRangeDeleteRequest,
+    request: Request,
+    user: CurrentUser = Depends(require_permission("Sales", "DELETE"))
+):
+    """
+    ERP 가매출 새로고침: 기간별 ERPSales + OrdersRealtime(ERP) 데이터 삭제
+    """
+    try:
+        start_date = data.start_date
+        end_date = data.end_date
+
+        with get_db_cursor(commit=True) as cursor:
+            # 1. ERPSales 삭제
+            cursor.execute(
+                "DELETE FROM ERPSales WHERE [DATE] BETWEEN ? AND ?",
+                (start_date, end_date)
+            )
+            erp_deleted = cursor.rowcount
+
+            # 2. OrdersRealtime ERP 데이터 삭제
+            cursor.execute(
+                "DELETE FROM OrdersRealtime WHERE SourceChannel = N'ERP' AND (OrderDate BETWEEN ? AND ?)",
+                (start_date, end_date)
+            )
+            orders_deleted = cursor.rowcount
+
+        return {
+            "message": "기간 데이터가 삭제되었습니다.",
+            "start_date": start_date,
+            "end_date": end_date,
+            "erp_sales_deleted": erp_deleted,
+            "orders_realtime_deleted": orders_deleted
+        }
+    except Exception as e:
+        raise HTTPException(500, f"기간 삭제 실패: {str(e)}")
 
 
 @router.post("/sync-to-orders")
